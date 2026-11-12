@@ -1,8 +1,8 @@
 package com.xxxx.emby_tv.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import com.xxxx.emby_tv.ui.motion.Motion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -140,7 +140,7 @@ fun nextEpisodePromptMs(durationMs: Long, chapters: List<com.xxxx.emby_tv.data.m
     return fromChapter ?: fromEnd
 }
 
-private val BarEase = FastOutSlowInEasing
+private val BarEase = Motion.ease
 
 @Composable
 fun PlayerTransportBar(
@@ -481,8 +481,8 @@ fun PlayerSideSheet(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(180)) + slideInHorizontally(tween(220)) { it / 4 },
-        exit = fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { it / 4 },
+        enter = fadeIn(Motion.fade()) + slideInHorizontally(Motion.fade()) { it / 4 },
+        exit = fadeOut(Motion.fade()) + slideOutHorizontally(Motion.fade()) { it / 4 },
         modifier = modifier,
     ) {
         val sheetFocus = remember { FocusRequester() }

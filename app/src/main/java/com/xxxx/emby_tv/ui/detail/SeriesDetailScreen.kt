@@ -3,6 +3,7 @@ package com.xxxx.emby_tv.ui.detail
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import coil3.request.transformations
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -26,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +50,7 @@ import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -180,7 +183,7 @@ fun SeriesDetailPage(
         blurBackdrop = false
         bringIntoView.pinToStart = true
         scope.launch {
-            scrollState.animateScrollTo(0)
+            scrollState.animateScrollTo(0, com.xxxx.emby_tv.ui.motion.Motion.page())
             withFrameNanos { }
             scrollState.scrollTo(0)
         }
@@ -190,12 +193,12 @@ fun SeriesDetailPage(
         bringIntoView.pinToStart = false
         scope.launch {
             val target = (tabsOffset - tabInset).coerceAtLeast(0)
-            scrollState.animateScrollTo(target)
+            scrollState.animateScrollTo(target, com.xxxx.emby_tv.ui.motion.Motion.page())
             withFrameNanos { }
             if (scrollState.value < 8 && tabsOffset > 80) scrollState.scrollTo(target)
         }
     }
-    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "series-dim")
+    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, com.xxxx.emby_tv.ui.motion.Motion.fade(), label = "series-dim")
     LaunchedEffect(requestInitialFocus, series.id) {
         if (!requestInitialFocus) return@LaunchedEffect
         yield()
@@ -205,6 +208,16 @@ fun SeriesDetailPage(
         }
     }
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, series, 1920)
+    val backdropContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(backdrop) {
+        if (backdrop.isBlank()) return@LaunchedEffect
+        coil3.SingletonImageLoader.get(backdropContext).enqueue(
+            coil3.request.ImageRequest.Builder(backdropContext)
+                .data(backdrop)
+                .transformations(com.xxxx.emby_tv.ui.home.HeavyBlurTransformation())
+                .build(),
+        )
+    }
     val featured = resume ?: episodes.getOrNull(resumeIndex)
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         ProvideTvBringIntoView(
@@ -289,8 +302,21 @@ fun SeriesDetailPage(
                         },
                     )
                 }
+                var seasonDim by remember(series.id) { mutableFloatStateOf(1f) }
+                var seenSeason by remember(series.id) { mutableStateOf<String?>(null) }
+                LaunchedEffect(season?.id) {
+                    val id = season?.id
+                    if (seenSeason != null && seenSeason != id) {
+                        seasonDim = 0.45f
+                        kotlinx.coroutines.delay(60)
+                        seasonDim = 1f
+                    }
+                    seenSeason = id
+                }
+                val seasonAlpha by animateFloatAsState(seasonDim, com.xxxx.emby_tv.ui.motion.Motion.focus(), label = "season-alpha")
                 androidx.compose.runtime.key(season?.id ?: "episodes") {
                 if (episodes.isNotEmpty()) {
+                    Box(Modifier.graphicsLayer { alpha = seasonAlpha }) {
                     EpisodeRow(
                         episodes = episodes,
                         season = season,
@@ -305,6 +331,7 @@ fun SeriesDetailPage(
                         onFocused = { showEpisodes() },
                         onOpen = onOpenEpisode,
                     )
+                    }
                 }
                 }
                 if (people.isNotEmpty()) {

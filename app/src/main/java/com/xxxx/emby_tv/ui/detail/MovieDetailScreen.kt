@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.transformations
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
@@ -163,6 +164,16 @@ fun MovieDetailPage(
         }
     }
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1920)
+    val backdropContext = LocalContext.current
+    LaunchedEffect(backdrop) {
+        if (backdrop.isBlank()) return@LaunchedEffect
+        coil3.SingletonImageLoader.get(backdropContext).enqueue(
+            coil3.request.ImageRequest.Builder(backdropContext)
+                .data(backdrop)
+                .transformations(com.xxxx.emby_tv.ui.home.HeavyBlurTransformation())
+                .build(),
+        )
+    }
     val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
@@ -172,12 +183,12 @@ fun MovieDetailPage(
         blurBackdrop = false
         bringIntoView.pinToStart = true
         scope.launch {
-            scrollState.animateScrollTo(0)
+            scrollState.animateScrollTo(0, com.xxxx.emby_tv.ui.motion.Motion.page())
             withFrameNanos { }
             scrollState.scrollTo(0)
         }
     }
-    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "backdrop-dim")
+    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, com.xxxx.emby_tv.ui.motion.Motion.fade(), label = "backdrop-dim")
     val sources = item.mediaSources.orEmpty()
     var versionFocused by remember(item.id) { mutableStateOf(forceFocus == DetailFocus.Version) }
     var versionIndex by remember(item.id) { mutableIntStateOf(0) }

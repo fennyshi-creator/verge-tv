@@ -59,6 +59,7 @@ import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.ui.detail.BreathingStroke
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.focus.glideToItem
 import com.xxxx.emby_tv.ui.focus.scrolledPastStart
 import com.xxxx.emby_tv.ui.focus.viewportScroll
 import com.xxxx.emby_tv.ui.home.ArtRole
@@ -68,6 +69,7 @@ import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.home.LeadingSlotRow
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
@@ -168,7 +170,12 @@ fun LibraryBrowsePage(
                 onTab = onTab,
             )
             Box(Modifier.fillMaxSize()) {
-                when (tab) {
+                androidx.compose.animation.Crossfade(
+                    targetState = tab,
+                    animationSpec = com.xxxx.emby_tv.ui.motion.Motion.fade(),
+                    label = "library-tab",
+                ) { current ->
+                when (current) {
                     LibraryTab.Items -> {
                         if (itemsLoading && items.isEmpty()) {
                             BrowseLoading()
@@ -221,6 +228,7 @@ fun LibraryBrowsePage(
                             )
                         }
                     }
+                }
                 }
             }
         }
@@ -371,7 +379,7 @@ private fun PosterGrid(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(items.size, key = { items[it].id ?: it }) { index ->
+        items(items.size, key = { items[it].id ?: it }, contentType = { "poster" }) { index ->
             val item = items[index]
             PosterCell(
                 item = item,
@@ -472,13 +480,16 @@ private fun SuggestionRows(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val bringIntoView = remember { TvBringIntoView() }
     val scope = rememberCoroutineScope()
+    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val latestLabel = stringResource(R.string.library_recently_added)
     fun focusSuggestion(index: Int) {
         val pin = index == 0
         bringIntoView.pinToStart = pin
         val requester = if (index == 0) firstFocus else focus[index]
-        scope.launch {
-            if (pin) listState.scrollToItem(0, 0) else listState.animateScrollToItem(index)
+        rowJob?.cancel()
+        rowJob = scope.launch {
+            if (pin) listState.glideToItem(0, pinToZero = true) else listState.glideToItem(index)
+            if (!isActive) return@launch
             withFrameNanos { }
             try {
                 requester.requestFocus()

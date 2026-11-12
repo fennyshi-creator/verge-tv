@@ -7,6 +7,9 @@ import android.util.Log
 import android.widget.Toast
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import okio.Path.Companion.toPath
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.xxxx.emby_tv.data.remote.HttpClient
 
@@ -38,6 +41,17 @@ class App : Application() {
 
         SingletonImageLoader.setSafe { context ->
             ImageLoader.Builder(context)
+                .memoryCache {
+                    MemoryCache.Builder()
+                        .maxSizePercent(context, 0.25)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(context.cacheDir.resolve("image_cache").absolutePath.toPath())
+                        .maxSizePercent(0.02)
+                        .build()
+                }
                 .components {
                     add(OkHttpNetworkFetcherFactory(callFactory = { HttpClient.getClient(context) }))
                 }

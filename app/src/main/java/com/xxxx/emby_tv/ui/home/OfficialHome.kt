@@ -42,10 +42,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +93,7 @@ import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.focus.glideToItem
 import com.xxxx.emby_tv.ui.focus.scrolledPastStart
 import com.xxxx.emby_tv.ui.focus.viewportScroll
 import kotlinx.coroutines.launch
@@ -127,14 +131,17 @@ fun OfficialHome(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val bringIntoView = remember { TvBringIntoView() }
+    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var cursor = 1
     val continueIndex = if (resumeItems.isNotEmpty()) cursor++ else -1
     val libraryIndex = if (libraries.isNotEmpty()) cursor++ else -1
     val posterIndex = posterFocus.indices.map { cursor++ }
     fun focusRow(requester: FocusRequester, lazyIndex: Int, pin: Boolean) {
         bringIntoView.pinToStart = pin
-        scope.launch {
-            if (pin) listState.scrollToItem(0, 0) else listState.animateScrollToItem(lazyIndex)
+        rowJob?.cancel()
+        rowJob = scope.launch {
+            if (pin) listState.glideToItem(0, pinToZero = true) else listState.glideToItem(lazyIndex)
+            if (!isActive) return@launch
             withFrameNanos { }
             try {
                 requester.requestFocus()
@@ -175,7 +182,7 @@ fun OfficialHome(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 36.dp),
             ) {
-                item(key = "top-bar") {
+                item(key = "top-bar", contentType = "bar") {
                     HomeTopBar(
                         searchFocus = searchFocus,
                         homeTabFocus = homeTabFocus,
@@ -188,7 +195,7 @@ fun OfficialHome(
                     )
                 }
                 if (resumeItems.isNotEmpty()) {
-                    item(key = "resume") {
+                    item(key = "resume", contentType = "row") {
                         SectionTitle(stringResource(R.string.continue_watching))
                         LeadingSlotRow(
                             items = resumeItems,
@@ -219,7 +226,7 @@ fun OfficialHome(
                     }
                 }
                 if (libraries.isNotEmpty()) {
-                    item(key = "libraries") {
+                    item(key = "libraries", contentType = "row") {
                         SectionTitle(stringResource(R.string.home_libraries))
                         LeadingSlotRow(
                             items = libraries,
@@ -250,7 +257,7 @@ fun OfficialHome(
                     }
                 }
                 posterRows.forEachIndexed { index, library ->
-                    item(key = "latest-${library.id ?: index}") {
+                    item(key = "latest-${library.id ?: index}", contentType = "row") {
                         SectionTitle(library.name.orEmpty())
                         LeadingSlotRow(
                             items = library.latestItems.orEmpty(),
@@ -516,9 +523,17 @@ internal fun LeadingSlotRow(
         }
         var slot by remember(items.size) { mutableIntStateOf(0) }
         var rowFocused by rememberFocusState(forceFocused)
+        var repeating by remember { mutableStateOf(false) }
+        var lastMove by remember { mutableLongStateOf(0L) }
         if (windowStart > maxStart) windowStart = maxStart
         val lastSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
         if (slot > lastSlot) slot = lastSlot
+
+        fun noteRepeat() {
+            val now = System.currentTimeMillis()
+            repeating = now - lastMove < 160L
+            lastMove = now
+        }
 
         fun moveRight() {
             val moreRight = items.size - windowStart - fullSlots
@@ -538,14 +553,16 @@ internal fun LeadingSlotRow(
             }
         }
 
+        val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.Dp> =
+            if (repeating) com.xxxx.emby_tv.ui.motion.Motion.repeatStep() else com.xxxx.emby_tv.ui.motion.Motion.row()
         val slide by animateDpAsState(
             targetValue = -(stride * windowStart),
-            animationSpec = tween(durationMillis = 220),
+            animationSpec = slideSpec,
             label = "leading-slot-slide",
         )
         val ringX by animateDpAsState(
             targetValue = stride * slot,
-            animationSpec = tween(durationMillis = 220),
+            animationSpec = slideSpec,
             label = "leading-slot-ring",
         )
         val shape = RoundedCornerShape(corner)
@@ -584,11 +601,13 @@ internal fun LeadingSlotRow(
                             }
                         }
                         Key.DirectionRight -> {
+                            noteRepeat()
                             moveRight()
                             true
                         }
                         Key.DirectionLeft -> {
                             if (slot == 0 && windowStart == 0) false else {
+                                noteRepeat()
                                 moveLeft()
                                 true
                             }
@@ -876,7 +895,7 @@ fun HomeImage(
         url.isNotBlank() -> AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(url)
-                .crossfade(180)
+                .crossfade(com.xxxx.emby_tv.ui.motion.Motion.imageMs)
                 .apply { if (LocalArtworkSoften.current) transformations(HeavyBlurTransformation()) }
                 .build(),
             contentDescription = contentDescription,

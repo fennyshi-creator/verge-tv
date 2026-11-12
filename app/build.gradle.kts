@@ -27,8 +27,8 @@ android {
         applicationId = "com.xxxx.emby_tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "2.0.33"
-         versionCode = 233
+        versionName = "2.0.34"
+         versionCode = 234
 //        versionCode = 92
 
     }
@@ -115,6 +115,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     // SharedPreferences
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    // Baseline profiles are packaged for release/profileable builds, not debug.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     // QR Code
     implementation("com.google.zxing:core:3.5.2")
