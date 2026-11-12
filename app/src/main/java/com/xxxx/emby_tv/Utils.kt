@@ -47,6 +47,26 @@ object Utils {
         return ""
     }
 
+    /**
+     * Wide backdrop for the home hero. Falls back to the landscape thumb, then the primary image.
+     */
+    fun getBackdropUrl(serverUrl: String, item: BaseItemDto, maxWidth: Int = 1280): String {
+        if (serverUrl.isBlank()) return ""
+        val ownTag = item.backdropImageTags?.firstOrNull()
+        val ownId = item.id
+        if (!ownTag.isNullOrEmpty() && !ownId.isNullOrEmpty()) {
+            return "$serverUrl/emby/Items/$ownId/Images/Backdrop?maxWidth=$maxWidth&tag=$ownTag&quality=90"
+        }
+        val parentTag = item.parentBackdropImageTags?.firstOrNull()
+        val parentId = item.parentBackdropItemId
+        if (!parentTag.isNullOrEmpty() && !parentId.isNullOrEmpty()) {
+            return "$serverUrl/emby/Items/$parentId/Images/Backdrop?maxWidth=$maxWidth&tag=$parentTag&quality=90"
+        }
+        val landscape = getImageUrl(serverUrl, item, true)
+        if (landscape.isNotBlank()) return landscape
+        return getImageUrl(serverUrl, item, false)
+    }
+
     fun formatDate(dateStr: Any?): String {
         if (dateStr == null) return ""
         val s = dateStr.toString()

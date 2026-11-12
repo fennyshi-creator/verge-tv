@@ -140,6 +140,26 @@ Track switching, progress control, keep screen on
 
 ---
 
+## 🏠 首页布局 / TV home
+
+The home screen follows the official Emby TV layout: a backdrop hero with a 「详情」 pill, landscape 「继续观看」 cards (progress + 「继续播放」), 「媒体库」 collage tiles, a portrait row for each library, and 「因为你看过」 recommendations.
+
+Preview PNGs at 1920×1080 are in `artifacts/` (`home-top.png`, `home-movies.png`, `home-recommended.png`). They use sample titles so they render without a server. Regenerate them with Android SDK 36:
+
+```bash
+./gradlew :app:updateDebugScreenshotTest
+```
+
+Install a debug build on a TV or emulator (Media3 playback, login, and other screens are unchanged):
+
+```bash
+./gradlew :app:installDebug
+```
+
+A signed-in home loads resume items, libraries, favorites, and Emby `GET /Movies/Recommendations` (similar-items fallback when that endpoint is missing). Open the existing menu with the remote Menu key.
+
+---
+
 ## 🤝 贡献与交流 / Contributing
 
 欢迎通过 Issues 或 PR 交流问题与改进想法！

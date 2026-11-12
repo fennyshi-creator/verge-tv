@@ -4,6 +4,7 @@ import java.io.FileInputStream
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.screenshot)
 }
 
 val keystoreProperties = Properties()
@@ -20,6 +21,7 @@ android {
         compose = true
         buildConfig = true
     }
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     defaultConfig {
         applicationId = "com.xxxx.emby_tv"
@@ -38,20 +40,24 @@ android {
     // AGP 9 内置 Kotlin：jvmTarget 自动与 targetCompatibility 对齐，无需 kotlinOptions
 
      signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now,
-            // so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
-            signingConfig = signingConfigs.getByName("release")
+            // Release signing is optional so a debug build still configures
+            // on a machine that does not have key.properties.
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
@@ -116,4 +122,7 @@ dependencies {
     // NanoHTTPD
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
+    implementation("androidx.compose.ui:ui-tooling-preview:1.10.0")
+    screenshotTestImplementation("androidx.compose.ui:ui-tooling:1.10.0")
+    screenshotTestImplementation("com.android.tools.screenshot:screenshot-validation-api:0.0.1-alpha16")
 }

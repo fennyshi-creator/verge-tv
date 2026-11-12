@@ -13,7 +13,11 @@
     <string name="logout">Logout</string>
     <string name="download_latest_version">Download latest version</string>
     <string name="my_libraries">My libraries</string>
+    <string name="home_libraries">Libraries</string>
     <string name="continue_watching">Continue watching</string>
+    <string name="continue_playing">Continue playing</string>
+    <string name="because_you_watched">Because you watched “%1$s”</string>
+    <string name="because_you_liked">Because you liked “%1$s”</string>
     <string name="press_menu_to_show_menu">Press menu key to show menu</string>
     <string name="press_menu_down_to_show_menu">Press menu key or down key to show menu</string>
     <string name="resume">Resume</string>

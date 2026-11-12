@@ -6,8 +6,10 @@ import com.xxxx.emby_tv.data.session.SessionManager
 import com.google.gson.JsonObject
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaDto
+import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.data.model.SessionDto
 import com.xxxx.emby_tv.data.model.VirtualFolderInfoDto
+import com.xxxx.emby_tv.util.ErrorHandler
 
 /**
  * 数据仓库 - ViewModel 唯一依赖的数据源
@@ -184,6 +186,60 @@ class EmbyRepository private constructor(private val context: Context) {
             session.deviceId,
             session.userId!!
         )
+    }
+
+    /**
+     * "因为你看过" rows. Prefers Emby's movie recommendations, then similar-to-recent.
+     */
+    suspend fun getBecauseYouWatched(resumeItems: List<BaseItemDto>): List<RecommendationDto> {
+        requireLoggedIn()
+        val fromServer = try {
+            EmbyApi.getMovieRecommendations(
+                context,
+                session.serverUrl!!,
+                session.apiKey!!,
+                session.deviceId,
+                session.userId!!,
+            )
+        } catch (e: Exception) {
+            ErrorHandler.logError("EmbyRepository", "电影推荐不可用，改用相似条目", e)
+            emptyList()
+        }
+        val usable = fromServer.filter {
+            !it.baselineItemName.isNullOrBlank() && !it.items.isNullOrEmpty()
+        }
+        if (usable.isNotEmpty()) return usable.take(4)
+
+        val seeds = linkedMapOf<String, String>()
+        for (item in resumeItems) {
+            val id = if (item.type == "Episode") item.seriesId ?: item.id else item.id
+            val name = if (item.type == "Episode") item.seriesName ?: item.name else item.name
+            if (!id.isNullOrBlank() && !name.isNullOrBlank() && !seeds.containsKey(id)) {
+                seeds[id] = name
+            }
+            if (seeds.size >= 2) break
+        }
+        return seeds.mapNotNull { (id, name) ->
+            val similar = try {
+                EmbyApi.getSimilarItems(
+                    context,
+                    session.serverUrl!!,
+                    session.apiKey!!,
+                    session.deviceId,
+                    session.userId!!,
+                    id,
+                )
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "相似条目加载失败", e)
+                emptyList()
+            }
+            if (similar.isEmpty()) null
+            else RecommendationDto(
+                baselineItemName = name,
+                recommendationType = "SimilarToRecentlyPlayed",
+                items = similar,
+            )
+        }
     }
 
     // === 标记片头（服务端媒体库设置） ===

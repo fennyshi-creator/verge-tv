@@ -19,6 +19,7 @@ import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.EmbyResponseDto
 import com.xxxx.emby_tv.data.model.MediaDto
 import com.xxxx.emby_tv.data.model.PublicUserDto
+import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.data.model.SessionDto
 import com.xxxx.emby_tv.data.model.VirtualFolderInfoDto
 import com.xxxx.emby_tv.util.ErrorHandler
@@ -309,7 +310,9 @@ object EmbyApi {
     ): List<BaseItemDto> {
         val limit = if (seriesId.isEmpty()) 15 else 1
         val url = "/Users/$userId/Items/Resume?Limit=$limit&MediaTypes=Video&ParentId=$seriesId" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear&X-Emby-Token=$apiKey"
+                "&Fields=PrimaryImageAspectRatio,ProductionYear,RunTimeTicks,BackdropImageTags,ParentBackdropImageTags,SeriesName" +
+                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+                "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
 
@@ -325,7 +328,9 @@ object EmbyApi {
         parentId: String
     ): List<BaseItemDto> {
         val url = "/Users/$userId/Items/Latest?Limit=20&ParentId=$parentId" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear&X-Emby-Token=$apiKey"
+                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
+                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+                "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoListDirect(context, serverUrl, apiKey, deviceId, url)
     }
 
@@ -621,6 +626,101 @@ object EmbyApi {
                 "&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Recursive=true&Limit=20" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    /**
+     * Movie recommendation rows ("因为你看过…"). Older servers may 404; callers fall back.
+     */
+    suspend fun getMovieRecommendations(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        categoryLimit: Int = 4,
+        itemLimit: Int = 16,
+    ): List<RecommendationDto> {
+        val url = "/Movies/Recommendations?UserId=$userId" +
+                "&CategoryLimit=$categoryLimit&ItemLimit=$itemLimit" +
+                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
+                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+                "&X-Emby-Token=$apiKey"
+        return httpStream(context, serverUrl, apiKey, deviceId, url) { reader ->
+            val element = com.google.gson.JsonParser.parseReader(reader)
+            parseRecommendations(element)
+        }
+    }
+
+    /**
+     * Similar items for one title. Used when /Movies/Recommendations is unavailable.
+     */
+    suspend fun getSimilarItems(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        itemId: String,
+        limit: Int = 16,
+    ): List<BaseItemDto> {
+        val url = "/Items/$itemId/Similar?UserId=$userId&Limit=$limit" +
+                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
+                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+                "&X-Emby-Token=$apiKey"
+        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    private fun parseRecommendations(element: com.google.gson.JsonElement): List<RecommendationDto> {
+        val array = when {
+            element.isJsonArray -> element.asJsonArray
+            element.isJsonObject -> element.asJsonObject.getAsJsonArray("Items") ?: JsonArray()
+            else -> JsonArray()
+        }
+        if (array.size() == 0) return emptyList()
+        val first = array[0]
+        if (!first.isJsonObject) return emptyList()
+        val firstObj = first.asJsonObject
+        val looksLikeCategory = firstObj.has("BaselineItemName") ||
+                firstObj.has("RecommendationType") ||
+                (firstObj.has("Items") && firstObj.has("CategoryId"))
+        if (!looksLikeCategory) return emptyList()
+        return array.mapNotNull { el ->
+            if (!el.isJsonObject) return@mapNotNull null
+            val obj = el.asJsonObject
+            val name = obj.get("BaselineItemName")?.takeUnless { it.isJsonNull }?.asString
+            val typeName = recommendationTypeName(obj.get("RecommendationType"))
+            val items = (obj.getAsJsonArray("Items") ?: JsonArray()).mapNotNull { itemEl ->
+                if (!itemEl.isJsonObject) null
+                else try {
+                    gson.fromJson(itemEl, BaseItemDto::class.java)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (name.isNullOrBlank() || items.isEmpty()) null
+            else RecommendationDto(
+                baselineItemName = name,
+                recommendationType = typeName,
+                items = items,
+            )
+        }
+    }
+
+    private fun recommendationTypeName(element: com.google.gson.JsonElement?): String? {
+        if (element == null || element.isJsonNull || !element.isJsonPrimitive) return null
+        val primitive = element.asJsonPrimitive
+        if (primitive.isNumber) {
+            return when (primitive.asInt) {
+                0 -> "SimilarToRecentlyPlayed"
+                1 -> "SimilarToLikedItem"
+                2 -> "HasDirectorFromRecentlyPlayed"
+                3 -> "HasActorFromRecentlyPlayed"
+                4 -> "HasLikedDirector"
+                5 -> "HasLikedActor"
+                else -> null
+            }
+        }
+        return primitive.asString
     }
 
     // ==================== 版本更新 ====================
