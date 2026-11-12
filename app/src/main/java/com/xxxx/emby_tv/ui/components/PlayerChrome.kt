@@ -1,6 +1,7 @@
 package com.xxxx.emby_tv.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +38,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,7 +54,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -90,31 +93,90 @@ fun formatPlayerClock(ms: Long): String {
 
 fun formatPlayerRemaining(ms: Long): String = "-${formatPlayerClock(ms)}"
 
+/**
+ * Step size while L/R is held. A tap is 10s. The ramp follows how long the
+ * gesture has been going, not how many repeats arrived. After 3s the step is
+ * about 1% of the runtime, kept between 2 and 5 minutes.
+ */
+fun seekStepMs(heldMs: Long, durationMs: Long): Long = when {
+    heldMs < 500L -> 10_000L
+    heldMs < 1_500L -> 30_000L
+    heldMs < 3_000L -> 60_000L
+    else -> (durationMs.coerceAtLeast(0L) / 100L).coerceIn(120_000L, 300_000L)
+}
+
+fun formatSeekOffset(deltaMs: Long): String {
+    val sign = if (deltaMs >= 0L) "+" else "-"
+    return sign + formatPlayerClock(kotlin.math.abs(deltaMs))
+}
+
+fun episodeBarLabel(season: Int?, episode: Int?, name: String?): String? {
+    if (season == null || episode == null) return name?.takeIf { it.isNotBlank() }
+    val code = "S$season:E$episode"
+    val title = name?.takeIf { it.isNotBlank() } ?: return code
+    return "$code · $title"
+}
+
+fun episodeStripMeta(item: BaseItemDto): String {
+    val number = item.indexNumber
+    val minutes = EmbyPresentation.runtimeMinutes(item.runTimeTicks)
+    val head = if (number != null) "第 $number 集" else "剧集"
+    return if (minutes == null) head else "$head · ${minutes}m"
+}
+
+/**
+ * When to offer the next episode. A credits chapter wins; otherwise the last 30 seconds.
+ */
+fun nextEpisodePromptMs(durationMs: Long, chapters: List<com.xxxx.emby_tv.data.model.ChapterInfo>?): Long {
+    val credit = chapters?.firstOrNull { chapter ->
+        val marker = chapter.markerType.orEmpty()
+        val name = chapter.name.orEmpty()
+        marker.equals("CreditsStart", true) ||
+            name.contains("片尾") ||
+            name.contains("credit", true)
+    }
+    val fromChapter = credit?.startPositionTicks?.div(10_000)
+    val fromEnd = (durationMs - 30_000L).coerceAtLeast(0L)
+    return fromChapter ?: fromEnd
+}
+
+private val BarEase = FastOutSlowInEasing
+
 @Composable
 fun PlayerTransportBar(
     visible: Boolean,
     serverUrl: String,
+    apiKey: String,
     mediaInfo: BaseItemDto,
     positionMs: Long,
     durationMs: Long,
+    isPlaying: Boolean,
     showVersionButton: Boolean,
-    onSeekBy: (Long) -> Unit,
+    episodes: List<BaseItemDto>,
+    restoreButton: Int,
+    seeking: Boolean,
+    seekOriginMs: Long,
+    onSeekDirection: (Int) -> Unit,
     onTogglePause: () -> Unit,
     onOpenSheet: (PlayerSheet) -> Unit,
+    onOpenEpisodes: () -> Unit,
+    onButtonFocused: (Int) -> Unit,
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val progressFocus = remember { FocusRequester() }
-    val iconFocus = remember { FocusRequester() }
+    val buttonFocus = remember { List(4) { FocusRequester() } }
+    val isEpisode = mediaInfo.type == "Episode" && mediaInfo.seriesId != null
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 3 },
-        exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 3 },
+        enter = fadeIn(tween(240, easing = BarEase)) + slideInVertically(tween(240, easing = BarEase)) { it / 3 },
+        exit = fadeOut(tween(200, easing = BarEase)) + slideOutVertically(tween(200, easing = BarEase)) { it / 3 },
         modifier = modifier,
     ) {
         LaunchedEffect(Unit) {
             try {
-                progressFocus.requestFocus()
+                val button = buttonFocus.getOrNull(restoreButton)
+                if (button != null) button.requestFocus() else progressFocus.requestFocus()
             } catch (_: Exception) {
             }
         }
@@ -124,50 +186,84 @@ fun PlayerTransportBar(
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.35f to Color.Black.copy(0.35f),
-                        1f to Color.Black.copy(0.78f),
+                        0.45f to Color.Black.copy(0.28f),
+                        1f to Color.Black.copy(0.72f),
                     ),
                 )
-                .padding(start = 36.dp, end = 28.dp, top = 36.dp, bottom = 22.dp),
+                .padding(start = 36.dp, end = 28.dp, top = 28.dp, bottom = if (isEpisode) 0.dp else 18.dp),
         ) {
             Column(Modifier.fillMaxWidth()) {
-                LogoOrTitle(serverUrl, mediaInfo)
-                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f)) {
+                        LogoOrTitle(serverUrl, mediaInfo)
+                        if (isEpisode) {
+                            val line = episodeBarLabel(
+                                mediaInfo.parentIndexNumber,
+                                mediaInfo.indexNumber,
+                                mediaInfo.name,
+                            )
+                            if (!line.isNullOrBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val settingsIndex = if (showVersionButton) 3 else 2
+                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), progressFocus, 0, onButtonFocused) {
+                            onOpenSheet(PlayerSheet.Subtitles)
+                        }
+                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), progressFocus, 1, onButtonFocused) {
+                            onOpenSheet(PlayerSheet.Audio)
+                        }
+                        if (showVersionButton) {
+                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), progressFocus, 2, onButtonFocused) {
+                                onOpenSheet(PlayerSheet.Versions)
+                            }
+                        }
+                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), progressFocus, settingsIndex, onButtonFocused) {
+                            onOpenSheet(PlayerSheet.Settings)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!isPlaying) {
+                        Text("❚❚", color = Color.White, fontSize = 12.sp)
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 13.sp)
                     Spacer(Modifier.width(12.dp))
                     ProgressScrubber(
                         positionMs = positionMs,
                         durationMs = durationMs,
                         focusRequester = progressFocus,
-                        downTarget = iconFocus,
-                        onSeekBy = {
+                        upTarget = buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)],
+                        seeking = seeking,
+                        seekOriginMs = seekOriginMs,
+                        onSeekDirection = {
                             onInteract()
-                            onSeekBy(it)
+                            onSeekDirection(it)
                         },
                         onTogglePause = {
                             onInteract()
                             onTogglePause()
                         },
+                        onOpenEpisodes = if (isEpisode) onOpenEpisodes else null,
                         modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
                         formatPlayerRemaining((durationMs - positionMs).coerceAtLeast(0L)),
-                        color = Color.White.copy(0.9f),
+                        color = Color.White.copy(0.92f),
                         fontSize = 13.sp,
                     )
-                    Spacer(Modifier.width(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(iconFocus)) {
-                            onOpenSheet(PlayerSheet.Subtitles)
-                        }
-                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract) { onOpenSheet(PlayerSheet.Audio) }
-                        if (showVersionButton) {
-                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract) { onOpenSheet(PlayerSheet.Versions) }
-                        }
-                        RoundAction(Icons.Default.Settings, "设置", onInteract) { onOpenSheet(PlayerSheet.Settings) }
-                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                ClockRow(positionMs, durationMs)
+                if (isEpisode && episodes.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    EpisodePeek(serverUrl, apiKey, episodes)
                 }
             }
         }
@@ -185,7 +281,6 @@ private fun LogoOrTitle(serverUrl: String, item: BaseItemDto) {
             contentDescription = title,
             contentScale = ContentScale.Fit,
             alignment = Alignment.CenterStart,
-            colorFilter = ColorFilter.tint(Color.White),
             onError = { failed = true },
             modifier = Modifier.height(36.dp).widthIn(max = 220.dp),
         )
@@ -202,13 +297,61 @@ private fun LogoOrTitle(serverUrl: String, item: BaseItemDto) {
 }
 
 @Composable
+private fun ClockRow(positionMs: Long, durationMs: Long) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
+    val end = now + (durationMs - positionMs).coerceAtLeast(0L)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(formatWallClock(now), color = Color.White.copy(0.7f), fontSize = 11.sp)
+        Spacer(Modifier.weight(1f))
+        Text("${formatWallClock(end)} 结束", color = Color.White.copy(0.7f), fontSize = 11.sp)
+    }
+}
+
+private fun formatWallClock(epochMs: Long): String {
+    val calendar = java.util.Calendar.getInstance()
+    calendar.timeInMillis = epochMs
+    return "%02d:%02d".format(calendar.get(java.util.Calendar.HOUR_OF_DAY), calendar.get(java.util.Calendar.MINUTE))
+}
+
+@Composable
+private fun EpisodePeek(serverUrl: String, apiKey: String, episodes: List<BaseItemDto>) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        episodes.take(8).forEach { episode ->
+            AsyncImage(
+                model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                    .data(EmbyPresentation.episodeStillUrl(serverUrl, episode, apiKey = apiKey, maxWidth = 240))
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.width(72.dp).height(40.dp).clip(RoundedCornerShape(4.dp)),
+            )
+        }
+    }
+}
+
+@Composable
 private fun ProgressScrubber(
     positionMs: Long,
     durationMs: Long,
     focusRequester: FocusRequester,
-    downTarget: FocusRequester,
-    onSeekBy: (Long) -> Unit,
+    upTarget: FocusRequester,
+    seeking: Boolean,
+    seekOriginMs: Long,
+    onSeekDirection: (Int) -> Unit,
     onTogglePause: () -> Unit,
+    onOpenEpisodes: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -216,19 +359,19 @@ private fun ProgressScrubber(
     Surface(
         onClick = onTogglePause,
         modifier = modifier
-            .height(28.dp)
+            .height(36.dp)
             .focusRequester(focusRequester)
-            .focusProperties { down = downTarget }
+            .focusProperties { up = upTarget }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> {
-                        onSeekBy(-10_000L)
+                    Key.DirectionLeft, Key.DirectionRight -> {
+                        onSeekDirection(if (event.key == Key.DirectionLeft) -1 else 1)
                         true
                     }
-                    Key.DirectionRight -> {
-                        onSeekBy(10_000L)
-                        true
+                    Key.DirectionDown -> {
+                        onOpenEpisodes?.invoke()
+                        onOpenEpisodes != null
                     }
                     else -> false
                 }
@@ -242,7 +385,23 @@ private fun ProgressScrubber(
             focusedContentColor = Color.White,
         ),
     ) {
-        Box(Modifier.fillMaxSize().padding(vertical = 10.dp)) {
+        Box(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
+            if (seeking) {
+                Column(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth(fraction.coerceAtLeast(0.12f))
+                        .wrapContentWidth(Alignment.End),
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        formatSeekOffset(positionMs - seekOriginMs),
+                        color = Color.White.copy(0.85f),
+                        fontSize = 11.sp,
+                    )
+                }
+            }
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -282,6 +441,9 @@ private fun RoundAction(
     label: String,
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
+    downTarget: FocusRequester,
+    index: Int,
+    onFocused: (Int) -> Unit,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -289,7 +451,10 @@ private fun RoundAction(
             onInteract()
             onClick()
         },
-        modifier = modifier.size(40.dp),
+        modifier = modifier
+            .size(40.dp)
+            .focusProperties { down = downTarget }
+            .onFocusChanged { if (it.isFocused) onFocused(index) },
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
@@ -335,7 +500,7 @@ fun PlayerSideSheet(
                 .width(340.dp)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xE61A1C1F)),
+                .background(Color(0xF223262C)),
         ) {
             Column(
                 Modifier
@@ -359,26 +524,34 @@ fun SheetRow(
     selected: Boolean = false,
     onClick: () -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) Color.White.copy(0.12f) else Color.Transparent,
-            contentColor = Color.White,
+            containerColor = if (selected) Color.White.copy(0.14f) else Color.Transparent,
+            contentColor = Color.White.copy(0.92f),
             focusedContainerColor = Color.White,
-            focusedContentColor = Color.Black,
+            focusedContentColor = Color(0xFF141414),
         ),
     ) {
+        val titleColor = if (focused) Color(0xFF141414) else Color.White.copy(0.92f)
+        val valueColor = if (focused) Color(0xFF141414).copy(0.72f) else Color.White.copy(0.72f)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, fontSize = 15.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = titleColor, fontSize = 15.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (!value.isNullOrBlank()) {
                 Spacer(Modifier.width(12.dp))
-                Text(value, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, color = valueColor, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -466,7 +639,7 @@ fun SettingsSheetBody(
         item {
             Text(
                 "仅影响 SRT/VTT 等文字字幕",
-                color = Color.White.copy(0.55f),
+                color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, top = 2.dp, bottom = 8.dp),
             )
@@ -478,7 +651,7 @@ fun SettingsSheetBody(
             ) { onDecodeAudio(!decodeAudio) }
             Text(
                 "开启后关闭音频直通",
-                color = Color.White.copy(0.55f),
+                color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
             )
@@ -496,7 +669,7 @@ fun SettingsSheetBody(
         }
         item {
             Spacer(Modifier.height(10.dp))
-            Text("更多", color = Color.White.copy(0.55f), fontSize = 12.sp, modifier = Modifier.padding(start = 14.dp, bottom = 4.dp))
+            Text("更多", color = Color.White.copy(0.72f), fontSize = 12.sp, modifier = Modifier.padding(start = 14.dp, bottom = 4.dp))
         }
         item {
             SheetRow("播放模式", modes.getOrElse(playMode) { modes[0] }) {
@@ -527,6 +700,177 @@ fun VersionSheet(
                 value = EmbyPresentation.versionDetail(source).takeIf { it.isNotBlank() },
                 selected = source.id != null && source.id == selectedId,
             ) { onPick(source) }
+        }
+    }
+}
+
+@Composable
+fun EpisodeStrip(
+    visible: Boolean,
+    serverUrl: String,
+    apiKey: String,
+    episodes: List<BaseItemDto>,
+    currentId: String,
+    progressFocus: FocusRequester,
+    onPlay: (BaseItemDto) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val current = episodes.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+    val requesters = remember(episodes.size) { List(episodes.size) { FocusRequester() } }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(240, easing = BarEase)) + slideInVertically(tween(240, easing = BarEase)) { it },
+        exit = fadeOut(tween(180, easing = BarEase)) + slideOutVertically(tween(180, easing = BarEase)) { it },
+        modifier = modifier,
+    ) {
+        LaunchedEffect(current, episodes.size) {
+            if (episodes.isEmpty()) return@LaunchedEffect
+            listState.scrollToItem((current - 1).coerceAtLeast(0))
+            kotlinx.coroutines.delay(60)
+            try {
+                requesters.getOrNull(current)?.requestFocus()
+            } catch (_: Exception) {
+            }
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(0.82f)),
+                    ),
+                )
+                .padding(start = 36.dp, end = 36.dp, top = 18.dp, bottom = 16.dp),
+        ) {
+            androidx.compose.foundation.lazy.LazyRow(
+                state = listState,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(episodes.size) { index ->
+                    val episode = episodes[index]
+                    EpisodeCard(
+                        serverUrl = serverUrl,
+                        apiKey = apiKey,
+                        episode = episode,
+                        playing = episode.id == currentId,
+                        focusRequester = requesters[index],
+                        up = progressFocus,
+                        onPlay = { onPlay(episode) },
+                        onUp = onClose,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeCard(
+    serverUrl: String,
+    apiKey: String,
+    episode: BaseItemDto,
+    playing: Boolean,
+    focusRequester: FocusRequester,
+    up: FocusRequester,
+    onPlay: () -> Unit,
+    onUp: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.width(168.dp)) {
+        Surface(
+            onClick = onPlay,
+            modifier = Modifier
+                .focusRequester(focusRequester)
+                .focusProperties { this.up = up }
+                .onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                        onUp()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .onFocusChanged { focused = it.isFocused },
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+            border = ClickableSurfaceDefaults.border(
+                border = androidx.tv.material3.Border(
+                    border = androidx.compose.foundation.BorderStroke(if (focused || playing) 2.dp else 0.dp, Color.White),
+                ),
+                focusedBorder = androidx.tv.material3.Border(
+                    border = androidx.compose.foundation.BorderStroke(2.dp, Color.White),
+                ),
+            ),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+            ),
+        ) {
+            Box(Modifier.fillMaxWidth().height(94.dp)) {
+                AsyncImage(
+                    model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(EmbyPresentation.episodeStillUrl(serverUrl, episode, apiKey = apiKey, maxWidth = 400))
+                        .build(),
+                    contentDescription = episode.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (playing) {
+                    Text(
+                        "正在播放",
+                        color = Color.Black,
+                        fontSize = 10.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White)
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(episode.name.orEmpty(), color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(episodeStripMeta(episode), color = Color.White.copy(0.72f), fontSize = 12.sp, maxLines = 1)
+    }
+}
+
+@Composable
+fun NextEpisodeCard(
+    visible: Boolean,
+    episode: BaseItemDto?,
+    countdownSec: Int,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = visible && episode != null,
+        enter = fadeIn(tween(240, easing = BarEase)) + slideInHorizontally(tween(240, easing = BarEase)) { it / 2 },
+        exit = fadeOut(tween(180)),
+        modifier = modifier,
+    ) {
+        val item = episode ?: return@AnimatedVisibility
+        Surface(
+            onClick = onPlay,
+            modifier = Modifier.width(220.dp),
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color(0xE623262C),
+                contentColor = Color.White,
+                focusedContainerColor = Color.White,
+                focusedContentColor = Color(0xFF141414),
+            ),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text("下一集", fontSize = 12.sp)
+                Text(item.name.orEmpty(), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(episodeStripMeta(item), fontSize = 12.sp)
+                Text("${countdownSec}s", fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
         }
     }
 }

@@ -86,6 +86,8 @@ import com.xxxx.emby_tv.data.model.SessionDto
 import androidx.compose.ui.graphics.toArgb
 import com.xxxx.emby_tv.ui.components.PlayerMenu
 import com.xxxx.emby_tv.ui.components.PlayerOverlay
+import com.xxxx.emby_tv.ui.components.EpisodeStrip
+import com.xxxx.emby_tv.ui.components.NextEpisodeCard
 import com.xxxx.emby_tv.ui.components.PlayerSideSheet
 import com.xxxx.emby_tv.ui.components.PlayerTransportBar
 import com.xxxx.emby_tv.ui.components.SettingsSheetBody
@@ -273,6 +275,16 @@ fun PlayerScreen(
     var chromeVisible by remember { mutableStateOf(false) }
     var playerSheet by remember { mutableStateOf(com.xxxx.emby_tv.ui.components.PlayerSheet.None) }
     var chromeTick by remember { mutableLongStateOf(0L) }
+    var restoreButton by remember { mutableIntStateOf(-1) }
+    var episodeStrip by remember { mutableStateOf(false) }
+    var seriesEpisodes by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
+    var dismissNextEpisode by remember { mutableStateOf(false) }
+    var hasPlayed by remember { mutableStateOf(false) }
+    var seekTarget by remember { mutableStateOf<Long?>(null) }
+    var seekOrigin by remember { mutableLongStateOf(0L) }
+    var seekHoldStart by remember { mutableLongStateOf(0L) }
+    var seekDir by remember { mutableIntStateOf(0) }
+    var seekPulse by remember { mutableLongStateOf(0L) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var decodeAudio by remember { mutableStateOf(false) }
     var subtitleScale by remember { mutableFloatStateOf(1f) }
@@ -1458,8 +1470,58 @@ fun PlayerScreen(
     val focusRequester = remember { FocusRequester() }
 
     // UI 结构 - 最外层纯黑背景
-    LaunchedEffect(chromeVisible, playerSheet, chromeTick) {
-        if (!chromeVisible || playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None) return@LaunchedEffect
+    LaunchedEffect(mediaInfo.seriesId) {
+        val seriesId = mediaInfo.seriesId ?: return@LaunchedEffect
+        seriesEpisodes = withContext(Dispatchers.IO) {
+            runCatching { repository.getSeriesList(seriesId) }.getOrDefault(emptyList())
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) hasPlayed = true
+        else if (hasPlayed) chromeVisible = true
+    }
+
+    LaunchedEffect(seekPulse) {
+        if (seekTarget == null) return@LaunchedEffect
+        delay(520)
+        val target = seekTarget ?: return@LaunchedEffect
+        player.seekTo(target)
+        seekTarget = null
+        seekDir = 0
+    }
+
+    fun nudgeSeek(dir: Int) {
+        val now = System.currentTimeMillis()
+        val pending = seekTarget
+        if (pending == null) {
+            seekOrigin = position
+            seekHoldStart = now
+        } else if (dir != seekDir) {
+            seekHoldStart = now
+        }
+        seekDir = dir
+        val step = com.xxxx.emby_tv.ui.components.seekStepMs(now - seekHoldStart, duration)
+        val base = pending ?: position
+        seekTarget = (base + dir * step).coerceIn(0L, duration.coerceAtLeast(0L))
+        seekPulse = now
+        chromeVisible = true
+        chromeTick = now
+        episodeStrip = false
+    }
+
+    val shownPosition = seekTarget ?: position
+    val nextEpisode = seriesEpisodes.getOrNull(seriesEpisodes.indexOfFirst { it.id == mediaId } + 1)
+    val nextPromptAt = com.xxxx.emby_tv.ui.components.nextEpisodePromptMs(
+        duration,
+        media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }?.chapters
+            ?: media.mediaSources?.firstOrNull()?.chapters,
+    )
+    val showNextEpisode = nextEpisode != null && !dismissNextEpisode && duration > 0L &&
+        shownPosition >= nextPromptAt && !episodeStrip
+
+    LaunchedEffect(chromeVisible, playerSheet, chromeTick, isPlaying, episodeStrip) {
+        if (!chromeVisible || !isPlaying || episodeStrip || playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None) return@LaunchedEffect
         delay(5_000)
         chromeVisible = false
     }
@@ -1471,6 +1533,15 @@ fun PlayerScreen(
             .onKeyEvent { event ->
                 if (event.key != Key.Back || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when {
+                    showNextEpisode -> {
+                        dismissNextEpisode = true
+                        true
+                    }
+                    episodeStrip -> {
+                        episodeStrip = false
+                        restoreButton = -1
+                        true
+                    }
                     playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None -> {
                         playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
                         true
@@ -1499,15 +1570,11 @@ fun PlayerScreen(
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
                         Key.DirectionLeft -> {
-                            player.seekBack()
-                            chromeVisible = true
-                            chromeTick = System.currentTimeMillis()
+                            nudgeSeek(-1)
                             true
                         }
                         Key.DirectionRight -> {
-                            player.seekForward()
-                            chromeVisible = true
-                            chromeTick = System.currentTimeMillis()
+                            nudgeSeek(1)
                             true
                         }
                         Key.DirectionDown, Key.Menu, Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
@@ -1609,8 +1676,9 @@ fun PlayerScreen(
                             null,
                         )
                     )
+                    val lift = if (chromeVisible || episodeStrip) 0.22f else 0f
                     view.setBottomPaddingFraction(
-                        subtitleBottomPadding * (1f - SUBTITLE_TOP_RESERVED_FRACTION)
+                        (subtitleBottomPadding + lift).coerceAtMost(0.42f) * (1f - SUBTITLE_TOP_RESERVED_FRACTION)
                     )
                 },
                 modifier = Modifier.fillMaxSize()
@@ -1669,17 +1737,19 @@ fun PlayerScreen(
             }
 
             PlayerTransportBar(
-                visible = chromeVisible,
+                visible = chromeVisible && !episodeStrip,
                 serverUrl = serverUrl,
+                apiKey = apiKey,
                 mediaInfo = mediaInfo,
-                positionMs = position,
+                positionMs = shownPosition,
                 durationMs = duration,
+                isPlaying = isPlaying,
                 showVersionButton = allMediaSources.size > 1,
-                onSeekBy = { delta ->
-                    val target = (position + delta).coerceIn(0L, duration.coerceAtLeast(0L))
-                    player.seekTo(target)
-                    chromeTick = System.currentTimeMillis()
-                },
+                episodes = if (episodeStrip) emptyList() else seriesEpisodes,
+                restoreButton = restoreButton,
+                seeking = seekTarget != null,
+                seekOriginMs = seekOrigin,
+                onSeekDirection = { nudgeSeek(it) },
                 onTogglePause = {
                     if (isPlaying) player.pause() else player.play()
                     chromeTick = System.currentTimeMillis()
@@ -1688,8 +1758,34 @@ fun PlayerScreen(
                     playerSheet = it
                     chromeTick = System.currentTimeMillis()
                 },
+                onOpenEpisodes = {
+                    episodeStrip = true
+                    chromeTick = System.currentTimeMillis()
+                },
+                onButtonFocused = { restoreButton = it },
                 onInteract = { chromeTick = System.currentTimeMillis() },
                 modifier = Modifier.align(Alignment.BottomCenter),
+            )
+            EpisodeStrip(
+                visible = episodeStrip,
+                serverUrl = serverUrl,
+                apiKey = apiKey,
+                episodes = seriesEpisodes,
+                currentId = mediaId,
+                progressFocus = focusRequester,
+                onPlay = { episode -> onNavigateToPlayer(episode) },
+                onClose = {
+                    episodeStrip = false
+                    restoreButton = -1
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+            NextEpisodeCard(
+                visible = showNextEpisode,
+                episode = nextEpisode,
+                countdownSec = ((duration - shownPosition) / 1000L).toInt().coerceAtLeast(0),
+                onPlay = { nextEpisode?.let(onNavigateToPlayer) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = if (chromeVisible) 120.dp else 28.dp),
             )
 
             PlayerSideSheet(
