@@ -83,8 +83,14 @@ import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaDto
 import com.xxxx.emby_tv.data.model.MediaStreamDto
 import com.xxxx.emby_tv.data.model.SessionDto
+import androidx.compose.ui.graphics.toArgb
 import com.xxxx.emby_tv.ui.components.PlayerMenu
 import com.xxxx.emby_tv.ui.components.PlayerOverlay
+import com.xxxx.emby_tv.ui.components.PlayerSideSheet
+import com.xxxx.emby_tv.ui.components.PlayerTransportBar
+import com.xxxx.emby_tv.ui.components.SettingsSheetBody
+import com.xxxx.emby_tv.ui.components.TrackSheet
+import com.xxxx.emby_tv.ui.components.VersionSheet
 import com.xxxx.emby_tv.ui.components.ResumePlaybackButtons
 import com.xxxx.emby_tv.ui.components.SkipIntroButton
 import com.xxxx.emby_tv.ui.components.getAudioTrack
@@ -264,7 +270,13 @@ fun PlayerScreen(
     var playbackCorrection by remember { mutableStateOf(0) } // 0: off, 1: server transcode
     var playMode by remember { mutableStateOf(0) } // 0: list loop, 1: single loop, 2: no loop
     var endedHandled by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
+    var chromeVisible by remember { mutableStateOf(false) }
+    var playerSheet by remember { mutableStateOf(com.xxxx.emby_tv.ui.components.PlayerSheet.None) }
+    var chromeTick by remember { mutableLongStateOf(0L) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    var decodeAudio by remember { mutableStateOf(false) }
+    var subtitleScale by remember { mutableFloatStateOf(1f) }
+    var subtitleInk by remember { mutableStateOf(Color.White) }
     var showStats by remember { mutableStateOf(false) }
 
     // 继续播放/从头开始 按钮状态
@@ -887,7 +899,7 @@ fun PlayerScreen(
                             url = newVideoUrl,
                             headers = playbackHeaders(),
                             startMs = position,
-                            passthrough = playbackSpeed == 1f && audioRecoveryStage == 0,
+                            passthrough = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0,
                             joc = DolbyPassthrough.wantsJoc(audio),
                             speed = playbackSpeed,
                         )
@@ -1119,7 +1131,7 @@ fun PlayerScreen(
                 url = playbackUrl,
                 headers = playbackHeaders(),
                 startMs = startPositionMs,
-                passthrough = playbackSpeed == 1f && audioRecoveryStage == 0,
+                passthrough = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0,
                 joc = DolbyPassthrough.wantsJoc(audio),
                 speed = playbackSpeed,
             )
@@ -1446,87 +1458,68 @@ fun PlayerScreen(
     val focusRequester = remember { FocusRequester() }
 
     // UI 结构 - 最外层纯黑背景
+    LaunchedEffect(chromeVisible, playerSheet, chromeTick) {
+        if (!chromeVisible || playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None) return@LaunchedEffect
+        delay(5_000)
+        chromeVisible = false
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onKeyEvent { event ->
+                if (event.key != Key.Back || event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when {
+                    playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None -> {
+                        playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
+                        true
+                    }
+                    chromeVisible -> {
+                        chromeVisible = false
+                        true
+                    }
+                    else -> false
+                }
+            }
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .clickable(enabled = true, onClick = {
-                    if (isPlaying) {
-                        player.pause()
-                        isShowInfo = true
-                    } else {
-                        player.play()
-                        isShowInfo = false
-                    }
+                .clickable(enabled = !chromeVisible, onClick = {
+                    chromeVisible = true
+                    chromeTick = System.currentTimeMillis()
                 })
                 .onKeyEvent { event ->
-                    // 如果 Resume 按钮正在显示，让按钮处理焦点，不拦截按键
-                    if (showResumeButtons && playbackPositionTicks > 0) {
+                    if (showResumeButtons && playbackPositionTicks > 0) return@onKeyEvent false
+                    if (chromeVisible || playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None) {
                         return@onKeyEvent false
                     }
-
-                    if (event.key == Key.DirectionLeft) {
-                        if (event.type == KeyEventType.KeyDown) {
-                            if (leftKeyDownTime == 0L) {
-                                leftKeyDownTime = System.currentTimeMillis()
-                                isShowInfo = true
-                            }
-                        } else if (event.type == KeyEventType.KeyUp) {
-                            if (leftKeyDownTime > 0) {
-                                if (System.currentTimeMillis() - leftKeyDownTime < 500) {
-                                    player.seekBack()
-                                }
-                                leftKeyDownTime = 0L
-                            }
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            player.seekBack()
+                            chromeVisible = true
+                            chromeTick = System.currentTimeMillis()
+                            true
                         }
-                        return@onKeyEvent true
+                        Key.DirectionRight -> {
+                            player.seekForward()
+                            chromeVisible = true
+                            chromeTick = System.currentTimeMillis()
+                            true
+                        }
+                        Key.DirectionDown, Key.Menu, Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            chromeVisible = true
+                            chromeTick = System.currentTimeMillis()
+                            true
+                        }
+                        else -> false
                     }
-                    if (event.key == Key.DirectionRight) {
-                        if (event.type == KeyEventType.KeyDown) {
-                            if (rightKeyDownTime == 0L) {
-                                rightKeyDownTime = System.currentTimeMillis()
-                                isShowInfo = true
-                            }
-                        } else if (event.type == KeyEventType.KeyUp) {
-                            if (rightKeyDownTime > 0) {
-                                if (System.currentTimeMillis() - rightKeyDownTime < 500) {
-                                    player.seekForward()
-                                }
-                                rightKeyDownTime = 0L
-                            }
-                        }
-                        return@onKeyEvent true
-                    }
-
-                    if (event.type == KeyEventType.KeyDown) {
-                        if (event.key == Key.DirectionDown || event.key == Key.Menu) {
-                            showMenu = true
-                            return@onKeyEvent true
-                        }
-                        if (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter) {
-                            if (showMenu) return@onKeyEvent false
-                            if (isPlaying) {
-                                player.pause()
-                                isShowInfo = true
-                            } else {
-                                player.play()
-                                isShowInfo = false
-                            }
-                            return@onKeyEvent true
-                        }
-                        // Show info on any key
-                        isShowInfo = true
-                        // Hide info after delay?
-                    }
-                    false
                 }
                 .focusRequester(focusRequester)
-                .focusable()
+                .focusable(enabled = !chromeVisible)
         ) {
             // 1. Video Layer
             AndroidView(
@@ -1559,14 +1552,14 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            if (audioStatusLine.isNotBlank()) {
+            if (showDiagnostics && audioStatusLine.isNotBlank()) {
                 Text(
                     text = audioStatusLine,
                     color = Color.White.copy(alpha = 0.72f),
                     fontSize = 12.sp,
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 28.dp, bottom = 16.dp)
+                        .align(Alignment.TopStart)
+                        .padding(start = 28.dp, top = 18.dp)
                 )
             }
 
@@ -1605,6 +1598,17 @@ fun PlayerScreen(
                     }
                 },
                 update = { view ->
+                    view.setFractionalTextSize(0.0533f * subtitleScale)
+                    view.setStyle(
+                        CaptionStyleCompat(
+                            subtitleInk.toArgb(),
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT,
+                            CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                            android.graphics.Color.BLACK,
+                            null,
+                        )
+                    )
                     view.setBottomPaddingFraction(
                         subtitleBottomPadding * (1f - SUBTITLE_TOP_RESERVED_FRACTION)
                     )
@@ -1613,86 +1617,17 @@ fun PlayerScreen(
             )
 
 
-            // 2. Full Info Overlay Layer (only when isShowInfo)
-            if (isShowInfo && !isPlaying) {
-                PlayerOverlay(
-                    isTunnelingSafe = false,
-                    mediaInfo = mediaInfo,
-                    mediaSource = media.mediaSources?.firstOrNull(),
-                    session = session,
-                    videoStream = getVideoTrack(media),
-                    audioStream = getAudioTrack(media, selectedAudioIndex),
-                    position = position,
-                    duration = duration,
-                    buffered = buffered,
-                    isPlaying = isPlaying,
-                    audioStatusLine = audioStatusLine,
-                    isBuffering = isBuffering,
-                    downloadSpeed = downloadSpeed,
-                    supportedDvProfiles = supportedDvProfiles,
-                    currentVideoDecoderName = currentVideoDecoderName,
-                    playbackSpeed = playbackSpeed
-                )
-
-            }
-
-            // 3. Simple Pause/Loading Overlay (no info)
-            if ((!isPlaying || isBuffering) && !isShowInfo) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+            if (isBuffering || (!isPlaying && !chromeVisible)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     if (isBuffering) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(color = Color.White)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = Utils.formatBandwidth(downloadSpeed),
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                        }
+                        CircularProgressIndicator(color = Color.White)
                     } else {
-                        // Play Icon
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = "Paused",
-                            modifier = Modifier.size(100.dp),
-                            tint = Color.White
+                            modifier = Modifier.size(64.dp),
+                            tint = Color.White.copy(0.9f),
                         )
-                    }
-                }
-
-                if (!isBuffering) {
-                    // Menu Hint at bottom
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(bottom = 48.dp)
-                        ) {
-
-
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = Color.LightGray,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.press_menu_down_to_show_menu),
-                                color = Color.LightGray,
-                                fontSize = 14.sp
-                            )
-                        }
                     }
                 }
             }
@@ -1733,165 +1668,120 @@ fun PlayerScreen(
                 )
             }
 
-            // 5. Menu Dialog
-            if (showMenu) {
-                PlayerMenu(
-                    onDismiss = { showMenu = false },
-                    media = media,
-                    mediaInfo = mediaInfo,
-                    subtitleTracks = subtitleTracks,
-                    selectedSubtitleIndex = selectedSubtitleIndex,
-                    onSubtitleSelect = { index ->
-                        changeTrack(selectedAudioIndex, index)
-                    },
-                    audioTracks = audioTracks,
-                    selectedAudioIndex = selectedAudioIndex,
-                    onAudioSelect = { index -> changeTrack(index, selectedSubtitleIndex) },
-                    playbackCorrection = playbackCorrection,
-                    onPlaybackCorrectionChange = {
-                        // 只对当前播放视频生效，不持久化保存
-                        playbackCorrection = it
-                    },
-                    playMode = playMode,
-                    onPlayModeChange = {
-                        playMode = it
-                        val prefs =
+            PlayerTransportBar(
+                visible = chromeVisible,
+                serverUrl = serverUrl,
+                mediaInfo = mediaInfo,
+                positionMs = position,
+                durationMs = duration,
+                showVersionButton = allMediaSources.size > 1,
+                onSeekBy = { delta ->
+                    val target = (position + delta).coerceIn(0L, duration.coerceAtLeast(0L))
+                    player.seekTo(target)
+                    chromeTick = System.currentTimeMillis()
+                },
+                onTogglePause = {
+                    if (isPlaying) player.pause() else player.play()
+                    chromeTick = System.currentTimeMillis()
+                },
+                onOpenSheet = {
+                    playerSheet = it
+                    chromeTick = System.currentTimeMillis()
+                },
+                onInteract = { chromeTick = System.currentTimeMillis() },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+
+            PlayerSideSheet(
+                visible = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None,
+                title = when (playerSheet) {
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Subtitles -> "字幕"
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Audio -> "音频"
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Versions -> "片源"
+                    else -> "播放设置"
+                },
+                onDismiss = { playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                when (playerSheet) {
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Subtitles -> TrackSheet(
+                        title = "字幕",
+                        tracks = subtitleTracks,
+                        selectedIndex = selectedSubtitleIndex,
+                        offLabel = "关闭字幕",
+                        onPick = { changeTrack(selectedAudioIndex, it) },
+                    )
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Audio -> TrackSheet(
+                        title = "音频",
+                        tracks = audioTracks,
+                        selectedIndex = selectedAudioIndex,
+                        offLabel = "默认",
+                        onPick = { changeTrack(it, selectedSubtitleIndex) },
+                    )
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Versions -> VersionSheet(
+                        sources = allMediaSources,
+                        selectedId = currentMediaSourceId,
+                        onPick = { source ->
+                            if (source.id != null && source.id != currentMediaSourceId) {
+                                selectedMediaSourceId = source.id
+                                source.name?.takeIf { it.isNotBlank() }?.let {
+                                    preferencesManager.preferredMediaSourceName = it
+                                }
+                                selectedAudioIndex = -1
+                                selectedSubtitleIndex = -99
+                                hasTriedTranscodeFallback = false
+                                playbackTrigger++
+                            }
+                            playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
+                        },
+                    )
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Settings -> SettingsSheetBody(
+                        playbackSpeed = playbackSpeed,
+                        onSpeed = {
+                            playbackSpeed = it
+                            preferencesManager.playbackSpeed = it
+                        },
+                        subtitleScale = subtitleScale,
+                        onScale = { subtitleScale = it },
+                        subtitlePadding = subtitleBottomPadding,
+                        onPadding = {
+                            subtitleBottomPadding = it
+                            preferencesManager.subtitleBottomPadding = it
+                        },
+                        subtitleInk = subtitleInk,
+                        onInk = { subtitleInk = it },
+                        decodeAudio = decodeAudio,
+                        onDecodeAudio = { enabled ->
+                            decodeAudio = enabled
+                            val url = player.url
+                            if (url != null) player.open(
+                                url = url,
+                                headers = playbackHeaders(),
+                                startMs = player.currentPosition,
+                                passthrough = !enabled && playbackSpeed == 1f,
+                                joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
+                                    audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                                ),
+                                speed = playbackSpeed,
+                            )
+                        },
+                        diagnostics = showDiagnostics,
+                        onDiagnostics = { showDiagnostics = it },
+                        audioStatusLine = audioStatusLine,
+                        playMode = playMode,
+                        onPlayMode = { mode ->
+                            playMode = mode
+                            val isSeriesContent = mediaInfo.type == "Episode" || mediaInfo.seriesId != null
+                            val key = if (isSeriesContent) "play_mode" else "play_mode_movie"
                             context.getSharedPreferences("emby_tv_prefs", Context.MODE_PRIVATE)
-                        // 剧集与电影的播放模式分开保存
-                        val isSeriesContent =
-                            mediaInfo.type == "Episode" || mediaInfo.seriesId != null
-                        val key = if (isSeriesContent) "play_mode" else "play_mode_movie"
-                        prefs.edit().putInt(key, it).apply()
-                    },
-                    autoSkipIntro = autoSkipIntro,
-                    onAutoSkipIntroChange = {
-                        autoSkipIntro = it
-                        preferencesManager.autoSkipIntro = it
-                    },
-                    minBufferMs = minBufferMs,
-                    onMinBufferMsChange = {
-                        minBufferMs = it
-                        if (it < rebufferMs) {
-                            rebufferMs = it
-                            preferencesManager.rebufferMs = it
-                            if (it < playbackBufferMs) {
-                                playbackBufferMs = it
-                                preferencesManager.playbackBufferMs = it
-                            }
-                        }
-                        preferencesManager.minBufferMs = it
-                    },
-                    maxBufferMs = maxBufferMs,
-                    onMaxBufferMsChange = {
-                        maxBufferMs = it
-                        if (it < minBufferMs) {
-                            minBufferMs = it
-                            preferencesManager.minBufferMs = it
-                        }
-                        preferencesManager.maxBufferMs = it
-                    },
-                    playbackBufferMs = playbackBufferMs,
-                    onPlaybackBufferMsChange = {
-                        playbackBufferMs = it
-                        if (it > rebufferMs) {
-                            rebufferMs = it
-                            preferencesManager.rebufferMs = it
-                            if (it > minBufferMs) {
-                                minBufferMs = it
-                                preferencesManager.minBufferMs = it
-                                if (it > maxBufferMs) {
-                                    maxBufferMs = it
-                                    preferencesManager.maxBufferMs = it
-                                }
-                            }
-                        }
-                        preferencesManager.playbackBufferMs = it
-                    },
-                    rebufferMs = rebufferMs,
-                    onRebufferMsChange = {
-                        rebufferMs = it
-                        if (it < playbackBufferMs) {
-                            playbackBufferMs = it
-                            preferencesManager.playbackBufferMs = it
-                        }
-                        if (it > minBufferMs) {
-                            minBufferMs = it
-                            preferencesManager.minBufferMs = it
-                            if (it > maxBufferMs) {
-                                maxBufferMs = it
-                                preferencesManager.maxBufferMs = it
-                            }
-                        }
-                        preferencesManager.rebufferMs = it
-                    },
-                    bufferSizeBytes = bufferSizeBytes,
-                    onBufferSizeBytesChange = {
-                        bufferSizeBytes = it
-                        preferencesManager.bufferSizeBytes = it
-                    },
-                    onResetBufferDefaults = {
-                        val defaults = preferencesManager.getBufferDefaults()
-                        minBufferMs = defaults.minBufferMs
-                        maxBufferMs = defaults.maxBufferMs
-                        playbackBufferMs = defaults.playbackBufferMs
-                        rebufferMs = defaults.rebufferMs
-                        bufferSizeBytes = defaults.bufferSizeBytes
-                        preferencesManager.resetBufferDefaults()
-                    },
-                    playbackSpeed = playbackSpeed,
-                    onPlaybackSpeedChange = {
-                        playbackSpeed = it
-                        preferencesManager.playbackSpeed = it
-                    },
-                    subtitleBottomPadding = subtitleBottomPadding,
-                    onSubtitleBottomPaddingChange = {
-                        subtitleBottomPadding = it
-                        preferencesManager.subtitleBottomPadding = it
-                    },
-                    subtitleTimeOffsetMs = subtitleTimeOffsetMs,
-                    onSubtitleTimeOffsetChange = { subtitleTimeOffsetMs = it },
-                    currentMediaSourceId = currentMediaSourceId,
-                    allMediaSources = allMediaSources,
-                    onSourceSelect = { source ->
-                        if (source.id != null && source.id != currentMediaSourceId) {
-                            selectedMediaSourceId = source.id
-                            // 记住选择的片源名，下次播放同类多版本影片时自动匹配
-                            source.name?.takeIf { it.isNotBlank() }?.let {
-                                preferencesManager.preferredMediaSourceName = it
-                            }
-                            // 重置轨道选择，切换后使用新版本的默认音轨/字幕
-                            selectedAudioIndex = -1
-                            selectedSubtitleIndex = -99
-                            hasTriedTranscodeFallback = false
-                            playbackTrigger++
-                        }
-                    },
-                    onLaunchExternalPlayer = { pkg ->
-                        launchExternalPlayer(pkg)
-                    },
-                    isFavorite = isFavorite,
-                    onToggleFavorite = {
-                        isFavorite = !isFavorite
-                        if (mediaInfo.id != null) {
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    if (isFavorite) {
-                                        repository.addToFavorites(mediaInfo.id!!)
-                                    } else {
-                                        repository.removeFromFavorites(mediaInfo.id!!)
-                                    }
-                                } catch (e: Exception) {
-                                    ErrorHandler.logError("PlayerScreen", "操作失败", e)
-                                }
-                            }
-                        }
-                    },
-                    serverUrl = serverUrl,
-                    repository = repository,
-                    position = position,
-                    onNavigateToPlayer = onNavigateToPlayer,
-                    onRePlayer = onRePlayer
-                )
+                                .edit().putInt(key, mode).apply()
+                        },
+                        playbackCorrection = playbackCorrection,
+                        onCorrection = { playbackCorrection = it },
+                        onLaunchExternal = { launchExternalPlayer(null) },
+                    )
+                    else -> Unit
+                }
             }
 
             LaunchedEffect(Unit) {

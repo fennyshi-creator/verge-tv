@@ -73,7 +73,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Text
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -316,50 +318,53 @@ fun MovieDetailPage(
 @Composable
 private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Modifier = Modifier) {
     val raw = EmbyPresentation.displayName(item)
-    val cjk = raw.isNotEmpty() && raw.all { it.code > 0x2E80 }
-    val title = if (cjk && raw.length <= 8) raw.toCharArray().joinToString("\u2003") else raw
     val genres = EmbyPresentation.genresLine(item)
     val year = EmbyPresentation.yearLabel(item)
     val score = EmbyPresentation.starLabel(item.communityRating).orEmpty()
     val rating = item.officialRating.orEmpty()
     val logo = EmbyPresentation.logoUrl(serverUrl, item)
-    Column(modifier.width(520.dp)) {
+    Column(modifier.width(520.dp), horizontalAlignment = Alignment.Start) {
         if (logo.isNotBlank()) {
             coil3.compose.AsyncImage(
                 model = coil3.request.ImageRequest.Builder(LocalContext.current).data(logo).build(),
                 contentDescription = raw,
+                alignment = Alignment.CenterStart,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.height(72.dp).width(520.dp),
+                modifier = Modifier.height(56.dp).fillMaxWidth(),
             )
         } else {
-            HomeText(
-                text = title,
-                fontSize = 36.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Medium,
+            Text(
+                text = raw,
+                color = Color(0xFFD64532),
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 0.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (genres.isNotBlank()) {
                 HomeText(genres, 12.sp, Color(0xFFE4E4E4))
-                Dot()
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
             }
             if (rating.isNotBlank()) {
                 Box(
                     Modifier
-                        .border(1.dp, Color.White.copy(0.8f), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 5.dp, vertical = 0.dp),
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White.copy(0.16f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
                 ) {
-                    HomeText(rating, 11.sp, Color.White, fontWeight = FontWeight.Medium)
+                    HomeText(rating, 10.sp, Color.White, fontWeight = FontWeight.Medium)
                 }
-                Dot()
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
             }
-            if (year.isNotBlank()) {
-                HomeText(year, 12.sp, Color(0xFFE4E4E4))
-            }
+            if (year.isNotBlank()) HomeText(year, 12.sp, Color(0xFFE4E4E4))
             if (score.isNotBlank()) {
-                Dot()
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
                 HomeText(score, 12.sp, Color(0xFFE4E4E4))
             }
         }
