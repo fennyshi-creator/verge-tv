@@ -86,6 +86,8 @@ import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
@@ -161,8 +163,10 @@ fun MovieDetailPage(
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val bringIntoView = remember { TvBringIntoView() }
     fun revealHero() {
         blurBackdrop = false
+        bringIntoView.pinToStart = true
         scope.launch {
             scrollState.animateScrollTo(0)
             withFrameNanos { }
@@ -174,6 +178,11 @@ fun MovieDetailPage(
     var versionFocused by remember(item.id) { mutableStateOf(forceFocus == DetailFocus.Version) }
     var versionIndex by remember(item.id) { mutableIntStateOf(0) }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
+        ProvideTvBringIntoView(
+            controller = bringIntoView,
+            viewportScroll = { scrollState.value.toFloat() },
+            scrolledPastStart = { scrollState.value > 0 },
+        ) {
         Box(
             modifier
                 .fillMaxSize()
@@ -253,7 +262,10 @@ fun MovieDetailPage(
                         up = playFocus,
                         down = if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == DetailFocus.Cast,
-                        onFocused = { blurBackdrop = true },
+                        onFocused = {
+                        bringIntoView.pinToStart = false
+                        blurBackdrop = true
+                    },
                     )
                 }
                 if (similar.isNotEmpty()) {
@@ -264,7 +276,10 @@ fun MovieDetailPage(
                         focusRequester = similarFocus,
                         up = if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
-                        onFocused = { blurBackdrop = true },
+                        onFocused = {
+                        bringIntoView.pinToStart = false
+                        blurBackdrop = true
+                    },
                         onOpen = onOpenSimilar,
                     )
                 }
@@ -278,6 +293,7 @@ fun MovieDetailPage(
                         .padding(end = 36.dp),
                 )
             }
+        }
         }
     }
 }
@@ -303,7 +319,7 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
         } else {
             HomeText(
                 text = title,
-                fontSize = 40.sp,
+                fontSize = 36.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Medium,
             )
@@ -311,7 +327,7 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (genres.isNotBlank()) {
-                HomeText(genres, 13.sp, Color(0xFFE4E4E4))
+                HomeText(genres, 12.sp, Color(0xFFE4E4E4))
                 Dot()
             }
             if (rating.isNotBlank()) {
@@ -325,11 +341,11 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
                 Dot()
             }
             if (year.isNotBlank()) {
-                HomeText(year, 13.sp, Color(0xFFE4E4E4))
+                HomeText(year, 12.sp, Color(0xFFE4E4E4))
             }
             if (score.isNotBlank()) {
                 Dot()
-                HomeText(score, 13.sp, Color(0xFFE4E4E4))
+                HomeText(score, 12.sp, Color(0xFFE4E4E4))
             }
         }
         val overview = item.overview.orEmpty()
@@ -337,8 +353,8 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
             Spacer(Modifier.height(10.dp))
             HomeText(
                 text = overview,
-                fontSize = 14.sp,
-                color = Color(0xFFF0F0F0),
+                fontSize = 13.sp,
+                color = Color(0xFFE8E8E8),
                 maxLines = 2,
             )
         }
@@ -346,7 +362,7 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
         Row(verticalAlignment = Alignment.CenterVertically) {
             val runtime = EmbyPresentation.runtimeLabel(item.runTimeTicks).orEmpty()
             if (runtime.isNotBlank()) {
-                HomeText(runtime, 14.sp, Color.White)
+                HomeText(runtime, 13.sp, Color.White)
             }
             val badge = EmbyPresentation.qualityBadge(item)
             if (!badge.isNullOrBlank()) {

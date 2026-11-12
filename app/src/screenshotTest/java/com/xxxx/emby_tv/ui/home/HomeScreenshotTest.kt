@@ -12,6 +12,8 @@ import com.xxxx.emby_tv.ui.detail.DetailHeroPreview
 import com.xxxx.emby_tv.ui.detail.DetailVersionPreview
 import com.xxxx.emby_tv.ui.detail.SeriesCastPreview
 import com.xxxx.emby_tv.ui.detail.SeriesEpisodesPreview
+import com.xxxx.emby_tv.ui.detail.SeriesDetailFirstPreview
+import com.xxxx.emby_tv.ui.detail.SeriesDetailSecondPreview
 import com.xxxx.emby_tv.ui.detail.SeriesHeroPreview
 import com.xxxx.emby_tv.ui.detail.SeriesSeasonFocusedPreview
 import java.io.File
@@ -102,6 +104,20 @@ fun SeriesSeasonFocusedScreenshot() {
 @Composable
 fun MovieVersionScreenshot() {
     DetailVersionPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-detail-first", device = TV, locale = "zh")
+@Composable
+fun SeriesDetailFirstScreenshot() {
+    SeriesDetailFirstPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-detail-second", device = TV, locale = "zh")
+@Composable
+fun SeriesDetailSecondScreenshot() {
+    SeriesDetailSecondPreview(fontFamily = previewFont())
 }
 
 @PreviewTest

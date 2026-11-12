@@ -88,6 +88,10 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.focus.scrolledPastStart
+import com.xxxx.emby_tv.ui.focus.viewportScroll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.math.min
@@ -122,14 +126,28 @@ fun OfficialHome(
     val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    fun scrollToTop() {
+    val bringIntoView = remember { TvBringIntoView() }
+    var cursor = 1
+    val continueIndex = if (resumeItems.isNotEmpty()) cursor++ else -1
+    val libraryIndex = if (libraries.isNotEmpty()) cursor++ else -1
+    val posterIndex = posterFocus.indices.map { cursor++ }
+    fun focusRow(requester: FocusRequester, lazyIndex: Int, pin: Boolean) {
+        bringIntoView.pinToStart = pin
         scope.launch {
-            listState.animateScrollToItem(0)
+            if (pin) listState.scrollToItem(0, 0) else listState.animateScrollToItem(lazyIndex)
             withFrameNanos { }
-            listState.scrollToItem(0)
+            try {
+                requester.requestFocus()
+            } catch (_: IllegalStateException) {
+                withFrameNanos { }
+                try {
+                    requester.requestFocus()
+                } catch (_: IllegalStateException) {
+                }
+            }
+            if (pin) listState.scrollToItem(0, 0)
         }
     }
-    val belowLibraries = posterFocus.firstOrNull()
 
     LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, libraries.firstOrNull()?.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -146,6 +164,11 @@ fun OfficialHome(
     }
 
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
+        ProvideTvBringIntoView(
+            controller = bringIntoView,
+            viewportScroll = { listState.viewportScroll() },
+            scrolledPastStart = { listState.scrolledPastStart() },
+        ) {
         Box(modifier.fillMaxSize().background(HomeStyle.background)) {
             LazyColumn(
                 state = listState,
@@ -179,7 +202,14 @@ fun OfficialHome(
                             forceFocused = forceContinueFocus,
                             onActivate = onResume,
                             onMenu = onSettings,
-                            onFocused = { scrollToTop() },
+                            onFocused = { focusRow(continueFocus, continueIndex, pin = true) },
+                            onExitUp = { focusRow(homeTabFocus, 0, pin = true) },
+                            onExitDown = {
+                                when {
+                                    libraryIndex >= 0 -> focusRow(libraryFocus, libraryIndex, pin = false)
+                                    posterIndex.isNotEmpty() -> focusRow(posterFocus[0], posterIndex[0], pin = false)
+                                }
+                            },
                             caption = { item ->
                                 CardCaption(cardTitle(item), cardMeta(item), HomeStyle.continueWidth)
                             },
@@ -198,10 +228,19 @@ fun OfficialHome(
                             corner = HomeStyle.libraryCorner,
                             focusRequester = libraryFocus,
                             up = if (resumeItems.isNotEmpty()) continueFocus else homeTabFocus,
-                            down = belowLibraries,
+                            down = posterFocus.firstOrNull(),
                             onActivate = onOpenLibrary,
                             onMenu = onSettings,
-                            onFocused = if (resumeItems.isEmpty()) ({ scrollToTop() }) else null,
+                            onFocused = {
+                                if (resumeItems.isEmpty()) focusRow(libraryFocus, libraryIndex, pin = true)
+                            },
+                            onExitUp = {
+                                if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = true)
+                                else focusRow(homeTabFocus, 0, pin = true)
+                            },
+                            onExitDown = {
+                                if (posterIndex.isNotEmpty()) focusRow(posterFocus[0], posterIndex[0], pin = false)
+                            },
                             caption = { library ->
                                 CardCaption(library.name.orEmpty(), "", HomeStyle.libraryWidth)
                             },
@@ -223,6 +262,20 @@ fun OfficialHome(
                             down = posterFocus.getOrNull(index + 1),
                             onActivate = onOpenItem,
                             onMenu = onSettings,
+                            onExitUp = {
+                                if (index == 0) {
+                                    if (libraryIndex >= 0) focusRow(libraryFocus, libraryIndex, pin = false)
+                                    else if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = true)
+                                    else focusRow(homeTabFocus, 0, pin = true)
+                                } else {
+                                    focusRow(posterFocus[index - 1], posterIndex[index - 1], pin = false)
+                                }
+                            },
+                            onExitDown = {
+                                if (index < posterFocus.lastIndex) {
+                                    focusRow(posterFocus[index + 1], posterIndex[index + 1], pin = false)
+                                }
+                            },
                             caption = { item ->
                                 CardCaption(
                                     item.name.orEmpty(),
@@ -259,6 +312,7 @@ fun OfficialHome(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -444,6 +498,8 @@ internal fun LeadingSlotRow(
     onActivate: (BaseItemDto) -> Unit,
     onMenu: () -> Unit,
     onFocused: (() -> Unit)? = null,
+    onExitDown: (() -> Unit)? = null,
+    onExitUp: (() -> Unit)? = null,
     initialWindowStart: Int = 0,
     forceFocused: Boolean = false,
     caption: @Composable (BaseItemDto) -> Unit,
@@ -511,6 +567,22 @@ internal fun LeadingSlotRow(
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
+                        Key.DirectionDown -> {
+                            if (onExitDown != null) {
+                                onExitDown()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        Key.DirectionUp -> {
+                            if (onExitUp != null) {
+                                onExitUp()
+                                true
+                            } else {
+                                false
+                            }
+                        }
                         Key.DirectionRight -> {
                             moveRight()
                             true

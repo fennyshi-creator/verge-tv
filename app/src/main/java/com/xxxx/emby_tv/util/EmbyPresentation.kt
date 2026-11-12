@@ -206,7 +206,7 @@ object EmbyPresentation {
 
     fun qualityBadge(item: BaseItemDto): String? {
         val ranked = item.mediaSources.orEmpty().mapNotNull { identifiableQuality(it) }
-        return bestQuality(ranked)
+        return bestQuality(ranked) ?: qualityFromPixels(item.width, item.height)
     }
 
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION

@@ -28,7 +28,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +57,10 @@ import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.ui.detail.BreathingStroke
+import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.focus.scrolledPastStart
+import com.xxxx.emby_tv.ui.focus.viewportScroll
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
@@ -62,6 +68,7 @@ import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.home.LeadingSlotRow
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
 enum class LibraryTab { Items, Suggestions, Genres }
@@ -341,6 +348,8 @@ private fun PosterGrid(
     onLoadMore: () -> Unit,
 ) {
     val gridState = rememberLazyGridState()
+    val bringIntoView = remember { TvBringIntoView() }
+    val scope = rememberCoroutineScope()
     val shape = RoundedCornerShape(12.dp)
     LaunchedEffect(gridState, items.size) {
         snapshotFlow {
@@ -349,6 +358,11 @@ private fun PosterGrid(
             info.totalItemsCount > 0 && last >= info.totalItemsCount - 8
         }.collect { if (it) onLoadMore() }
     }
+    ProvideTvBringIntoView(
+        controller = bringIntoView,
+        viewportScroll = { gridState.firstVisibleItemScrollOffset.toFloat() },
+        scrolledPastStart = { gridState.firstVisibleItemIndex > 0 },
+    ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(6),
         state = gridState,
@@ -366,8 +380,21 @@ private fun PosterGrid(
                 focusRequester = if (index == 0) firstFocus else null,
                 up = if (index < 6) up else null,
                 onOpen = { onOpen(item) },
+                onFocused = {
+                    if (index < 6) {
+                        bringIntoView.pinToStart = true
+                        scope.launch {
+                            gridState.scrollToItem(0, 0)
+                            withFrameNanos { }
+                            gridState.scrollToItem(0, 0)
+                        }
+                    } else {
+                        bringIntoView.pinToStart = false
+                    }
+                },
             )
         }
+    }
     }
 }
 
@@ -379,6 +406,7 @@ private fun PosterCell(
     focusRequester: FocusRequester?,
     up: FocusRequester?,
     onOpen: () -> Unit,
+    onFocused: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -388,7 +416,10 @@ private fun PosterCell(
                 .aspectRatio(2f / 3f)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .focusProperties { up?.let { this.up = it } }
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (it.isFocused) onFocused()
+                }
                 .focusable()
                 .clickable(onClick = onOpen),
         ) {
@@ -438,8 +469,31 @@ private fun SuggestionRows(
 ) {
     val visible = rows.filter { !it.items.isNullOrEmpty() }
     val focus = remember(visible.size) { List(visible.size) { FocusRequester() } }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val bringIntoView = remember { TvBringIntoView() }
+    val scope = rememberCoroutineScope()
     val latestLabel = stringResource(R.string.library_recently_added)
+    fun focusSuggestion(index: Int) {
+        val pin = index == 0
+        bringIntoView.pinToStart = pin
+        val requester = if (index == 0) firstFocus else focus[index]
+        scope.launch {
+            if (pin) listState.scrollToItem(0, 0) else listState.animateScrollToItem(index)
+            withFrameNanos { }
+            try {
+                requester.requestFocus()
+            } catch (_: IllegalStateException) {
+            }
+            if (pin) listState.scrollToItem(0, 0)
+        }
+    }
+    ProvideTvBringIntoView(
+        controller = bringIntoView,
+        viewportScroll = { listState.viewportScroll() },
+        scrolledPastStart = { listState.scrolledPastStart() },
+    ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
@@ -471,6 +525,24 @@ private fun SuggestionRows(
                 down = focus.getOrNull(index + 1),
                 onActivate = onOpen,
                 onMenu = {},
+                onFocused = { if (index == 0) focusSuggestion(0) },
+                onExitUp = {
+                    if (index == 0) {
+                        bringIntoView.pinToStart = true
+                        scope.launch {
+                            listState.scrollToItem(0, 0)
+                            try {
+                                up.requestFocus()
+                            } catch (_: IllegalStateException) {
+                            }
+                        }
+                    } else {
+                        focusSuggestion(index - 1)
+                    }
+                },
+                onExitDown = {
+                    if (index < visible.lastIndex) focusSuggestion(index + 1)
+                },
                 caption = { item ->
                     Column(
                         Modifier
@@ -510,6 +582,7 @@ private fun SuggestionRows(
                 )
             }
         }
+    }
     }
 }
 

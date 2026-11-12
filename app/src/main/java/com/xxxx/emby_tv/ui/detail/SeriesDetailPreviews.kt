@@ -13,6 +13,7 @@ private fun SeriesFrame(
     fontFamily: FontFamily,
     scrollOffset: androidx.compose.ui.unit.Dp = 0.dp,
     focus: SeriesFocus,
+    expandBelowHero: Boolean = focus == SeriesFocus.Hero,
 ) {
     HomePreviewChrome(fontFamily) {
         SeriesDetailPage(
@@ -30,11 +31,24 @@ private fun SeriesFrame(
             onTogglePlayed = {},
             onOpenSimilar = {},
             scrollOffset = scrollOffset,
+            expandBelowHero = expandBelowHero,
             forceFocus = focus,
             requestInitialFocus = false,
             fontFamily = fontFamily,
         )
     }
+}
+
+@Preview(name = "series-detail-first", device = TV, locale = "zh")
+@Composable
+fun SeriesDetailFirstPreview(fontFamily: FontFamily = FontFamily.Default) {
+    SeriesFrame(fontFamily, focus = SeriesFocus.Hero, expandBelowHero = true)
+}
+
+@Preview(name = "series-detail-second", device = TV, locale = "zh")
+@Composable
+fun SeriesDetailSecondPreview(fontFamily: FontFamily = FontFamily.Default) {
+    SeriesFrame(fontFamily, scrollOffset = (-210).dp, focus = SeriesFocus.Episodes, expandBelowHero = false)
 }
 
 @Preview(name = "series-hero", device = TV, locale = "zh")

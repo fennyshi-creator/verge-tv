@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +42,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +69,8 @@ import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
+import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
@@ -147,6 +152,7 @@ fun SeriesDetailPage(
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
     scrollOffset: Dp = 0.dp,
+    expandBelowHero: Boolean = true,
     forceFocus: SeriesFocus? = null,
     requestInitialFocus: Boolean = true,
     fontFamily: FontFamily = FontFamily.Default,
@@ -166,12 +172,26 @@ fun SeriesDetailPage(
     var blurBackdrop by remember(series.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val bringIntoView = remember { TvBringIntoView() }
+    var tabsOffset by remember(series.id) { mutableIntStateOf(0) }
+    val tabInset = with(LocalDensity.current) { 72.dp.roundToPx() }
     fun revealHero() {
         blurBackdrop = false
+        bringIntoView.pinToStart = true
         scope.launch {
             scrollState.animateScrollTo(0)
             withFrameNanos { }
             scrollState.scrollTo(0)
+        }
+    }
+    fun showEpisodes() {
+        blurBackdrop = true
+        bringIntoView.pinToStart = false
+        scope.launch {
+            val target = (tabsOffset - tabInset).coerceAtLeast(0)
+            scrollState.animateScrollTo(target)
+            withFrameNanos { }
+            if (scrollState.value < 8 && tabsOffset > 80) scrollState.scrollTo(target)
         }
     }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "series-dim")
@@ -186,7 +206,13 @@ fun SeriesDetailPage(
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, series, 1920)
     val featured = resume ?: episodes.getOrNull(resumeIndex)
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
-        Box(modifier.fillMaxSize().background(Color(0xFF12110F)).clipToBounds()) {
+        ProvideTvBringIntoView(
+            controller = bringIntoView,
+            viewportScroll = { scrollState.value.toFloat() },
+            scrolledPastStart = { scrollState.value > 0 },
+        ) {
+        BoxWithConstraints(modifier.fillMaxSize().background(Color(0xFF12110F)).clipToBounds()) {
+            val viewport = maxHeight
             CompositionLocalProvider(LocalArtworkSoften provides blurBackdrop) {
                 HomeImage(
                     itemId = series.id,
@@ -213,14 +239,14 @@ fun SeriesDetailPage(
                     .offset(y = scrollOffset)
                     .padding(bottom = 24.dp),
             ) {
-                Spacer(Modifier.height(96.dp))
+                Spacer(Modifier.height(28.dp))
                 SeriesTitleBlock(series, featured, serverUrl, Modifier.padding(horizontal = 48.dp))
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
                 ActionRow(
                     item = series,
                     playbackItem = featured ?: series,
                     focusRequester = heroFocus,
-                    down = if (seasons.isNotEmpty()) seasonFocus else episodeFocus,
+                    down = if (episodes.isNotEmpty()) episodeFocus else if (seasons.isNotEmpty()) seasonFocus else null,
                     forceFocused = forceFocus == SeriesFocus.Hero,
                     onFocused = { revealHero() },
                     onPlay = onPlay,
@@ -229,6 +255,9 @@ fun SeriesDetailPage(
                     showVersions = false,
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
+                if (expandBelowHero) {
+                    Spacer(Modifier.height((viewport - 300.dp).coerceIn(160.dp, 420.dp)))
+                }
                 if (seasons.isNotEmpty()) {
                     SeasonTabs(
                         seasons = seasons,
@@ -239,6 +268,9 @@ fun SeriesDetailPage(
                         onSelect = onSelectSeason,
                         onFocused = { blurBackdrop = true },
                         forceFocused = forceFocus == SeriesFocus.Seasons,
+                        modifier = Modifier.onGloballyPositioned { coords ->
+                            tabsOffset = coords.positionInParent().y.roundToInt()
+                        },
                     )
                 }
                 androidx.compose.runtime.key(season?.id ?: "episodes") {
@@ -254,7 +286,7 @@ fun SeriesDetailPage(
                         down = if (people.isNotEmpty()) castFocus else if (similar.isNotEmpty()) similarFocus else null,
                         initialWindowStart = resumeIndex,
                         forceFocused = forceFocus == SeriesFocus.Episodes,
-                        onFocused = { blurBackdrop = true },
+                        onFocused = { showEpisodes() },
                         onOpen = onOpenEpisode,
                     )
                 }
@@ -346,6 +378,54 @@ fun SeriesDetailPage(
                     }
                 }
             }
+            if (expandBelowHero && scrollOffset == 0.dp && !blurBackdrop && episodes.isNotEmpty()) {
+                EpisodePeek(
+                    episodes = episodes.take(6),
+                    season = season,
+                    series = series,
+                    apiKey = apiKey,
+                    serverUrl = serverUrl,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+        }
+        }
+    }
+}
+
+@Composable
+private fun EpisodePeek(
+    episodes: List<BaseItemDto>,
+    season: BaseItemDto?,
+    series: BaseItemDto,
+    apiKey: String,
+    serverUrl: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .clipToBounds()
+            .padding(horizontal = 48.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        episodes.forEach { episode ->
+            Box(
+                Modifier
+                    .width(248.dp)
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+            ) {
+                HomeImage(
+                    itemId = episode.id,
+                    fallbackArtId = null,
+                    url = EmbyPresentation.episodeStillUrl(serverUrl, episode, season, series, apiKey),
+                    role = ArtRole.Thumb,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
@@ -362,25 +442,26 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverU
             coil3.compose.AsyncImage(
                 model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(logo).build(),
                 contentDescription = EmbyPresentation.displayName(series),
+                alignment = Alignment.CenterStart,
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier.height(72.dp).width(520.dp),
+                modifier = Modifier.height(56.dp).fillMaxWidth(),
             )
         } else {
             Text(
                 text = EmbyPresentation.displayName(series),
                 color = Color(0xFFD64532),
-                fontSize = 52.sp,
+                fontSize = 40.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp,
+                letterSpacing = 0.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (genres.isNotBlank()) {
-                HomeText(genres, 13.sp, Color(0xFFE4E4E4))
-                HomeText("  ·  ", 13.sp, Color(0xFFBDBDBD))
+                HomeText(genres, 12.sp, Color(0xFFE4E4E4))
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
             }
             if (rating.isNotBlank()) {
                 Box(
@@ -389,36 +470,29 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverU
                         .background(Color.White.copy(0.16f))
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 ) {
-                    HomeText(rating, 11.sp, Color.White, fontWeight = FontWeight.Medium)
+                    HomeText(rating, 10.sp, Color.White, fontWeight = FontWeight.Medium)
                 }
-                HomeText("  ·  ", 13.sp, Color(0xFFBDBDBD))
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
             }
-            if (years.isNotBlank()) HomeText(years, 13.sp, Color(0xFFE4E4E4))
+            if (years.isNotBlank()) HomeText(years, 12.sp, Color(0xFFE4E4E4))
             if (score.isNotBlank()) {
-                HomeText("  ·  ", 13.sp, Color(0xFFBDBDBD))
-                HomeText(score, 13.sp, Color(0xFFE4E4E4))
+                HomeText("  ·  ", 12.sp, Color(0xFFBDBDBD))
+                HomeText(score, 12.sp, Color(0xFFE4E4E4))
             }
         }
         if (episode != null) {
             val code = EmbyPresentation.episodeHeading(episode)
-            Spacer(Modifier.height(12.dp))
-            HomeText(code, 15.sp, Color.White, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
+            HomeText(code, 13.sp, Color.White, fontWeight = FontWeight.Medium)
             val overview = episode.overview?.takeIf { it.isNotBlank() } ?: series.overview.orEmpty()
             if (overview.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Black.copy(0.38f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    HomeText(overview, 14.sp, Color(0xFFF2F2F2), maxLines = 2)
-                }
+                Spacer(Modifier.height(6.dp))
+                HomeText(overview, 13.sp, Color(0xFFE8E8E8), maxLines = 2)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val runtime = EmbyPresentation.runtimeLabel(episode.runTimeTicks).orEmpty()
-                if (runtime.isNotBlank()) HomeText(runtime, 14.sp, Color.White)
+                if (runtime.isNotBlank()) HomeText(runtime, 13.sp, Color.White)
                 val badge = EmbyPresentation.qualityBadge(episode)
                 if (!badge.isNullOrBlank()) {
                     Spacer(Modifier.width(10.dp))
@@ -446,6 +520,7 @@ private fun SeasonTabs(
     onSelect: (Int) -> Unit,
     onFocused: () -> Unit,
     forceFocused: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     if (seasons.isEmpty()) return
     var slot by remember { mutableIntStateOf(selected.coerceIn(0, seasons.lastIndex)) }
@@ -460,7 +535,7 @@ private fun SeasonTabs(
     val pillW by animateDpAsState(with(density) { targetWidth.toDp() }, tween(220), label = "season-pill-w")
     val showFill = rowFocused || forceFocused
     Box(
-        Modifier
+        modifier
             .padding(start = 48.dp, top = 22.dp, bottom = 8.dp)
             .focusRequester(focusRequester)
             .focusProperties {
