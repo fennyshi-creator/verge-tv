@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.roundToInt
@@ -232,6 +233,14 @@ fun SeriesDetailPage(
                     )
                 )
             )
+            val titleStart = viewport * 0.35f
+            val buttonBottom = viewport * 0.79f
+            val actionHeight = 52.dp
+            var titleHeight by remember(series.id) { mutableStateOf(180.dp) }
+            val density = LocalDensity.current
+            val beforeButtons = (buttonBottom - actionHeight - titleStart - titleHeight).coerceAtLeast(8.dp)
+            // Tabs start past the bottom edge so no season glyph can peek under the episode strip.
+            val hideTabs = (viewport - buttonBottom + 28.dp).coerceAtLeast(72.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -239,9 +248,16 @@ fun SeriesDetailPage(
                     .offset(y = scrollOffset)
                     .padding(bottom = 24.dp),
             ) {
-                Spacer(Modifier.height(28.dp))
-                SeriesTitleBlock(series, featured, serverUrl, Modifier.padding(horizontal = 48.dp))
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(if (expandBelowHero) titleStart else 28.dp))
+                SeriesTitleBlock(
+                    series,
+                    featured,
+                    serverUrl,
+                    Modifier
+                        .padding(horizontal = 48.dp)
+                        .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
+                )
+                Spacer(Modifier.height(if (expandBelowHero) beforeButtons else 14.dp))
                 ActionRow(
                     item = series,
                     playbackItem = featured ?: series,
@@ -256,7 +272,7 @@ fun SeriesDetailPage(
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
                 if (expandBelowHero) {
-                    Spacer(Modifier.height((viewport - 300.dp).coerceIn(160.dp, 420.dp)))
+                    Spacer(Modifier.height(hideTabs))
                 }
                 if (seasons.isNotEmpty()) {
                     SeasonTabs(

@@ -67,7 +67,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -183,7 +185,7 @@ fun MovieDetailPage(
             viewportScroll = { scrollState.value.toFloat() },
             scrolledPastStart = { scrollState.value > 0 },
         ) {
-        Box(
+        BoxWithConstraints(
             modifier
                 .fillMaxSize()
                 .background(Color(0xFF100E0C))
@@ -224,6 +226,13 @@ fun MovieDetailPage(
                         )
                     ),
             )
+            val viewport = maxHeight
+            val titleStart = viewport * 0.35f
+            val buttonBottom = viewport * 0.79f
+            val actionHeight = 52.dp
+            var titleHeight by remember(item.id) { mutableStateOf(170.dp) }
+            val density = LocalDensity.current
+            val beforeButtons = (buttonBottom - actionHeight - titleStart - titleHeight).coerceAtLeast(8.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -231,9 +240,15 @@ fun MovieDetailPage(
                     .offset(y = scrollOffset)
                     .padding(bottom = 28.dp),
             ) {
-                Spacer(Modifier.height(236.dp))
-                TitleBlockSpaced(item, serverUrl, Modifier.padding(horizontal = 48.dp))
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(if (scrollOffset == 0.dp) titleStart else 48.dp))
+                TitleBlockSpaced(
+                    item,
+                    serverUrl,
+                    Modifier
+                        .padding(horizontal = 48.dp)
+                        .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
+                )
+                Spacer(Modifier.height(if (scrollOffset == 0.dp) beforeButtons else 18.dp))
                 ActionRow(
                     item = item,
                     focusRequester = playFocus,
