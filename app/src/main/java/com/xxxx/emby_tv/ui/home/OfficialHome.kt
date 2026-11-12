@@ -417,7 +417,7 @@ private fun NavPill(
 }
 
 @Composable
-private fun LeadingSlotRow(
+internal fun LeadingSlotRow(
     items: List<BaseItemDto>,
     cardWidth: Dp,
     cardHeight: Dp,

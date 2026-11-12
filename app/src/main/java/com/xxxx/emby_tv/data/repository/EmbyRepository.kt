@@ -129,7 +129,8 @@ class EmbyRepository private constructor(private val context: Context) {
         limit: Int = 20,
         sortBy: String = "SortName",
         sortOrder: String = "Ascending",
-        filters: String? = null
+        filters: String? = null,
+        genre: String? = null,
     ): Pair<List<BaseItemDto>, Int> {
         requireLoggedIn()
         return EmbyApi.getLibraryList(
@@ -144,8 +145,116 @@ class EmbyRepository private constructor(private val context: Context) {
             limit,
             sortBy,
             sortOrder,
-            filters
+            filters,
+            genre,
         )
+    }
+
+    suspend fun getLibraryGenres(parentId: String, type: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getLibraryGenres(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId,
+            type,
+        )
+    }
+
+    suspend fun getRecentlyPlayedSeries(parentId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getRecentlyPlayedSeries(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId,
+        )
+    }
+
+    /**
+     * 建议 tab: 最近添加, then 因为你看过 rows scoped to this library.
+     * Movies use /Movies/Recommendations. Series use Similar on recently played series.
+     */
+    suspend fun getLibrarySuggestions(parentId: String, type: String): List<RecommendationDto> {
+        requireLoggedIn()
+        val rows = mutableListOf<RecommendationDto>()
+        val latest = try {
+            EmbyApi.getLatestItemsByViews(
+                context,
+                session.serverUrl!!,
+                session.apiKey!!,
+                session.deviceId,
+                session.userId!!,
+                parentId,
+                type,
+            )
+        } catch (e: Exception) {
+            ErrorHandler.logError("EmbyRepository", "最近添加加载失败", e)
+            emptyList()
+        }
+        if (latest.isNotEmpty()) {
+            rows += RecommendationDto(
+                baselineItemName = null,
+                recommendationType = "Latest",
+                items = latest,
+            )
+        }
+        if (type == "Series") {
+            val resume = try {
+                getResumeItems(parentId)
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "继续观看加载失败", e)
+                emptyList()
+            }
+            val played = try {
+                getRecentlyPlayedSeries(parentId)
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "最近播放剧集加载失败", e)
+                emptyList()
+            }
+            val seeds = com.xxxx.emby_tv.util.EmbyPresentation.recentSeriesSeeds(resume, played)
+            for ((id, name) in seeds) {
+                val similar = try {
+                    EmbyApi.getSimilarItems(
+                        context,
+                        session.serverUrl!!,
+                        session.apiKey!!,
+                        session.deviceId,
+                        session.userId!!,
+                        id,
+                    )
+                } catch (e: Exception) {
+                    ErrorHandler.logError("EmbyRepository", "相似剧集加载失败", e)
+                    emptyList()
+                }
+                if (similar.isEmpty()) continue
+                rows += RecommendationDto(
+                    baselineItemName = name,
+                    recommendationType = "SimilarToRecentlyPlayed",
+                    items = similar,
+                )
+            }
+        } else {
+            val recs = try {
+                EmbyApi.getMovieRecommendations(
+                    context,
+                    session.serverUrl!!,
+                    session.apiKey!!,
+                    session.deviceId,
+                    session.userId!!,
+                    parentId = parentId,
+                )
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "电影推荐不可用", e)
+                emptyList()
+            }
+            rows += recs.filter { !it.baselineItemName.isNullOrBlank() && !it.items.isNullOrEmpty() }
+        }
+        return rows
     }
 
     /**

@@ -6,6 +6,9 @@ import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.UserDataDto
 import com.xxxx.emby_tv.data.remote.EmbyJson
 import com.xxxx.emby_tv.data.remote.latestItemsPath
+import com.xxxx.emby_tv.data.remote.libraryGenresPath
+import com.xxxx.emby_tv.data.remote.libraryItemsPath
+import com.xxxx.emby_tv.data.remote.recentlyPlayedSeriesPath
 import com.xxxx.emby_tv.data.remote.similarItemsPath
 import com.google.gson.reflect.TypeToken
 import org.junit.Assert.assertEquals
@@ -111,6 +114,32 @@ class EmbyPresentationTest {
         assertTrue(latest.contains("/Items/Latest"))
         assertFalse(latest.contains("SortBy=DateCreated"))
         assertTrue(latestItemsPath("user", "237", "Series", 16, "token").contains("IncludeItemTypes=Series"))
+        val grid = libraryItemsPath("user", "3", "Movie", 0, 36, "token")
+        assertTrue(grid.contains("IncludeItemTypes=Movie"))
+        assertTrue(grid.contains("SortBy=DateCreated"))
+        assertTrue(grid.contains("SortOrder=Descending"))
+        assertTrue(grid.contains("Recursive=true"))
+        assertTrue(grid.contains("ParentId=3"))
+        assertTrue(grid.contains("StartIndex=0"))
+        assertTrue(grid.contains("Limit=36"))
+        assertFalse(grid.contains("Genres="))
+        val genreGrid = libraryItemsPath("user", "3", "Movie", 36, 36, "token", "动作")
+        assertTrue(genreGrid.contains("Genres="))
+        assertTrue(genreGrid.contains("StartIndex=36"))
+        val genres = libraryGenresPath("user", "237", "Series", "token")
+        assertTrue(genres.startsWith("/Genres?"))
+        assertTrue(genres.contains("ParentId=237"))
+        assertTrue(genres.contains("IncludeItemTypes=Series"))
+        val played = recentlyPlayedSeriesPath("user", "237", 6, "token")
+        assertTrue(played.contains("IncludeItemTypes=Series"))
+        assertTrue(played.contains("SortBy=DatePlayed"))
+        val seeds = EmbyPresentation.recentSeriesSeeds(
+            resume = listOf(
+                BaseItemDto(id = "ep", type = "Episode", seriesId = "s1", seriesName = "塔尔萨之王", name = "第 1 集"),
+            ),
+            played = listOf(BaseItemDto(id = "s2", type = "Series", name = "金斯敦市长")),
+        )
+        assertEquals(listOf("s1" to "塔尔萨之王", "s2" to "金斯敦市长"), seeds)
     }
 
     @Test

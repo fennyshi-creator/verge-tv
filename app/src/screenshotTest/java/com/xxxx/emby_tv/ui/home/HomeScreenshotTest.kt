@@ -6,6 +6,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import com.xxxx.emby_tv.ui.detail.DetailCastPreview
+import com.xxxx.emby_tv.ui.library.LibraryMoviesGridPreview
+import com.xxxx.emby_tv.ui.library.LibrarySuggestionsPreview
 import com.xxxx.emby_tv.ui.detail.DetailHeroPreview
 import com.xxxx.emby_tv.ui.detail.DetailVersionPreview
 import com.xxxx.emby_tv.ui.detail.SeriesCastPreview
@@ -100,4 +102,18 @@ fun SeriesSeasonFocusedScreenshot() {
 @Composable
 fun MovieVersionScreenshot() {
     DetailVersionPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "library-movies-grid", device = TV, locale = "zh")
+@Composable
+fun LibraryMoviesGridScreenshot() {
+    LibraryMoviesGridPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "library-suggestions", device = TV, locale = "zh")
+@Composable
+fun LibrarySuggestionsScreenshot() {
+    LibrarySuggestionsPreview(fontFamily = previewFont())
 }

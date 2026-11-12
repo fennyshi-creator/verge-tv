@@ -2,6 +2,7 @@ package com.xxxx.emby_tv
 
 import Emby_tvTheme
 import com.xxxx.emby_tv.ui.LibraryScreen
+import com.xxxx.emby_tv.ui.library.LibraryBrowseConnected
 import com.xxxx.emby_tv.ui.LoginScreen
 import com.xxxx.emby_tv.ui.PlayerScreen
 
@@ -37,6 +38,7 @@ import com.xxxx.emby_tv.ui.components.Loading
 import com.xxxx.emby_tv.ui.theme.ThemeColorManager
 import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
 import com.xxxx.emby_tv.ui.viewmodel.HomeViewModel
+import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
 import com.xxxx.emby_tv.ui.viewmodel.LoginViewModel
 import com.xxxx.emby_tv.ui.viewmodel.LibraryViewModel
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
@@ -230,6 +232,44 @@ fun EmbyTvApp() {
                             onNavigateToSeries = { seriesId ->
                                 navController.navigate("series/$seriesId")
                             }
+                        )
+                    }
+
+                    composable(
+                        "browse/{libraryId}?libraryName={libraryName}&type={type}",
+                        arguments = listOf(
+                            navArgument("libraryId") { type = NavType.StringType },
+                            navArgument("libraryName") {
+                                type = NavType.StringType
+                                defaultValue = ""
+                            },
+                            navArgument("type") {
+                                type = NavType.StringType
+                                defaultValue = "Movie"
+                            },
+                        )
+                    ) { backStackEntry ->
+                        val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
+                        val libraryName = backStackEntry.arguments?.getString("libraryName") ?: ""
+                        val type = backStackEntry.arguments?.getString("type") ?: "Movie"
+                        val browseViewModel: LibraryBrowseViewModel = viewModel()
+                        val repository = com.xxxx.emby_tv.data.repository.EmbyRepository.getInstance(
+                            androidx.compose.ui.platform.LocalContext.current,
+                        )
+                        LibraryBrowseConnected(
+                            parentId = libraryId,
+                            libraryName = libraryName,
+                            itemType = type,
+                            serverUrl = repository.serverUrl ?: "",
+                            viewModel = browseViewModel,
+                            onOpenItem = { item ->
+                                val id = item.id ?: return@LibraryBrowseConnected
+                                if (item.type == "Series" || item.isSeries) {
+                                    navController.navigate("series/$id")
+                                } else {
+                                    navController.navigate("media/$id")
+                                }
+                            },
                         )
                     }
 

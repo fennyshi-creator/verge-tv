@@ -164,6 +164,29 @@ object EmbyPresentation {
         else -> null
     }
 
+    /**
+     * Series the suggestions tab should ask Similar for: resume episodes first,
+     * then series sorted by DatePlayed. Duplicates are dropped.
+     */
+    fun recentSeriesSeeds(
+        resume: List<BaseItemDto>,
+        played: List<BaseItemDto>,
+        limit: Int = 4,
+    ): List<Pair<String, String>> {
+        val seeds = linkedMapOf<String, String>()
+        fun add(id: String?, name: String?) {
+            if (seeds.size >= limit) return
+            if (id.isNullOrBlank() || name.isNullOrBlank() || seeds.containsKey(id)) return
+            seeds[id] = name
+        }
+        for (item in resume) {
+            if (item.type == "Series") add(item.id, item.name)
+            else add(item.seriesId, item.seriesName ?: item.name)
+        }
+        for (item in played) add(item.id, item.name)
+        return seeds.map { it.key to it.value }
+    }
+
     fun isPosterRowLibrary(view: BaseItemDto): Boolean {
         if (latestIncludeTypes(view) == "Movie" || latestIncludeTypes(view) == "Series") return true
         val child = view.latestItems?.firstOrNull()?.type

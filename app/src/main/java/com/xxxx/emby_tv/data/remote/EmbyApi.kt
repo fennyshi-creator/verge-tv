@@ -48,6 +48,58 @@ internal fun similarItemsPath(userId: String, itemId: String, limit: Int, apiKey
  * does not come back as folders and a series library does not come back as seasons.
  * GroupItems is off for the same reason. This is not a ParentId + DateCreated list.
  */
+/**
+ * Paged library grid. Newest added first, typed so folders and episodes stay out.
+ * [genre] is set only after the user picks a genre on the 类型 tab.
+ */
+internal fun libraryItemsPath(
+    userId: String,
+    parentId: String,
+    includeItemTypes: String,
+    startIndex: Int,
+    limit: Int,
+    apiKey: String,
+    genre: String? = null,
+): String {
+    val genreQuery = if (genre.isNullOrBlank()) {
+        ""
+    } else {
+        "&Genres=" + java.net.URLEncoder.encode(genre, "UTF-8")
+    }
+    return "/Users/$userId/Items?IncludeItemTypes=$includeItemTypes" +
+            "&Recursive=true&ParentId=$parentId" +
+            "&SortBy=DateCreated&SortOrder=Descending" +
+            "&StartIndex=$startIndex&Limit=$limit" +
+            genreQuery +
+            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
+internal fun libraryGenresPath(
+    userId: String,
+    parentId: String,
+    includeItemTypes: String,
+    apiKey: String,
+): String {
+    return "/Genres?ParentId=$parentId&UserId=$userId" +
+            "&IncludeItemTypes=$includeItemTypes&Recursive=true" +
+            "&SortBy=SortName&SortOrder=Ascending" +
+            "&X-Emby-Token=$apiKey"
+}
+
+internal fun recentlyPlayedSeriesPath(
+    userId: String,
+    parentId: String,
+    limit: Int,
+    apiKey: String,
+): String {
+    return "/Users/$userId/Items?ParentId=$parentId&IncludeItemTypes=Series&Recursive=true" +
+            "&SortBy=DatePlayed&SortOrder=Descending&Limit=$limit" +
+            "&Fields=ProductionYear,ImageTags" +
+            "&X-Emby-Token=$apiKey"
+}
+
 internal fun latestItemsPath(
     userId: String,
     parentId: String,
@@ -266,15 +318,44 @@ object EmbyApi {
         limit: Int = 20,
         sortBy: String = "SortName",
         sortOrder: String = "Ascending",
-        filters: String? = null
+        filters: String? = null,
+        genre: String? = null,
     ): Pair<List<BaseItemDto>, Int> {
-        val url = "/Users/$userId/Items?IncludeItemTypes=$type" +
+        val url = if (genre != null || (sortBy == "DateCreated" && sortOrder == "Descending" && filters.isNullOrBlank())) {
+            libraryItemsPath(userId, parentId, type, startIndex, limit, apiKey, genre)
+        } else "/Users/$userId/Items?IncludeItemTypes=$type" +
                 "&Fields=BasicSyncInfo,PrimaryImageAspectRatio,ProductionYear,Status,EndDate" +
                 "&StartIndex=$startIndex&SortBy=$sortBy&SortOrder=$sortOrder&ParentId=$parentId" +
                 (filters?.let { "&Filters=$it" } ?: "") +
                 "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1&Recursive=true&Limit=$limit" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoListWithTotal(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    suspend fun getLibraryGenres(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        parentId: String,
+        includeItemTypes: String,
+    ): List<BaseItemDto> {
+        val url = libraryGenresPath(userId, parentId, includeItemTypes, apiKey)
+        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    suspend fun getRecentlyPlayedSeries(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        parentId: String,
+        limit: Int = 6,
+    ): List<BaseItemDto> {
+        val url = recentlyPlayedSeriesPath(userId, parentId, limit, apiKey)
+        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
     
     /**
@@ -670,10 +751,13 @@ object EmbyApi {
         userId: String,
         categoryLimit: Int = 4,
         itemLimit: Int = 16,
+        parentId: String? = null,
     ): List<RecommendationDto> {
+        val parent = if (parentId.isNullOrBlank()) "" else "&ParentId=$parentId"
         val url = "/Movies/Recommendations?UserId=$userId" +
+                parent +
                 "&CategoryLimit=$categoryLimit&ItemLimit=$itemLimit" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
+                "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
                 "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
                 "&X-Emby-Token=$apiKey"
         return httpStream(context, serverUrl, apiKey, deviceId, url) { reader ->
