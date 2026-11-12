@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -94,6 +95,8 @@ fun SearchScreen(
 
     // Focus
     val searchInputFocusRequester = remember { FocusRequester() }
+    val returnFocus = remember { FocusRequester() }
+    var returnId by rememberSaveable { mutableStateOf<String?>(null) }
     val gridState = rememberLazyGridState()
 
 
@@ -138,10 +141,37 @@ fun SearchScreen(
         }
     }
 
-    // Initial Focus
-    LaunchedEffect(Unit) {
-        delay(100)
-        searchInputFocusRequester.requestFocus()
+    LaunchedEffect(returnId, searchResults != null) {
+        val results = searchResults
+        val index = if (returnId == null || results == null) -1 else results.indexOfFirst { it.item.id == returnId }
+        if (index >= 0) {
+            gridState.scrollToItem(index)
+            withFrameNanos { }
+            try {
+                returnFocus.requestFocus()
+            } catch (_: IllegalStateException) {
+            }
+        } else {
+            delay(100)
+            try {
+                searchInputFocusRequester.requestFocus()
+            } catch (_: IllegalStateException) {
+            }
+        }
+    }
+    LaunchedEffect(gridState, searchResults?.size) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .collect { last ->
+                val results = searchResults.orEmpty()
+                val urls = (last + 1 until (last + 10).coerceAtMost(results.size)).map { index ->
+                    com.xxxx.emby_tv.Utils.getImageUrl(results[index].account.serverUrl, results[index].item, false)
+                }
+                com.xxxx.emby_tv.ui.home.ArtworkPrefetch.enqueue(
+                    context,
+                    urls,
+                    com.xxxx.emby_tv.ui.home.ArtRole.Primary,
+                )
+            }
     }
 
     Row(
@@ -439,13 +469,23 @@ fun SearchScreen(
             }
 
 
-            // Search Results Grid
-            if (searchResults == null && isSearching) {
+            val resultsPhase = when {
+                searchResults == null && isSearching -> "loading"
+                searchResults?.isEmpty() == true -> "empty"
+                searchResults != null -> "results"
+                else -> "idle"
+            }
+            androidx.compose.animation.Crossfade(
+                targetState = resultsPhase,
+                animationSpec = com.xxxx.emby_tv.ui.motion.Motion.fade(),
+                label = "search-results",
+            ) { phase ->
+            if (phase == "loading") {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Loading()
                 }
-            } else if (searchResults != null) {
-                if (searchResults.isEmpty()) {
+            } else if (phase == "empty" || phase == "results") {
+                if (phase == "empty") {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = stringResource(string.no_search_results),
@@ -454,7 +494,7 @@ fun SearchScreen(
                         )
                     }
                 } else {
-                    val items = searchResults
+                    val items = searchResults.orEmpty()
                     val maxLength = 200.dp
                     // Calculate max aspect ratio based on items present
                     val maxAspectRatio = items.mapNotNull {
@@ -476,9 +516,8 @@ fun SearchScreen(
                     ) {
                         items(items.size, key = { index ->
                             val item = items[index]
-                            // Combine item ID + Account ID for uniqueness in grid
                             "${item.item.id}_${item.account.id}"
-                        }) { index ->
+                        }, contentType = { "poster" }) { index ->
                             val resultModel = items[index]
                             val item = resultModel.item
                             val account = resultModel.account
@@ -498,11 +537,16 @@ fun SearchScreen(
                                     item = item,
                                     imgWidth = imgWidth,
                                     aspectRatio = maxAspectRatio,
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = if (item.id == returnId) {
+                                        Modifier.fillMaxWidth().focusRequester(returnFocus)
+                                    } else {
+                                        Modifier.fillMaxWidth()
+                                    },
                                     isMyLibrary = false,
                                     serverUrl = account.serverUrl,
                                     accountName = accountName,
                                     onItemClick = {
+                                        returnId = id
                                         // Switch account if needed, then navigate
                                         if (account.id != currentAccountId) {
                                             loginViewModel.switchAccount(
@@ -527,6 +571,7 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

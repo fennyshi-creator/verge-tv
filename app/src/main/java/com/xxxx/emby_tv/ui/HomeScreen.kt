@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,8 @@ fun HomeScreen(
     val doubleBackToExit = PreferencesManager(context).doubleBackToExit
     val repository = remember { EmbyRepository.getInstance(context) }
     val serverUrl = repository.serverUrl ?: ""
+    var returnRow by rememberSaveable { mutableStateOf<String?>(null) }
+    var returnItem by rememberSaveable { mutableStateOf<String?>(null) }
 
     val resumeItems = homeViewModel.resumeItems
     val libraryLatestItems = homeViewModel.libraryLatestItems
@@ -142,8 +145,20 @@ fun HomeScreen(
                         navController.navigate("media/$id")
                     }
                 },
-                onSearch = { navController.navigate("search") },
+                onRememberFocus = { row, id ->
+                    returnRow = row
+                    returnItem = id
+                },
+                restoreRowKey = returnRow,
+                restoreItemId = returnItem,
+                onSearch = {
+                    returnRow = "search"
+                    returnItem = null
+                    navController.navigate("search")
+                },
                 onFavorites = {
+                    returnRow = "favorites"
+                    returnItem = null
                     val library = libraryLatestItems.firstOrNull() ?: return@OfficialHome
                     val id = library.id ?: return@OfficialHome
                     val title = library.name ?: ""

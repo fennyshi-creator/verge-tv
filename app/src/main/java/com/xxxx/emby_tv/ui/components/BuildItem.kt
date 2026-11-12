@@ -129,8 +129,16 @@ fun BuildItem(
             ) {
 
                 // 使用 Coil 加载图片
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val posterPx = with(density) {
+                    imgWidth.roundToPx().coerceAtLeast(1) to (imgWidth / aspectRatio.coerceAtLeast(0.2f)).roundToPx().coerceAtLeast(1)
+                }
                 SubcomposeAsyncImage(
-                    model = imageUrl,
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .size(posterPx.first, posterPx.second)
+                        .crossfade(com.xxxx.emby_tv.ui.motion.Motion.imageMs)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,

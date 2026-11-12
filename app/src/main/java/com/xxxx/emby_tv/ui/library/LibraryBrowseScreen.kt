@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
@@ -56,7 +57,8 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.RecommendationDto
-import com.xxxx.emby_tv.ui.detail.BreathingStroke
+import com.xxxx.emby_tv.ui.home.ArtworkPrefetch
+import com.xxxx.emby_tv.ui.home.BreathingStroke
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.focus.glideToItem
@@ -87,6 +89,7 @@ fun LibraryBrowseConnected(
     LaunchedEffect(parentId, itemType) {
         viewModel.load(parentId, itemType)
     }
+    var returnId by rememberSaveable(parentId) { mutableStateOf<String?>(null) }
     val tabState = remember(parentId) { mutableStateOf(LibraryTab.Items) }
     var tab by tabState
     LaunchedEffect(tab) {
@@ -115,7 +118,11 @@ fun LibraryBrowseConnected(
         genreItems = viewModel.genreItems.orEmpty(),
         genreLoading = viewModel.selectedGenre != null && viewModel.genreItems == null,
         serverUrl = serverUrl,
-        onOpenItem = onOpenItem,
+        restoreItemId = returnId,
+        onOpenItem = { item ->
+            returnId = item.id
+            onOpenItem(item)
+        },
         onOpenGenre = viewModel::openGenre,
         onLoadMore = viewModel::loadMore,
     )
@@ -135,6 +142,7 @@ fun LibraryBrowsePage(
     genreItems: List<BaseItemDto>,
     genreLoading: Boolean,
     serverUrl: String,
+    restoreItemId: String? = null,
     onOpenItem: (BaseItemDto) -> Unit,
     onOpenGenre: (String) -> Unit,
     onLoadMore: () -> Unit,
@@ -145,8 +153,8 @@ fun LibraryBrowsePage(
     val tabFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val tabs = LibraryTab.entries
-    LaunchedEffect(requestInitialFocus, items.firstOrNull()?.id) {
-        if (!requestInitialFocus) return@LaunchedEffect
+    LaunchedEffect(requestInitialFocus, items.firstOrNull()?.id, restoreItemId) {
+        if (!requestInitialFocus || restoreItemId != null) return@LaunchedEffect
         yield()
         val target = if (tab == LibraryTab.Items && items.isNotEmpty()) contentFocus else tabFocus
         try {
@@ -187,6 +195,7 @@ fun LibraryBrowsePage(
                                 serverUrl = serverUrl,
                                 firstFocus = contentFocus,
                                 up = tabFocus,
+                                restoreItemId = restoreItemId,
                                 onOpen = onOpenItem,
                                 onLoadMore = onLoadMore,
                             )
@@ -201,6 +210,7 @@ fun LibraryBrowsePage(
                                 serverUrl = serverUrl,
                                 firstFocus = contentFocus,
                                 up = tabFocus,
+                                restoreItemId = restoreItemId,
                                 onOpen = onOpenItem,
                             )
                         }
@@ -215,6 +225,7 @@ fun LibraryBrowsePage(
                                     serverUrl = serverUrl,
                                     firstFocus = contentFocus,
                                     up = tabFocus,
+                                    restoreItemId = restoreItemId,
                                     onOpen = onOpenItem,
                                     onLoadMore = onLoadMore,
                                 )
@@ -354,11 +365,33 @@ private fun PosterGrid(
     up: FocusRequester,
     onOpen: (BaseItemDto) -> Unit,
     onLoadMore: () -> Unit,
+    restoreItemId: String? = null,
 ) {
-    val gridState = rememberLazyGridState()
+    val restoreIndex = items.indexOfFirst { it.id == restoreItemId }
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = if (restoreIndex > 0) (restoreIndex / 6) * 6 else 0,
+    )
     val bringIntoView = remember { TvBringIntoView() }
     val scope = rememberCoroutineScope()
     val shape = RoundedCornerShape(12.dp)
+    val prefetchContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(gridState, items.size, serverUrl) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .collect { last ->
+                val urls = (last + 1 until (last + 13).coerceAtMost(items.size)).map { index ->
+                    if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, items[index], false)
+                }
+                ArtworkPrefetch.enqueue(prefetchContext, urls, ArtRole.Primary)
+            }
+    }
+    LaunchedEffect(restoreItemId, items.size) {
+        if (restoreIndex < 0) return@LaunchedEffect
+        withFrameNanos { }
+        try {
+            firstFocus.requestFocus()
+        } catch (_: IllegalStateException) {
+        }
+    }
     LaunchedEffect(gridState, items.size) {
         snapshotFlow {
             val info = gridState.layoutInfo
@@ -385,7 +418,11 @@ private fun PosterGrid(
                 item = item,
                 serverUrl = serverUrl,
                 shape = shape,
-                focusRequester = if (index == 0) firstFocus else null,
+                focusRequester = when {
+                    restoreIndex >= 0 && index == restoreIndex -> firstFocus
+                    restoreIndex < 0 && index == 0 -> firstFocus
+                    else -> null
+                },
                 up = if (index < 6) up else null,
                 onOpen = { onOpen(item) },
                 onFocused = {
@@ -474,14 +511,30 @@ private fun SuggestionRows(
     firstFocus: FocusRequester,
     up: FocusRequester,
     onOpen: (BaseItemDto) -> Unit,
+    restoreItemId: String? = null,
 ) {
     val visible = rows.filter { !it.items.isNullOrEmpty() }
     val focus = remember(visible.size) { List(visible.size) { FocusRequester() } }
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val restoreRow = if (restoreItemId == null) -1 else visible.indexOfFirst { row ->
+        row.items.orEmpty().any { it.id == restoreItemId }
+    }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(
+        initialFirstVisibleItemIndex = restoreRow.coerceAtLeast(0),
+    )
     val bringIntoView = remember { TvBringIntoView() }
     val scope = rememberCoroutineScope()
     var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val latestLabel = stringResource(R.string.library_recently_added)
+    LaunchedEffect(restoreItemId, visible.size) {
+        if (restoreRow < 0) return@LaunchedEffect
+        listState.scrollToItem(restoreRow)
+        withFrameNanos { }
+        val requester = if (restoreRow == 0) firstFocus else focus[restoreRow]
+        try {
+            requester.requestFocus()
+        } catch (_: IllegalStateException) {
+        }
+    }
     fun focusSuggestion(index: Int) {
         val pin = index == 0
         bringIntoView.pinToStart = pin
@@ -536,6 +589,9 @@ private fun SuggestionRows(
                 down = focus.getOrNull(index + 1),
                 onActivate = onOpen,
                 onMenu = {},
+                initialIndex = cards.indexOfFirst { it.id == restoreItemId },
+                imageUrls = cards.map { if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, it, 800) },
+                prefetchRole = ArtRole.Thumb,
                 onFocused = { if (index == 0) focusSuggestion(0) },
                 onExitUp = {
                     if (index == 0) {
@@ -612,7 +668,7 @@ private fun GenreGrid(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(genres.size, key = { genres[it].id ?: genres[it].name ?: it }) { index ->
+        items(genres.size, key = { genres[it].id ?: genres[it].name ?: it }, contentType = { "genre" }) { index ->
             val genre = genres[index]
             var focused by remember { mutableStateOf(false) }
             Box(
@@ -643,14 +699,18 @@ private fun GenreGrid(
 
 @Composable
 private fun BrowseLoading() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+    com.xxxx.emby_tv.ui.motion.MotionFade(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+        }
     }
 }
 
 @Composable
 private fun BrowseEmpty() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        HomeText(text = stringResource(R.string.no_data), fontSize = 18.sp, color = HomeStyle.meta)
+    com.xxxx.emby_tv.ui.motion.MotionFade(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            HomeText(text = stringResource(R.string.no_data), fontSize = 18.sp, color = HomeStyle.meta)
+        }
     }
 }

@@ -48,10 +48,12 @@ fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val firstItemFocusRequester = remember { FocusRequester() }
-    val gridState = rememberLazyGridState()
     var isInitialScrollDone by rememberSaveable { mutableStateOf(false) }
     var returnFocusIndex by rememberSaveable { mutableIntStateOf(-1) }
     var shouldFocusOnReturn by rememberSaveable { mutableStateOf(false) }
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = if (shouldFocusOnReturn) returnFocusIndex.coerceAtLeast(0) else 0,
+    )
     val returnFocusRequester = remember { FocusRequester() }
 
     val repository = remember { EmbyRepository.getInstance(context) }
@@ -93,6 +95,21 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    LaunchedEffect(gridState, libraryItems?.size, serverUrl) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .collect { last ->
+                val list = libraryItems.orEmpty()
+                val urls = (last + 1 until (last + 13).coerceAtMost(list.size)).map { index ->
+                    if (serverUrl.isBlank()) "" else com.xxxx.emby_tv.Utils.getImageUrl(serverUrl, list[index], false)
+                }
+                com.xxxx.emby_tv.ui.home.ArtworkPrefetch.enqueue(
+                    context,
+                    urls,
+                    com.xxxx.emby_tv.ui.home.ArtRole.Primary,
+                )
+            }
     }
 
     LaunchedEffect(gridState) {
@@ -267,7 +284,7 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(items.size, key = { items[it].id ?: it.hashCode() }) { index ->
+                items(items.size, key = { items[it].id ?: it.hashCode() }, contentType = { "poster" }) { index ->
                     val item = items[index]
                     val id = item.id ?: ""
                     if (id.isNotEmpty()) {
@@ -340,6 +357,7 @@ private fun SortDialog(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            com.xxxx.emby_tv.ui.motion.MotionFade {
             Surface(
                 modifier = Modifier
                     .width(360.dp)
@@ -425,6 +443,7 @@ private fun SortDialog(
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }
+            }
             }
 
             val currentSortIndex = LibraryViewModel.SORT_OPTIONS.indexOfFirst { it.first == currentSortBy }

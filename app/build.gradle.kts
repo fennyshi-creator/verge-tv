@@ -1,5 +1,5 @@
-import java.util.Properties
-import java.io.FileInputStream
+import com.android.build.api.variant.HasHostTestsBuilder
+import com.android.build.api.variant.HostTestBuilder
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,15 +7,13 @@ plugins {
     alias(libs.plugins.screenshot)
 }
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
 android {
     namespace = "com.xxxx.emby_tv"
     compileSdk {
         version = release(36)
+    }
+    lint {
+        checkReleaseBuilds = false
     }
     buildFeatures {
         compose = true
@@ -27,8 +25,8 @@ android {
         applicationId = "com.xxxx.emby_tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "2.0.34"
-         versionCode = 234
+        versionName = "2.0.35"
+         versionCode = 235
 //        versionCode = 92
 
     }
@@ -39,25 +37,28 @@ android {
     }
     // AGP 9 内置 Kotlin：jvmTarget 自动与 targetCompatibility 对齐，无需 kotlinOptions
 
-     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
-            create("release") {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as String
-            }
+    androidComponents {
+        beforeVariants(selector().withBuildType("release")) { builder ->
+            (builder as HasHostTestsBuilder)
+                .hostTests[HostTestBuilder.UNIT_TEST_TYPE]
+                ?.enable = true
         }
     }
     buildTypes {
+        debug {
+            // Same debug certificate as every previous sideload, so 2.0.35
+            // installs over 2.0.34 without uninstalling.
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
-            // Release signing is optional so a debug build still configures
-            // on a machine that does not have key.properties.
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }

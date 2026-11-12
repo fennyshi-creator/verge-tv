@@ -86,6 +86,7 @@ fun MenuDialog(
                 ,
                 contentAlignment = Alignment.Center
             ) {
+                com.xxxx.emby_tv.ui.motion.MotionFade {
                 // 2. 菜单容器：玻璃拟态卡片
                 Surface(
                     modifier = Modifier
@@ -217,6 +218,7 @@ fun MenuDialog(
                             if (index < menuItems.size - 1) Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
+                }
                 }
             }
         }

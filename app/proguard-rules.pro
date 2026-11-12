@@ -1,21 +1,35 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Release rules for the sideload build. Playback and Emby JSON must survive R8.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Gson reads Kotlin data-class fields and the anonymous TypeToken subclasses in EmbyApi.
+-keep class com.xxxx.emby_tv.data.model.** { *; }
+-keep class com.xxxx.emby_tv.data.session.** { *; }
+-keep class com.xxxx.emby_tv.data.remote.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# FSPlayer JNI looks up these classes and members by name. Renaming breaks prepare().
+-keep class com.debugly.fsplayer.** { *; }
+-keep interface com.debugly.fsplayer.** { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Service loaders and TV/network libraries that discover classes by name.
+-keep class com.azhon.appupdate.** { *; }
+-keep class fi.iki.elonen.** { *; }
+-keep class org.nanohttpd.** { *; }
+-keep class com.google.zxing.** { *; }
+
+-keepclassmembers enum com.xxxx.emby_tv.** { *; }
+
+-dontwarn com.google.gson.**
+-dontwarn com.debugly.fsplayer.**
+-dontwarn org.nanohttpd.**
+-dontwarn fi.iki.elonen.**

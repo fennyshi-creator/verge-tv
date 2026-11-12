@@ -51,6 +51,7 @@ import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -111,6 +112,9 @@ fun OfficialHome(
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
     onSettings: () -> Unit,
+    onRememberFocus: (rowKey: String, itemId: String) -> Unit = { _, _ -> },
+    restoreRowKey: String? = null,
+    restoreItemId: String? = null,
     requestInitialFocus: Boolean = true,
     continueWindowStart: Int = 0,
     forceContinueFocus: Boolean = false,
@@ -128,14 +132,20 @@ fun OfficialHome(
     }
     val posterFocus = remember(posterRows.size) { List(posterRows.size) { FocusRequester() } }
     val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    val bringIntoView = remember { TvBringIntoView() }
-    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var cursor = 1
     val continueIndex = if (resumeItems.isNotEmpty()) cursor++ else -1
     val libraryIndex = if (libraries.isNotEmpty()) cursor++ else -1
     val posterIndex = posterFocus.indices.map { cursor++ }
+    fun indexOfId(items: List<BaseItemDto>): Int = items.indexOfFirst { it.id == restoreItemId }.coerceAtLeast(0)
+    val posterRestore = posterRows.indexOfFirst { "latest-${it.id}" == restoreRowKey }
+    val initialLazy = when (restoreRowKey) {
+        "libraries" -> libraryIndex
+        else -> if (posterRestore >= 0) posterIndex.getOrElse(posterRestore) { 0 } else 0
+    }.coerceAtLeast(0)
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialLazy)
+    val scope = rememberCoroutineScope()
+    val bringIntoView = remember { TvBringIntoView() }
+    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     fun focusRow(requester: FocusRequester, lazyIndex: Int, pin: Boolean) {
         bringIntoView.pinToStart = pin
         rowJob?.cancel()
@@ -156,13 +166,20 @@ fun OfficialHome(
         }
     }
 
-    LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, libraries.firstOrNull()?.id) {
-        if (!requestInitialFocus) return@LaunchedEffect
+    LaunchedEffect(requestInitialFocus, restoreRowKey, restoreItemId) {
+        if (!requestInitialFocus && restoreRowKey == null) return@LaunchedEffect
         yield()
-        val target = when {
-            resumeItems.isNotEmpty() -> continueFocus
-            libraries.isNotEmpty() -> libraryFocus
-            else -> homeTabFocus
+        val target = when (restoreRowKey) {
+            "search" -> searchFocus
+            "favorites" -> favoritesFocus
+            "resume" -> continueFocus
+            "libraries" -> libraryFocus
+            else -> posterFocus.getOrNull(posterRestore)
+                ?: when {
+                    resumeItems.isNotEmpty() -> continueFocus
+                    libraries.isNotEmpty() -> libraryFocus
+                    else -> homeTabFocus
+                }
         }
         try {
             target.requestFocus()
@@ -206,8 +223,15 @@ fun OfficialHome(
                             up = homeTabFocus,
                             down = if (libraries.isNotEmpty()) libraryFocus else null,
                             initialWindowStart = continueWindowStart,
+                            initialIndex = if (restoreRowKey == "resume") indexOfId(resumeItems) else -1,
                             forceFocused = forceContinueFocus,
-                            onActivate = onResume,
+                            imageUrls = resumeItems.map { thumbUrl(serverUrl, it) },
+                            backdropUrls = resumeItems.map { if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, it, 1280) },
+                            prefetchRole = ArtRole.Thumb,
+                            onActivate = { item ->
+                                item.id?.let { onRememberFocus("resume", it) }
+                                onResume(item)
+                            },
                             onMenu = onSettings,
                             onFocused = { focusRow(continueFocus, continueIndex, pin = true) },
                             onExitUp = { focusRow(homeTabFocus, 0, pin = true) },
@@ -236,7 +260,13 @@ fun OfficialHome(
                             focusRequester = libraryFocus,
                             up = if (resumeItems.isNotEmpty()) continueFocus else homeTabFocus,
                             down = posterFocus.firstOrNull(),
-                            onActivate = onOpenLibrary,
+                            initialIndex = if (restoreRowKey == "libraries") indexOfId(libraries) else -1,
+                            imageUrls = libraries.map { primaryUrl(serverUrl, it) },
+                            prefetchRole = ArtRole.Thumb,
+                            onActivate = { item ->
+                                item.id?.let { onRememberFocus("libraries", it) }
+                                onOpenLibrary(item)
+                            },
                             onMenu = onSettings,
                             onFocused = {
                                 if (resumeItems.isEmpty()) focusRow(libraryFocus, libraryIndex, pin = true)
@@ -267,7 +297,16 @@ fun OfficialHome(
                             focusRequester = posterFocus[index],
                             up = if (index == 0) libraryFocus else posterFocus[index - 1],
                             down = posterFocus.getOrNull(index + 1),
-                            onActivate = onOpenItem,
+                            initialIndex = if (restoreRowKey == "latest-${library.id}") indexOfId(library.latestItems.orEmpty()) else -1,
+                            imageUrls = library.latestItems.orEmpty().map { primaryUrl(serverUrl, it) },
+                            backdropUrls = library.latestItems.orEmpty().map {
+                                if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, it, 1280)
+                            },
+                            prefetchRole = ArtRole.Primary,
+                            onActivate = { item ->
+                                item.id?.let { onRememberFocus("latest-${library.id}", it) }
+                                onOpenItem(item)
+                            },
                             onMenu = onSettings,
                             onExitUp = {
                                 if (index == 0) {
@@ -303,7 +342,8 @@ fun OfficialHome(
                     }
                 }
                 if (resumeItems.isEmpty() && libraries.isEmpty()) {
-                    item(key = "empty") {
+                    item(key = "empty", contentType = "empty") {
+                        com.xxxx.emby_tv.ui.motion.MotionFade(Modifier.fillMaxWidth()) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
@@ -315,6 +355,7 @@ fun OfficialHome(
                                 fontSize = 18.sp,
                                 color = HomeStyle.meta,
                             )
+                        }
                         }
                     }
                 }
@@ -508,7 +549,11 @@ internal fun LeadingSlotRow(
     onExitDown: (() -> Unit)? = null,
     onExitUp: (() -> Unit)? = null,
     initialWindowStart: Int = 0,
+    initialIndex: Int = -1,
     forceFocused: Boolean = false,
+    imageUrls: List<String> = emptyList(),
+    backdropUrls: List<String> = emptyList(),
+    prefetchRole: ArtRole = ArtRole.Primary,
     caption: @Composable (BaseItemDto) -> Unit,
     art: @Composable BoxScope.(BaseItemDto) -> Unit,
 ) {
@@ -518,10 +563,16 @@ internal fun LeadingSlotRow(
         val usable = maxWidth - HomeStyle.gutter
         val fullSlots = ((usable + HomeStyle.rowGap) / stride).toInt().coerceAtLeast(1)
         val maxStart = (items.size - fullSlots).coerceAtLeast(0)
-        var windowStart by remember(items.size, fullSlots) {
-            mutableIntStateOf(initialWindowStart.coerceIn(0, maxStart))
+        val startWindow = if (initialIndex >= 0) {
+            initialIndex.coerceIn(0, maxStart)
+        } else {
+            initialWindowStart.coerceIn(0, maxStart)
         }
-        var slot by remember(items.size) { mutableIntStateOf(0) }
+        val startSlot = if (initialIndex >= 0) (initialIndex - startWindow).coerceAtLeast(0) else 0
+        var windowStart by remember(items.size, fullSlots) {
+            mutableIntStateOf(startWindow)
+        }
+        var slot by remember(items.size) { mutableIntStateOf(startSlot) }
         var rowFocused by rememberFocusState(forceFocused)
         var repeating by remember { mutableStateOf(false) }
         var lastMove by remember { mutableLongStateOf(0L) }
@@ -567,6 +618,20 @@ internal fun LeadingSlotRow(
         )
         val shape = RoundedCornerShape(corner)
         val focusedIndex = (windowStart + slot).coerceIn(0, items.lastIndex)
+        val prefetchContext = LocalContext.current
+        LaunchedEffect(windowStart, focusedIndex, imageUrls, backdropUrls) {
+            if (imageUrls.isNotEmpty()) {
+                val end = (windowStart + fullSlots + 4).coerceAtMost(imageUrls.size)
+                val start = windowStart.coerceIn(0, imageUrls.size)
+                ArtworkPrefetch.enqueue(prefetchContext, imageUrls.subList(start, end), prefetchRole)
+            }
+            if (backdropUrls.isNotEmpty()) {
+                ArtworkPrefetch.enqueueBackdrops(
+                    prefetchContext,
+                    listOfNotNull(backdropUrls.getOrNull(focusedIndex), backdropUrls.getOrNull(focusedIndex + 1)),
+                )
+            }
+        }
 
         Box(
             Modifier
@@ -666,31 +731,6 @@ internal fun LeadingSlotRow(
             }
         }
     }
-}
-
-@Composable
-private fun BreathingStroke(
-    modifier: Modifier,
-    shape: Shape,
-    solid: Boolean = false,
-) {
-    val transition = rememberInfiniteTransition(label = "focus-breathe")
-    val alpha by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.58f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "focus-alpha",
-    )
-    Box(
-        modifier.border(
-            width = HomeStyle.focusStroke,
-            color = Color.White.copy(alpha = if (solid) 1f else alpha),
-            shape = shape,
-        )
-    )
 }
 
 @Composable
@@ -890,17 +930,23 @@ fun HomeImage(
         else -> null
     }
     val art = SampleArt.lookup(artId, role)
+    val soften = LocalArtworkSoften.current
+    val hardwareBlur = soften && android.os.Build.VERSION.SDK_INT >= 31
+    val (pxW, pxH) = ArtworkPrefetch.pixels(role)
     when {
         art != null -> SampleArtwork(art, modifier)
         url.isNotBlank() -> AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(url)
+                .size(pxW, pxH)
                 .crossfade(com.xxxx.emby_tv.ui.motion.Motion.imageMs)
-                .apply { if (LocalArtworkSoften.current) transformations(HeavyBlurTransformation()) }
+                .apply { if (soften && !hardwareBlur) transformations(HeavyBlurTransformation()) }
                 .build(),
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
-            modifier = modifier.background(Color(0xFF241E1B)),
+            modifier = modifier
+                .background(Color(0xFF241E1B))
+                .then(if (hardwareBlur) Modifier.blur(32.dp) else Modifier),
         )
         else -> Box(modifier.background(Color(0xFF241E1B)))
     }

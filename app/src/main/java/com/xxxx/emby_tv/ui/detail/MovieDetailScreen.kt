@@ -88,6 +88,7 @@ import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.PersonInfo
 import com.xxxx.emby_tv.ui.home.ArtRole
+import com.xxxx.emby_tv.ui.home.BreathingStroke
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
@@ -167,12 +168,7 @@ fun MovieDetailPage(
     val backdropContext = LocalContext.current
     LaunchedEffect(backdrop) {
         if (backdrop.isBlank()) return@LaunchedEffect
-        coil3.SingletonImageLoader.get(backdropContext).enqueue(
-            coil3.request.ImageRequest.Builder(backdropContext)
-                .data(backdrop)
-                .transformations(com.xxxx.emby_tv.ui.home.HeavyBlurTransformation())
-                .build(),
-        )
+        com.xxxx.emby_tv.ui.home.ArtworkPrefetch.enqueueBackdrops(backdropContext, listOf(backdrop))
     }
     val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
@@ -918,23 +914,6 @@ private fun VersionPanel(
 }
 
 @Composable
-internal fun BreathingStroke(modifier: Modifier, shape: Shape, solid: Boolean = false) {
-    val transition = rememberInfiniteTransition(label = "detail-breathe")
-    val alpha by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.58f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Reverse),
-        label = "detail-alpha",
-    )
-    Box(
-        modifier.border(
-            2.5.dp,
-            Color.White.copy(alpha = if (solid) 1f else alpha),
-            shape,
-        )
-    )
-}
-
 internal fun formatClock(ticks: Long): String {
     val totalMinutes = (ticks / 10_000_000L / 60L).coerceAtLeast(0L)
     val hours = totalMinutes / 60L

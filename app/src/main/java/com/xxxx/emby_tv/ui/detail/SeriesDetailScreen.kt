@@ -211,12 +211,7 @@ fun SeriesDetailPage(
     val backdropContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(backdrop) {
         if (backdrop.isBlank()) return@LaunchedEffect
-        coil3.SingletonImageLoader.get(backdropContext).enqueue(
-            coil3.request.ImageRequest.Builder(backdropContext)
-                .data(backdrop)
-                .transformations(com.xxxx.emby_tv.ui.home.HeavyBlurTransformation())
-                .build(),
-        )
+        com.xxxx.emby_tv.ui.home.ArtworkPrefetch.enqueueBackdrops(backdropContext, listOf(backdrop))
     }
     val featured = resume ?: episodes.getOrNull(resumeIndex)
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {

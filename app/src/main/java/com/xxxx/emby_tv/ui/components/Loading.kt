@@ -12,12 +12,14 @@ fun Loading(
     modifier: Modifier = Modifier
 ) {
     // Box 配合 Alignment.Center 相当于 Flutter 的 Center 布局
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator(
-           color = Color.White
-        )
+    com.xxxx.emby_tv.ui.motion.MotionFade(modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+               color = Color.White
+            )
+        }
     }
 }

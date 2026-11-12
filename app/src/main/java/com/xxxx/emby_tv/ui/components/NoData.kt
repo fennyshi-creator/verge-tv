@@ -18,14 +18,16 @@ import com.xxxx.emby_tv.R
 fun NoData(
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = stringResource(R.string.no_data),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+    com.xxxx.emby_tv.ui.motion.MotionFade(modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(R.string.no_data),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
