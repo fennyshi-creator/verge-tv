@@ -27,8 +27,8 @@ android {
         applicationId = "com.xxxx.emby_tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "2.0.29"
-         versionCode = 229
+        versionName = "2.0.30"
+         versionCode = 230
 //        versionCode = 92
 
     }
@@ -63,6 +63,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":fsplayer"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.material3)
 
@@ -94,7 +95,6 @@ dependencies {
     // 增加 extractor 以增强对 MKV 内置字幕(ASS/SSA/PGS)的解析能力
 //    implementation("androidx.media3:media3-extractor:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
-    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1")
 
     // 引用你刚才在 settings 里定义的本地模块
 //    implementation(project(":decoder_ffmpeg"))

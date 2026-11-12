@@ -19,3 +19,5 @@ local.properties
 key.properties
 .opencode
 .myconfig
+# FSPlayer Gradle outputs
+third_party/fsplayer/android/fsplayer/build/

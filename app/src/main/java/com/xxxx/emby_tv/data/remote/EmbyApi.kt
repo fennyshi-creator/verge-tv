@@ -1194,7 +1194,9 @@ object EmbyApi {
             val finalLevel = if (actualDisableHevc) 51 else if (rawLevel > 62) 62 else rawLevel
 
             val supportedVideo = videoCodecs.joinToString(",")
-            val supportedAudio = audioCodecs.joinToString(",")
+            val supportedAudio = com.xxxx.emby_tv.ui.player.EmbyPlayback.ensureDolbyAudioCodecs(
+                audioCodecs.joinToString(",")
+            )
 
             val deviceProfile = JsonObject().apply {
                 addProperty("MaxStaticBitrate", maxStreamingBitrate)
@@ -1210,7 +1212,7 @@ object EmbyApi {
                         // addProperty("Container", null as String?)
                         // addProperty("AudioCodec", supportedAudio)
                        addProperty("VideoCodec", if (actualDisableHevc) "h264" else supportedVideo)
-                       addProperty("Container", "mp4,m4v,mkv,mov")
+                       addProperty("Container", com.xxxx.emby_tv.ui.player.EmbyPlayback.DIRECT_PLAY_CONTAINERS)
                     //    addProperty("AudioCodec", null as String?)
                       addProperty("AudioCodec", supportedAudio)
                     })
@@ -1245,7 +1247,7 @@ object EmbyApi {
                     add(JsonObject().apply {
                         addProperty("Container", "ts")
                         addProperty("Type", "Video")
-                        addProperty("AudioCodec", "aac,ac3,eac3,mp3")
+                        addProperty("AudioCodec", com.xxxx.emby_tv.ui.player.EmbyPlayback.HLS_TRANSCODE_AUDIO)
                         addProperty("VideoCodec", if (actualDisableHevc) "h264" else supportedVideo)
                         addProperty("Context", "Streaming")
                         addProperty("Protocol", "hls")

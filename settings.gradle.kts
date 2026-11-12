@@ -22,6 +22,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "openemby_tv"
 include(":app")
+include(":fsplayer")
+project(":fsplayer").projectDir = file("third_party/fsplayer/android/fsplayer")
 
 // include(":decoder_ffmpeg")
 // project(":decoder_ffmpeg").projectDir = file("libraries/decoder_ffmpeg")

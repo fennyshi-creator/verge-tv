@@ -89,10 +89,12 @@ import com.xxxx.emby_tv.ui.components.SkipIntroButton
 import com.xxxx.emby_tv.ui.components.getAudioTrack
 import com.xxxx.emby_tv.ui.components.getVideoTrack
 
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import com.xxxx.emby_tv.ui.player.DolbyPassthrough
+import com.xxxx.emby_tv.ui.player.EmbyPlayback
+import com.xxxx.emby_tv.ui.player.FsPlayback
 import com.xxxx.emby_tv.ui.player.MkvCompressedSubtitleDetector
-import com.xxxx.emby_tv.ui.player.PlayerTrackManager
-import com.xxxx.emby_tv.ui.player.SubtitleConfigBuilder
-import com.xxxx.emby_tv.ui.player.SubtitleOffsetController
 import com.xxxx.emby_tv.ui.viewmodel.PlayerViewModel
 import com.xxxx.emby_tv.util.ErrorHandler
 import com.xxxx.emby_tv.util.ExternalPlayerHelper
@@ -255,6 +257,7 @@ fun PlayerScreen(
     var position by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
     var buffered by remember { mutableStateOf(0L) }
+    var audioStatusLine by remember { mutableStateOf("") }
 
     var playbackCorrection by remember { mutableStateOf(0) } // 0: off, 1: server transcode
     var playMode by remember { mutableStateOf(0) } // 0: list loop, 1: single loop, 2: no loop
@@ -307,7 +310,6 @@ fun PlayerScreen(
 
     // 字幕时间偏移 - 仅当前播放会话生效
     var subtitleTimeOffsetMs by remember { mutableLongStateOf(0L) }
-    val subtitleOffsetController = remember { SubtitleOffsetController() }
     val overlaySubtitleView = remember { mutableStateOf<SubtitleView?>(null) }
 
     // 收集设备支持的杜比视界profile
@@ -566,7 +568,17 @@ fun PlayerScreen(
             }
     }
 
-    var player by remember { mutableStateOf(buildPlayer()) }
+    val player = remember { FsPlayback() }
+
+    fun playbackHeaders(): Map<String, String> {
+        return mapOf(
+            "User-Agent" to "${EmbyApi.CLIENT}/${CLIENT_VERSION}",
+            "X-Emby-Token" to apiKey,
+            "X-Emby-Client" to EmbyApi.CLIENT,
+            "X-Emby-Client-Version" to CLIENT_VERSION,
+            "X-Emby-Device-Name" to EmbyApi.DEVICE_NAME,
+        ).filterValues { it.isNotBlank() }
+    }
 
     // ===== 外部播放器统一拉起 + 进度回传 =====
     // pkg 语义：null=使用偏好设置的默认播放器；""=系统选择器；非空=指定包名
@@ -723,28 +735,13 @@ fun PlayerScreen(
             0 -> {
                 audioRecoveryStage = 1
                 audioSafeModeChannels = 2
-                Log.w(AUDIO_RECOVERY_TAG, "音频输出初始化失败，自动切换立体声安全模式并重建播放器")
-                val oldPlayer = player
-                val resumePositionMs = oldPlayer.currentPosition
-                val currentMediaItem = oldPlayer.currentMediaItem
-                val trackParameters = oldPlayer.trackSelectionParameters
-                oldPlayer.stop()
-                val newPlayer = buildPlayer()
-                if (currentMediaItem != null) {
-                    newPlayer.setMediaItem(currentMediaItem, resumePositionMs)
-                }
-                newPlayer.trackSelectionParameters = trackParameters
-                newPlayer.prepare()
-                newPlayer.playWhenReady = true
-                player = newPlayer // Compose 自动释放旧实例、重新绑定监听与画面
+                Log.w(AUDIO_RECOVERY_TAG, "音频输出初始化失败，关闭直通并以 PCM 重开")
+                player.forcePcm(player.currentPosition)
             }
             1 -> {
                 audioRecoveryStage = 2
-                Log.w(AUDIO_RECOVERY_TAG, "立体声安全模式仍无音频，自动转为无声播放（视频继续）")
-                val p = player
-                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
-                    .build()
+                Log.w(AUDIO_RECOVERY_TAG, "PCM 仍无音频，自动转为无声播放（视频继续）")
+                player.setVolume(0f, 0f)
                 scope.launch {
                     android.widget.Toast.makeText(
                         context,
@@ -773,104 +770,16 @@ fun PlayerScreen(
         }
     }
 
-    // 应用倍速（player 重建后也需重新应用）
-    // 电视端倍速失效的两条根因（media3 中 Sonic 软件变速仅对「非隧道 + PCM」生效）：
-    // 1. 隧道模式：shouldApplyAudioProcessorPlaybackParameters 返回 false，倍速被重置 1.0
-    //    → 非 1.0 倍速时关闭隧道，恢复 1.0 后再开
-    // 2. 编码直通（TrueHD/AC3/EAC3 bitstream，如 TCL MT5879 对 DV+TrueHD 片源）：
-    //    编码流无法 Sonic 变速，倍速参数被接受但实际恒为 1.0
-    //    → 非 1.0 倍速时用屏蔽直通的 PCM 音频管线整体重建播放器（强制 FFmpeg 解码）
-    // 另：渲染器重建期间 setPlaybackSpeed 可能被旧配置异步重置回 1.0，且读回值存在
-    // 假阳性，故窗口期内无条件持续重发，保证最后一次落在最终配置上。
-    LaunchedEffect(player, playbackSpeed, isTunnelingSafe) {
-        val wantForcePcm = playbackSpeed != 1.0f
-        val wantTunneling = isTunnelingSafe && playbackSpeed == 1.0f
-        Log.i(
-            SPEED_TUNNEL_TAG,
-            "倍速效果触发: speed=${playbackSpeed}x, isTunnelingSafe=$isTunnelingSafe, " +
-                "wantTunneling=$wantTunneling, speedPcmMode=$speedPcmMode, " +
-                "player.speed=${player.playbackParameters.speed}"
-        )
-
-        // 跨越 1.0 边界时切换音频管线：PCM 模式（屏蔽直通）↔ 原生模式（支持直通）
-        if (wantForcePcm != speedPcmMode) {
-            speedPcmMode = wantForcePcm
-            Log.i(SPEED_TUNNEL_TAG, "重建播放器: 屏蔽直通PCM模式=$wantForcePcm")
-            val oldPlayer = player
-            val resumePositionMs = oldPlayer.currentPosition
-            val currentMediaItem = oldPlayer.currentMediaItem
-            val trackParameters = oldPlayer.trackSelectionParameters
-            oldPlayer.stop()
-            val newPlayer = buildPlayer()
-            if (currentMediaItem != null) {
-                newPlayer.setMediaItem(currentMediaItem, resumePositionMs)
-            }
-            // 继承原轨道选择（保留用户手选的音轨/字幕），隧道状态按当前倍速修正
-            newPlayer.trackSelectionParameters =
-                if (trackParameters is DefaultTrackSelector.Parameters) {
-                    trackParameters.buildUpon().setTunnelingEnabled(wantTunneling).build()
-                } else {
-                    trackParameters
-                }
-            newPlayer.prepare()
-            newPlayer.playWhenReady = true
-            player = newPlayer // player 变化会重启本 effect，在新播放器上继续应用倍速
-            return@LaunchedEffect
-        }
-
-        // 无需重建时，确保隧道开关与倍速匹配
-        val currentParams = player.trackSelectionParameters
-        if (currentParams is DefaultTrackSelector.Parameters &&
-            currentParams.tunnelingEnabled != wantTunneling
-        ) {
-            player.trackSelectionParameters = currentParams.buildUpon()
-                .setTunnelingEnabled(wantTunneling)
-                .build()
-            Log.i(
-                SPEED_TUNNEL_TAG,
-                "切换隧道模式: ${currentParams.tunnelingEnabled} -> $wantTunneling"
-            )
-        }
-
-        if (playbackSpeed != 1.0f) {
-            repeat(40) { i ->
-                player.setPlaybackSpeed(playbackSpeed)
-                if (i % 4 == 0) {
-                    Log.i(SPEED_TUNNEL_TAG, "重发倍速 #$i: player.speed=${player.playbackParameters.speed}")
-                }
-                delay(250)
-            }
-        } else {
-            player.setPlaybackSpeed(playbackSpeed)
-        }
+    // Encoded AudioTrack cannot time-stretch. Speed other than 1.0 reopens on the PCM
+    // decoder; returning to 1.0 reopens passthrough.
+    LaunchedEffect(subtitleTimeOffsetMs) {
+        player.setSubtitleDelayMs(subtitleTimeOffsetMs)
     }
 
-    // 字幕时间偏移：接管字幕渲染（内置 subtitleView 已隐藏，由 overlay SubtitleView 显示）
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onCues(cueGroup: CueGroup) {
-                subtitleOffsetController.onCues(cueGroup)
-            }
-
-            override fun onPositionDiscontinuity(
-                oldPosition: Player.PositionInfo,
-                newPosition: Player.PositionInfo,
-                reason: Int
-            ) {
-                subtitleOffsetController.reset()
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
-
-    LaunchedEffect(player) {
-        while (isActive) {
-            overlaySubtitleView.value?.setCues(
-                subtitleOffsetController.cuesFor(player.currentPosition, subtitleTimeOffsetMs)
-            )
-            delay(50)
-        }
+    LaunchedEffect(playbackSpeed) {
+        if (player.url == null) return@LaunchedEffect
+        Log.i(SPEED_TUNNEL_TAG, "倍速 ${playbackSpeed}x")
+        player.setPlaybackSpeed(playbackSpeed)
     }
 
     LaunchedEffect(leftKeyDownTime) {
@@ -942,33 +851,26 @@ fun PlayerScreen(
                 // 直接访问mediaSources属性
                 val source = mediaResult.mediaSources.firstOrNull()
 
-                // 获取转码URL - 优先使用直链
-                val path = source?.directStreamUrl ?: source?.transcodingUrl
+                val newVideoUrl = EmbyPlayback.resolvePlaybackUrl(
+                    serverUrl,
+                    source,
+                    forceTranscode = true,
+                )
 
-                if (path != null) {
-                    val newVideoUrl = "${serverUrl}/emby$path"
-
-                    // 切换到主线程更新UI
+                if (newVideoUrl != null) {
                     withContext(Dispatchers.Main) {
                         Log.d("PlayerScreen", "转码回退成功，更新视频URL")
                         videoUrl = newVideoUrl
-
                         media = mediaResult
-
-                        //重要步骤
-                        player.stop()
-
-                        // 重新设置播放源
-                        val mediaItem = MediaItem.Builder()
-                            .setUri(newVideoUrl)
-                            .build()
-
-                        player.setMediaItem(mediaItem, position)
-                        Log.e(
-                            "FFmpegCheck",
-                            "FFmpeg Library Available: ${androidx.media3.decoder.ffmpeg.FfmpegLibrary.isAvailable()}"
+                        val audio = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                        player.open(
+                            url = newVideoUrl,
+                            headers = playbackHeaders(),
+                            startMs = position,
+                            passthrough = playbackSpeed == 1f && audioRecoveryStage == 0,
+                            joc = DolbyPassthrough.wantsJoc(audio),
+                            speed = playbackSpeed,
                         )
-                        player.prepare()
                         player.playWhenReady = true
                     }
                 } else {
@@ -1115,19 +1017,11 @@ fun PlayerScreen(
                 selectedSubtitleIndex = source?.defaultSubtitleStreamIndex ?: -1
             }
 
-            // 构建 URL (参考 Flutter 逻辑)
-            var path = source?.directStreamUrl
-
-            // 如果强制转码(correction=1) 或者 没有直链(path=null)，则尝试使用转码链接
-            if (playbackCorrection == 1 || path == null) {
-                val transcodeUrl = source?.transcodingUrl
-                if (transcodeUrl != null) {
-                    path = transcodeUrl
-                }
-            }
-
-
-            videoUrl = if (path != null) "${serverUrl}/emby$path" else null
+            videoUrl = EmbyPlayback.resolvePlaybackUrl(
+                serverUrl,
+                source,
+                forceTranscode = playbackCorrection == 1,
+            )
             hasReportedPlaying = false
         } catch (e: Throwable) {
             Log.e("PlayerScreen", "加载播放信息失败", e)
@@ -1135,6 +1029,16 @@ fun PlayerScreen(
     }
 
     // 设置 MediaItem 和 字幕
+    fun externalSubtitleUrl(mediaSourceId: String, routedIndices: Set<Int>): String? {
+        val track = subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex } ?: return null
+        val index = track.index ?: return null
+        val external = track.isExternal == true || index in routedIndices
+        if (!external || mediaSourceId.isBlank()) return null
+        val codec = track.codec?.lowercase().orEmpty()
+        val format = if (codec.contains("vtt")) "vtt" else "srt"
+        return "$serverUrl/emby/Videos/$mediaId/$mediaSourceId/Subtitles/$index/Stream.$format?api_key=$apiKey"
+    }
+
     LaunchedEffect(videoUrl) {
         if (videoUrl != null) {
             // 外部播放器偏好：1=总是 2=仅杜比视界，命中时不启动内置播放器，直接交给外部播放器
@@ -1154,11 +1058,11 @@ fun PlayerScreen(
                 }
             }
 
-            val source = media.mediaSources?.firstOrNull()
+            val source = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
+                ?: media.mediaSources?.firstOrNull()
             val mediaSourceId = source?.id ?: ""
 
-            // 检测 MKV 内嵌字幕轨是否被 zlib 压缩（media3 的 MatroskaExtractor 不支持
-            // MKV 内容压缩，压缩轨会整轨零字幕）。命中的轨改由 Emby 服务器提取 SRT 外挂。
+            // 压缩过的 MKV 文本字幕仍交给 Emby 抽成 SRT。FSPlayer 自己画内嵌字幕。
             var routedIndices = configRoutedSubtitleIndices
             val playbackUrl: String = videoUrl ?: return@LaunchedEffect
             val isMkv = playbackUrl.contains(".mkv", ignoreCase = true)
@@ -1175,22 +1079,6 @@ fun PlayerScreen(
                 }
             }
 
-            // 使用 SubtitleConfigBuilder 构建字幕配置
-            val subtitleConfigs = SubtitleConfigBuilder.buildSubtitleConfigs(
-                subtitleTracks = subtitleTracks,
-                serverUrl = serverUrl,
-                mediaId = mediaId,
-                mediaSourceId = mediaSourceId,
-                apiKey = apiKey,
-                selectedSubtitleIndex = selectedSubtitleIndex,
-                serverDeliveredIndices = routedIndices
-            )
-
-            val mediaItemBuilder = MediaItem.Builder()
-                .setUri(videoUrl)
-                .setSubtitleConfigurations(subtitleConfigs)
-
-           // 计算起始位置：优先级为播放进度 > 参数传入位置 > 0
             val startPositionMs = if (position > 0) {
                 position
             } else if (playbackPositionTicks > 0) {
@@ -1199,34 +1087,35 @@ fun PlayerScreen(
                 0L
             }
 
-            val mediaItem = mediaItemBuilder.build()
-
-            // 直接在setMediaItem中设置跳转位置（Media3 API支持）
-            player.setMediaItem(mediaItem, startPositionMs)
-
             if (startPositionMs > 0) {
-                Log.d("Player", "Setting initial position via setMediaItem: $startPositionMs ms")
+                Log.d("Player", "Setting initial position: $startPositionMs ms")
             }
 
-            player.prepare()
+            val audio = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+            player.open(
+                url = playbackUrl,
+                headers = playbackHeaders(),
+                startMs = startPositionMs,
+                passthrough = playbackSpeed == 1f && audioRecoveryStage == 0,
+                joc = DolbyPassthrough.wantsJoc(audio),
+                speed = playbackSpeed,
+            )
             player.playWhenReady = true
+            player.selectEmbyTracks(
+                audioOrdinal = audioTracks.indexOfFirst { it.index == selectedAudioIndex },
+                subtitleOrdinal = subtitleTracks.indexOfFirst { it.index == selectedSubtitleIndex },
+                externalSubtitleUrl = externalSubtitleUrl(mediaSourceId, routedIndices),
+            )
         }
     }
 
-    // 更新选中字幕 - 使用 PlayerTrackManager
-    LaunchedEffect(selectedSubtitleIndex, subtitleTracks, currentTracks, configRoutedSubtitleIndices) {
-        PlayerTrackManager.selectSubtitle(
-            player,
-            subtitleTracks,
-            selectedSubtitleIndex,
-            currentTracks,
-            configRoutedSubtitleIndices
+    LaunchedEffect(selectedSubtitleIndex, selectedAudioIndex, subtitleTracks, audioTracks, configRoutedSubtitleIndices) {
+        val sourceId = currentMediaSourceId ?: media.mediaSources?.firstOrNull()?.id ?: ""
+        player.selectEmbyTracks(
+            audioOrdinal = audioTracks.indexOfFirst { it.index == selectedAudioIndex },
+            subtitleOrdinal = subtitleTracks.indexOfFirst { it.index == selectedSubtitleIndex },
+            externalSubtitleUrl = externalSubtitleUrl(sourceId, configRoutedSubtitleIndices),
         )
-    }
-
-    // 更新选中音频 - 使用 PlayerTrackManager
-    LaunchedEffect(selectedAudioIndex, audioTracks, currentTracks) {
-        PlayerTrackManager.selectAudio(player, audioTracks, selectedAudioIndex, currentTracks)
     }
 
 
@@ -1381,13 +1270,20 @@ fun PlayerScreen(
     // 当 player 变化或 Composable 销毁时，这个协程会自动重启或取消
     LaunchedEffect(player) {
         while (true) {
-            if (player.isPlaying || player.playbackState == Player.STATE_BUFFERING) {
+            if (player.isPlaying || player.playbackState == FsPlayback.STATE_BUFFERING) {
                 // 1. 更新当前播放位置
                 val rawPosition = player.currentPosition
                 position = if (rawPosition > 0) rawPosition else 0L
 
                 // 2. 更新缓存进度
                 buffered = player.bufferedPosition.coerceAtLeast(0L)
+                val speedSample = player.tcpSpeed()
+                if (speedSample > 0L) downloadSpeed = speedSample
+                audioStatusLine = DolbyPassthrough.statusLine(
+                    getAudioTrack(media, selectedAudioIndex),
+                    player.passthroughEncoding(),
+                    player.passthroughFallback(),
+                )
 
             }
 
@@ -1410,7 +1306,7 @@ fun PlayerScreen(
                 lastChangeTime = System.currentTimeMillis()
             } else {
                 downloadSpeed = 0
-                if (p.playbackState == Player.STATE_BUFFERING && !p.isPlaying &&
+                if (p.playbackState == FsPlayback.STATE_BUFFERING && !p.isPlaying &&
                     currentBuffered > 0 &&
                     System.currentTimeMillis() - lastChangeTime >= 15_000 &&
                     currentPlayerAudioError && audioRecoveryStage < 2
@@ -1450,100 +1346,32 @@ fun PlayerScreen(
         }
     }
 
-    // 播放器监听
+    // FSPlayer 状态。Media3 不再占用 Surface。
     DisposableEffect(player) {
-        val p = player
-        currentPlayerAudioError = false
-        p.addAnalyticsListener(object : AnalyticsListener {
-
-            override fun onVideoDecoderInitialized(
-                eventTime: AnalyticsListener.EventTime,
-                decoderName: String,
-                initializedMs: Long,
-                initializationDurationMs: Long,
-            ) {
-                currentVideoDecoderName = decoderName
-            }
-
-            override fun onAudioDecoderInitialized(
-                eventTime: AnalyticsListener.EventTime,
-                decoderName: String,
-                initializedMs: Long,
-                initializationDurationMs: Long,
-            ) {
-                Log.i("DecoderInfo", "音频解码器已初始化: $decoderName")
-            }
-
-            override fun onAudioSinkError(
-                eventTime: AnalyticsListener.EventTime,
-                audioSinkException: Exception,
-            ) {
-                Log.e(
-                    AUDIO_RECOVERY_TAG,
-                    "音频输出错误(stage=$audioRecoveryStage): ${audioSinkException.message}"
-                )
-                currentPlayerAudioError = true
-                handleAudioSinkFailure()
-            }
-        })
-
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
+        val listener = object : FsPlayback.Listener {
+            override fun onPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 onPlaybackStateChanged(playing)
             }
 
-            override fun onTracksChanged(tracks: Tracks) {
-                currentTracks = tracks
-            }
-
-            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-                if (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
-                    val durationMs = p.duration // 此时时长已可用
-                    if (durationMs != C.TIME_UNSET) {
-                        // 执行逻辑
-                        duration = durationMs
-                    }
-                }
-            }
-
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_BUFFERING) {
-                    isBuffering = true
-                } else if (state == Player.STATE_READY) {
-                    isBuffering = false
-                    // 在STATE_READY时获取准确时长
-                    val rawDuration = p.duration
-                    if (rawDuration > 0) {
-                        duration = rawDuration
-                        Log.d("Player", "Duration updated from READY state: $duration ms")
+                when (state) {
+                    FsPlayback.STATE_BUFFERING -> isBuffering = true
+                    FsPlayback.STATE_READY -> {
+                        isBuffering = false
+                        val rawDuration = player.duration
+                        if (rawDuration > 0) duration = rawDuration
                     }
-                } else if (state == Player.STATE_IDLE) {
-                    // 出错/停止后的空闲态：清掉缓冲指示，避免永远转圈
-                    isBuffering = false
-                }
-
-
-                if (state == Player.STATE_ENDED) {
-                    isBuffering = false
-                    onPlaybackStateChanged(false)
-                    // Handle loop logic
-                    if (playMode == 1) { // Single Loop
-                        p.seekTo(0)
-                        p.play()
-                    } else if (playMode == 0) { // List Loop
-
-                        val seriesId = mediaInfo.seriesId
-
-                        if (seriesId != null) {
-                            // Trigger next episode logic
-                            // ...
-                            if (!endedHandled) {
-                                endedHandled = true
-                                // Trigger logic handled in LaunchedEffect
-                            }
+                    FsPlayback.STATE_IDLE -> isBuffering = false
+                    FsPlayback.STATE_ENDED -> {
+                        isBuffering = false
+                        onPlaybackStateChanged(false)
+                        if (playMode == 1) {
+                            player.seekTo(0)
+                            player.play()
+                        } else if (playMode == 0 && mediaInfo.seriesId != null) {
+                            if (!endedHandled) endedHandled = true
                         } else {
-                            // 播放结束，发送停止报告
                             playerViewModel.reportStopped(
                                 mediaId = mediaId,
                                 media = media,
@@ -1552,104 +1380,28 @@ fun PlayerScreen(
                                 selectedAudioIndex = selectedAudioIndex,
                                 playbackRate = playbackSpeed
                             )
-
                         }
-                    } else {
-                        // 播放结束，发送停止报告
-                        playerViewModel.reportStopped(
-                            mediaId = mediaId,
-                            media = media,
-                            position = position,
-                            selectedSubtitleIndex = selectedSubtitleIndex,
-                            selectedAudioIndex = selectedAudioIndex,
-                            playbackRate = playbackSpeed
-                        )
-
                     }
                 }
             }
 
-            override fun onPlayerError(error: PlaybackException) {
-                Log.e("PlayerScreen", "播放器错误: ${error.message}", error)
-                val causeMsg = error.cause?.message ?: ""
-                if (causeMsg.contains("SOCKS", ignoreCase = true) ||
-                    causeMsg.contains("Proxy", ignoreCase = true) ||
-                    causeMsg.contains("Connection refused", ignoreCase = true) ||
-                    causeMsg.contains("Malformed reply", ignoreCase = true)
-                ) {
-                    scope.launch {
-                        android.widget.Toast.makeText(
-                            context,
-                            context.getString(R.string.error_proxy_connection),
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    return
-                }
-                // 服务器限流（429）：明确提示并停止自动重试，避免重试风暴加剧限流
-                val httpStatusCode = generateSequence<Throwable>(error.cause) { it.cause }
-                    .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
-                    .firstOrNull()?.responseCode
-                if (httpStatusCode == 429) {
-                    Log.w("PlayerScreen", "服务器限流(429)，停止自动重试")
-                    scope.launch {
-                        android.widget.Toast.makeText(
-                            context,
-                            context.getString(R.string.error_rate_limited),
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    return
-                }
-                // 音频输出类错误 → 交给音频自动恢复（安全模式重建/无声降级），不消耗一次性的转码回退
-                val isAudioTrackError =
-                    error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED ||
-                        generateSequence<Throwable>(error.cause) { it.cause }.any {
-                            it is AudioSink.InitializationException ||
-                                it is AudioSink.ConfigurationException ||
-                                it is AudioSink.WriteException
-                        }
-                if (isAudioTrackError) {
-                    Log.w(
-                        AUDIO_RECOVERY_TAG,
-                        "播放错误为音频输出类(code=${error.errorCode})，触发音频自动恢复"
-                    )
-                    handleAudioSinkFailure()
+            override fun onError(message: String) {
+                Log.e("PlayerScreen", "播放器错误: $message")
+                if (message.contains("429") || message.contains("限流")) {
                     return
                 }
                 fallbackToServerTranscode()
             }
-        }
 
-        val bandwidthListener = object : BandwidthMeter.EventListener {
-            override fun onBandwidthSample(
-                elapsedMs: Int,
-                bytesTransferred: Long,
-                bitrateEstimate: Long,
-            ) {
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastSpeedUpdate >= 1000) {
-                    downloadSpeed = bitrateEstimate
-                    lastSpeedUpdate = currentTime
-                }
+            override fun onVideoDecoder(name: String) {
+                currentVideoDecoderName = name
             }
         }
-
-        bandwidthMeter.addEventListener(
-            Handler(Looper.getMainLooper()),
-            bandwidthListener
-        )
-        p.addListener(listener)
-
+        player.addListener(listener)
         onDispose {
-            bandwidthMeter.removeEventListener(bandwidthListener)
-            p.stop()
-            p.removeListener(listener)
-            p.setVideoSurface(null)
-            p.release()
+            player.removeListener(listener)
+            player.setVideoSurface(null)
+            player.release()
         }
     }
 
@@ -1756,25 +1508,46 @@ fun PlayerScreen(
             // 1. Video Layer
             AndroidView(
                 factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        this.player = player
-                        useController = false // Use custom overlay
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    SurfaceView(ctx).apply {
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        // 内置字幕视图改为由下方 overlay SubtitleView 渲染（支持时间偏移）
-                        subtitleView?.visibility = View.GONE
+                        holder.addCallback(object : SurfaceHolder.Callback {
+                            override fun surfaceCreated(holder: SurfaceHolder) {
+                                player.setVideoSurface(holder.surface)
+                            }
+
+                            override fun surfaceChanged(
+                                holder: SurfaceHolder,
+                                format: Int,
+                                width: Int,
+                                height: Int,
+                            ) {
+                                player.setVideoSurface(holder.surface)
+                            }
+
+                            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                                player.setVideoSurface(null)
+                            }
+                        })
                     }
                 },
-                update = { view ->
-                    view.player = player
-                },
-//                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             )
 
-            // 1.5 Subtitle Layer - 接管字幕渲染，支持时间偏移
+            if (audioStatusLine.isNotBlank()) {
+                Text(
+                    text = audioStatusLine,
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 28.dp, bottom = 16.dp)
+                )
+            }
+
+            // 1.5 Subtitle Layer - FSPlayer 把内嵌字幕画在画面上。外挂 SRT 走 loadThenActiveSubtitle。
             AndroidView(
                 factory = { ctx ->
                     SubtitleView(ctx).apply {
@@ -1820,10 +1593,7 @@ fun PlayerScreen(
             // 2. Full Info Overlay Layer (only when isShowInfo)
             if (isShowInfo && !isPlaying) {
                 PlayerOverlay(
-                    // 显示实际生效的隧道状态（而非设备能力标志）：
-                    // 倍速 != 1.0x 时会动态关闭隧道，统计面板需反映真实状态
-                    isTunnelingSafe = (player.trackSelectionParameters as? DefaultTrackSelector.Parameters)
-                        ?.tunnelingEnabled == true,
+                    isTunnelingSafe = false,
                     mediaInfo = mediaInfo,
                     mediaSource = media.mediaSources?.firstOrNull(),
                     session = session,
@@ -1833,7 +1603,7 @@ fun PlayerScreen(
                     duration = duration,
                     buffered = buffered,
                     isPlaying = isPlaying,
-                    player = player,
+                    audioStatusLine = audioStatusLine,
                     isBuffering = isBuffering,
                     downloadSpeed = downloadSpeed,
                     supportedDvProfiles = supportedDvProfiles,

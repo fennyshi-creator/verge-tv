@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2016 Bilibili
+ * Copyright (c) 2016 Raymond Zheng <raymondzheng1412@gmail.com>
+ * Copyright (c) 2019 debugly <qianlongxu@gmail.com>
+ *
+ * This file is part of FSPlayer.
+ *
+ * FSPlayer is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * FSPlayer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with FSPlayer; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#ifndef FSAVUTIL_IJKUTILS_H
+#define FSAVUTIL_IJKUTILS_H
+
+#include "ijktree.h"
+
+#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+
+typedef struct IjkAVIOInterruptCB {
+    int (*callback)(void*);
+    void *opaque;
+} IjkAVIOInterruptCB;
+
+typedef struct IjkCacheTreeInfo {
+    struct IjkAVTreeNode *root;
+    int64_t physical_init_pos;
+    int64_t physical_size;
+    int64_t file_size;
+} IjkCacheTreeInfo;
+
+#endif  // FSAVUTIL_IJKUTILS_H

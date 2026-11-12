@@ -83,7 +83,7 @@ fun PlayerOverlay(
     duration: Long,
     buffered: Long,
     isPlaying: Boolean,
-    player: ExoPlayer,
+    audioStatusLine: String = "",
     isBuffering: Boolean,
     downloadSpeed: Long = 0,
     supportedDvProfiles: List<DvProfileInfo> = emptyList(),
@@ -221,6 +221,10 @@ fun PlayerOverlay(
                     fontSize = 12.sp,
                     lineHeight = 15.sp,
                 )
+            }
+            if (audioStatusLine.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = audioStatusLine, color = Color.White, fontSize = 12.sp)
             }
         }
 
