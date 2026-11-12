@@ -218,6 +218,7 @@ fun PlayerScreen(
     playerViewModel: PlayerViewModel,
     mediaId: String,
     playbackPositionTicks: Long = 0L,
+    initialMediaSourceId: String? = null,
     onPlaybackStateChanged: (isPlaying: Boolean) -> Unit = {},
     onNavigateToPlayer: (BaseItemDto) -> Unit = {},
     onRePlayer: (BaseItemDto, Long) -> Unit = { _, _ -> },
@@ -273,7 +274,7 @@ fun PlayerScreen(
     var configRoutedSubtitleIndices by remember { mutableStateOf(setOf<Int>()) }
 
     // 多版本片源切换：null 表示使用服务器返回的默认源
-    var selectedMediaSourceId by remember { mutableStateOf<String?>(null) }
+    var selectedMediaSourceId by remember { mutableStateOf(initialMediaSourceId) }
     var currentMediaSourceId by remember { mutableStateOf<String?>(null) }
     // 完整片源列表：指定 MediaSourceId 重新请求时服务器只返回单个源，
     // 需保留首次获取的完整列表供菜单切换使用

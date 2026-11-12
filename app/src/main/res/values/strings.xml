@@ -15,6 +15,10 @@
     <string name="my_libraries">My libraries</string>
     <string name="home_libraries">Libraries</string>
     <string name="home_tab">Home</string>
+    <string name="detail_cast">Cast</string>
+    <string name="detail_more_like">More like this</string>
+    <string name="resume_remaining">Resume · %1$s left</string>
+    <string name="versions">Versions</string>
     <string name="settings">Settings</string>
     <string name="continue_watching">Continue watching</string>
     <string name="continue_playing">Continue playing</string>

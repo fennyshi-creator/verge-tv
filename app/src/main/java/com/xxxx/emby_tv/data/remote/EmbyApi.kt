@@ -670,6 +670,37 @@ object EmbyApi {
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
 
+    /**
+     * Movie detail payload: people, overview, and media sources, without opening a live stream.
+     */
+    suspend fun getMovieItem(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        itemId: String,
+    ): BaseItemDto {
+        val url = "/Users/$userId/Items/$itemId?Fields=People,Overview,Genres,CommunityRating,OfficialRating," +
+                "RunTimeTicks,Width,Height,ProductionYear,PremiereDate,MediaSources,MediaStreams,BackdropImageTags" +
+                "&X-Emby-Token=$apiKey"
+        return httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    /** Mark or clear played. Emby returns an empty body, so this does not parse JSON. */
+    suspend fun setPlayed(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        itemId: String,
+        played: Boolean,
+    ): Boolean {
+        val path = "/Users/$userId/PlayedItems/$itemId?X-Emby-Token=$apiKey"
+        return httpNoContent(context, serverUrl, apiKey, deviceId, path, if (played) "POST" else "DELETE")
+    }
+
     private fun parseRecommendations(element: com.google.gson.JsonElement): List<RecommendationDto> {
         val array = when {
             element.isJsonArray -> element.asJsonArray
@@ -783,6 +814,33 @@ object EmbyApi {
                     msg.contains("proxy", ignoreCase = true) ||
                     msg.contains("failed to connect", ignoreCase = true)
                 } == true
+    }
+
+    private suspend fun httpNoContent(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        url: String,
+        method: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val connector = if (url.contains("?")) "&" else "?"
+        val params = "${connector}deviceId=$deviceId&X-Emby-Client=$CLIENT" +
+                "&X-Emby-Client-Version=$CLIENT_VERSION&X-Emby-Device-Name=$DEVICE_NAME" +
+                "&X-Emby-Device-Id=$deviceId"
+        val fullUrl = "$serverUrl/emby$url$params"
+        val builder = Request.Builder().url(fullUrl).addHeader("Accept", "application/json")
+        when (method) {
+            "POST" -> builder.post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            "DELETE" -> builder.delete()
+            else -> builder.get()
+        }
+        try {
+            HttpClient.getClient(context).newCall(builder.build()).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            ErrorHandler.logError(TAG, "播放状态更新失败", e)
+            false
+        }
     }
 
     private suspend fun <T> httpStream(

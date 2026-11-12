@@ -16,6 +16,10 @@
     <string name="my_libraries">我的媒体库</string>
     <string name="home_libraries">媒体库</string>
     <string name="home_tab">首页</string>
+    <string name="detail_cast">演职员</string>
+    <string name="detail_more_like">更多类似的</string>
+    <string name="resume_remaining">续看 · 还剩 %1$s</string>
+    <string name="versions">版本</string>
     <string name="settings">设置</string>
     <string name="continue_watching">继续观看</string>
     <string name="continue_playing">继续播放</string>

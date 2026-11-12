@@ -309,29 +309,44 @@ fun EmbyTvApp() {
                                 val id = mediaItem.id ?: ""
                                 val position = mediaItem.userData?.playbackPositionTicks ?: 0L
                                 navController.navigate("player/$id?position=$position")
-                            }
+                            },
+                            onOpenMovie = { movieId ->
+                                navController.navigate("media/$movieId")
+                            },
+                            onPlayMovie = { mediaItem, sourceId ->
+                                val id = mediaItem.id ?: return@MediaDetailScreen
+                                val position = mediaItem.userData?.playbackPositionTicks ?: 0L
+                                val source = if (sourceId.isNullOrBlank()) "" else "&source=$sourceId"
+                                navController.navigate("player/$id?position=$position$source")
+                            },
                         )
                     }
 
                     // 播放器页面
                     composable(
-                        "player/{mediaId}?position={position}",
+                        "player/{mediaId}?position={position}&source={source}",
                         arguments = listOf(
                             navArgument("mediaId") { type = NavType.StringType },
                             navArgument("position") {
                                 type = NavType.LongType
                                 defaultValue = 0L
+                            },
+                            navArgument("source") {
+                                type = NavType.StringType
+                                defaultValue = ""
                             }
                         )
                     ) { backStackEntry ->
                         val mediaId = backStackEntry.arguments?.getString("mediaId") ?: ""
                         val playbackPositionTicks =
                             backStackEntry.arguments?.getLong("position") ?: 0L
+                        val source = backStackEntry.arguments?.getString("source").orEmpty()
                         val playerViewModel: PlayerViewModel = viewModel()
 
                         PlayerScreen(
                             mediaId = mediaId,
                             playbackPositionTicks = playbackPositionTicks,
+                            initialMediaSourceId = source.ifBlank { null },
                             playerViewModel = playerViewModel,
                             onNavigateToPlayer = { nextItem ->
                                 val nextId = nextItem.id ?: ""

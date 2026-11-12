@@ -144,7 +144,7 @@ Track switching, progress control, keep screen on
 
 The home screen is the top bar (logo, search, 「首页」, 「收藏」, settings), then 「继续观看」, then 「媒体库」 tiles. Continue-watching uses a leading-slot focus: the white stroke stays on the first slot while the row slides, and only walks right when nothing is left off-screen. It breathes while focused and does not scale the card.
 
-Preview PNGs at 1920×1080 are in `artifacts/` (`home-top.png`, `home-scrolled.png`). They use sample titles so they render without a server. Regenerate them with Android SDK 36:
+Preview PNGs at 1920×1080 are in `artifacts/`. Home: `home-top.png`, `home-scrolled.png`. Movie detail: `detail-hero.png`, `detail-cast-similar.png`. They use sample titles so they render without a server. Regenerate them with Android SDK 36:
 
 ```bash
 ./gradlew :app:updateDebugScreenshotTest

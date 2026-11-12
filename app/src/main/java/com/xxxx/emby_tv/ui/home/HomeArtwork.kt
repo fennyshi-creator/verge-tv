@@ -56,6 +56,17 @@ object SampleArt {
         ),
         "sample-odyssey" to ArtSet(
             primary = portrait("奥德赛", Color(0xFF10284A), Color(0xFF3A1408), Color(0xFFE36A22), 0.78f, 0.72f),
+            backdrop = PosterArt(
+                top = Color(0xFF140E0C),
+                bottom = Color(0xFF9A3E12),
+                glow = Color(0xFFFF6A1A),
+                glowX = 0.86f,
+                glowY = 0.42f,
+                glowRadius = 0.72f,
+                spark = Color(0xFF5A2A14),
+                sparkX = 0.72f,
+                sparkY = 0.62f,
+            ),
             thumb = PosterArt(
                 top = Color(0xFF0C1C38),
                 bottom = Color(0xFF2A0C06),
@@ -144,6 +155,8 @@ object SampleArt {
         "sample-mummy2" to ArtSet(primary = portrait("归来", Color(0xFF8A6A32), Color(0xFF241808), Color(0xFFF0D090), 0.4f, 0.62f)),
         "sample-mummy3" to ArtSet(primary = portrait("龙帝", Color(0xFF3A2412), Color(0xFF100C08), Color(0xFFC45A28), 0.66f, 0.48f)),
         "sample-green" to ArtSet(primary = portrait("绿区", Color(0xFF1A3324), Color(0xFF0A120C), Color(0xFF8FBF6A), 0.35f, 0.4f)),
+        "sample-north" to ArtSet(primary = portrait("北欧", Color(0xFF6A6248), Color(0xFF1A1810), Color(0xFFD8D0C0), 0.5f, 0.4f)),
+        "sample-zsjl" to ArtSet(primary = portrait("联盟", Color(0xFF1A2438), Color(0xFF080C14), Color(0xFF8AA0C8), 0.62f, 0.35f)),
         "sample-rurouni-end" to ArtSet(primary = portrait("完结篇", Color(0xFF243044), Color(0xFF0C1018), Color(0xFFD0B07A), 0.7f, 0.62f)),
         "sample-season" to ArtSet(primary = portrait("漫长", Color(0xFF3A3428), Color(0xFF14110C), Color(0xFFD8C4A0), 0.4f, 0.5f)),
         "sample-wind" to ArtSet(primary = portrait("有风", Color(0xFF1E4A44), Color(0xFF0C1816), Color(0xFF9ED9C8), 0.6f, 0.35f)),

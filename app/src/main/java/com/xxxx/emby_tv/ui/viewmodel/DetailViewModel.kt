@@ -36,6 +36,8 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
     // === 继续观看（剧集）===
     var resumeItem by mutableStateOf<BaseItemDto?>(null)
         private set
+    var similarItems by mutableStateOf<List<BaseItemDto>>(emptyList())
+        private set
 
     // === 加载状态 ===
     var isLoading by mutableStateOf(false)
@@ -166,6 +168,39 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun loadMovieExtras(itemId: String) {
+        viewModelScope.launch {
+            val detail = try {
+                withContext(Dispatchers.IO) { repository.getMovieItem(itemId) }
+            } catch (_: Exception) {
+                null
+            }
+            if (detail != null && mediaInfo?.id == itemId) {
+                mediaInfo = detail
+            }
+            similarItems = try {
+                withContext(Dispatchers.IO) { repository.getSimilarItems(itemId) }
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    fun togglePlayed(itemId: String, played: Boolean, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val success = withContext(Dispatchers.IO) { repository.setPlayed(itemId, played) }
+                if (success && mediaInfo?.id == itemId) {
+                    val current = mediaInfo?.userData ?: com.xxxx.emby_tv.data.model.UserDataDto()
+                    mediaInfo = mediaInfo?.copy(userData = current.copy(played = played))
+                }
+                onResult(success)
+            } catch (_: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
     /**
      * 清空数据（用于切换详情时）
      */
@@ -174,6 +209,7 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
         seasons = null
         episodes = emptyMap()
         resumeItem = null
+        similarItems = emptyList()
     }
 
     // === Suspend 版本的方法（供 Screen 直接调用）===

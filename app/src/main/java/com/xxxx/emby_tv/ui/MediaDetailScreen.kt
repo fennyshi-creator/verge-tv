@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
 import coil3.compose.SubcomposeAsyncImage
 import com.xxxx.emby_tv.data.repository.EmbyRepository
+import com.xxxx.emby_tv.ui.detail.MovieDetailConnected
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.delay
@@ -49,6 +50,8 @@ fun MediaDetailScreen(
     detailViewModel: DetailViewModel,
     onNavigateToSeries: (String) -> Unit,
     onNavigateToPlayer: (BaseItemDto) -> Unit,
+    onOpenMovie: (String) -> Unit = {},
+    onPlayMovie: (BaseItemDto, String?) -> Unit = { item, _ -> onNavigateToPlayer(item) },
 ) {
     val context = LocalContext.current
     val repository = remember { EmbyRepository.getInstance(context) }
@@ -105,6 +108,16 @@ fun MediaDetailScreen(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color.White)
         }
+    } else if (mediaInfo.type == "Movie") {
+        MovieDetailConnected(
+            detailViewModel = detailViewModel,
+            serverUrl = serverUrl,
+            onPlay = onPlayMovie,
+            onOpenSimilar = { similar ->
+                val id = similar.id ?: return@MovieDetailConnected
+                if (similar.isSeries) onNavigateToSeries(id) else onOpenMovie(id)
+            },
+        )
     } else {
         // Construct Backdrop URL
         val backdropTags = mediaInfo.backdropImageTags

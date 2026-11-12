@@ -486,6 +486,44 @@ class EmbyRepository private constructor(private val context: Context) {
         )
     }
 
+    suspend fun getSimilarItems(itemId: String, limit: Int = 16): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSimilarItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+            limit,
+        )
+    }
+
+    suspend fun getMovieItem(itemId: String): BaseItemDto {
+        requireLoggedIn()
+        return EmbyApi.getMovieItem(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+        )
+    }
+
+    suspend fun setPlayed(itemId: String, played: Boolean): Boolean {
+        requireLoggedIn()
+        return EmbyApi.setPlayed(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+            played,
+        )
+    }
+
     // === 内部方法 ===
 
     private fun requireLoggedIn() {
