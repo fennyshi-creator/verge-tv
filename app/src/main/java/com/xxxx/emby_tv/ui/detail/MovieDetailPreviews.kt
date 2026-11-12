@@ -21,7 +21,6 @@ fun DetailHeroPreview(fontFamily: FontFamily = FontFamily.Default) {
             onToggleFavorite = {},
             onTogglePlayed = {},
             onOpenSimilar = {},
-            onShowVersions = {},
             forceFocus = DetailFocus.Play,
             requestInitialFocus = false,
             fontFamily = fontFamily,
@@ -42,9 +41,28 @@ fun DetailCastPreview(fontFamily: FontFamily = FontFamily.Default) {
             onToggleFavorite = {},
             onTogglePlayed = {},
             onOpenSimilar = {},
-            onShowVersions = {},
             scrollOffset = (-430).dp,
             forceFocus = DetailFocus.Cast,
+            requestInitialFocus = false,
+            fontFamily = fontFamily,
+        )
+    }
+}
+
+@Preview(name = "movie-version-picker", device = TV, locale = "zh")
+@Composable
+fun DetailVersionPreview(fontFamily: FontFamily = FontFamily.Default) {
+    HomePreviewChrome(fontFamily) {
+        MovieDetailPage(
+            item = MovieDetailSample.movie,
+            similar = MovieDetailSample.similar,
+            serverUrl = "",
+            onPlay = {},
+            onPickSource = {},
+            onToggleFavorite = {},
+            onTogglePlayed = {},
+            onOpenSimilar = {},
+            forceFocus = DetailFocus.Version,
             requestInitialFocus = false,
             fontFamily = fontFamily,
         )

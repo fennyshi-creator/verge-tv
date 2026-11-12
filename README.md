@@ -142,7 +142,7 @@ Track switching, progress control, keep screen on
 
 ## 🏠 首页布局 / TV home
 
-The home screen is the top bar (logo, search, 「首页」, 「收藏」, settings), then 「继续观看」, then 「媒体库」 tiles. Continue-watching uses a leading-slot focus: the white stroke stays on the first slot while the row slides, and only walks right when nothing is left off-screen. It breathes while focused and does not scale the card.
+The home screen is the top bar (logo, search, 「首页」, 「收藏」, settings), then 「继续观看」, then 「媒体库」 tiles, then latest-item rows for 电影 and 剧集. Those rows use Emby's typed `Items/Latest` query (`IncludeItemTypes=Movie` or `Series`, `GroupItems=false`). Continue-watching and poster rows use a leading-slot focus: the white stroke stays on the first slot while the row slides, and only walks right when nothing is left off-screen. It breathes while focused and does not scale the card. Library tiles fall back to the view's own `ImageTags.Primary` when a collage is empty. Detail backdrops use a bitmap blur when focus leaves the hero. Season chips and hero action pills use a solid white fill; focusing a season reloads its episodes, and focusing the version pill opens 「选择版本」.
 
 Preview PNGs at 1920×1080 are in `artifacts/`. Home: `home-top.png`, `home-scrolled.png`. Movie detail: `detail-hero.png`, `detail-cast-similar.png`, `movie-detail-blurred.png`. Series detail: `series-hero.png`, `series-seasons-episodes.png`, `series-cast-similar.png`. They use sample titles so they render without a server. Regenerate them with Android SDK 36:
 

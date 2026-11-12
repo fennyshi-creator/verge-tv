@@ -21,6 +21,7 @@
     <string name="more_options_hint">Hold select for more options</string>
     <string name="resume_remaining">Resume · %1$s left</string>
     <string name="versions">Versions</string>
+    <string name="choose_version">Choose version</string>
     <string name="settings">Settings</string>
     <string name="continue_watching">Continue watching</string>
     <string name="continue_playing">Continue playing</string>

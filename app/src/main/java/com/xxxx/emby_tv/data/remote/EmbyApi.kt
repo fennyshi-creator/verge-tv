@@ -43,6 +43,26 @@ internal fun similarItemsPath(userId: String, itemId: String, limit: Int, apiKey
             "&X-Emby-Token=$apiKey"
 }
 
+/**
+ * Official latest-items query. [includeItemTypes] is required so a movies library
+ * does not come back as folders and a series library does not come back as seasons.
+ * GroupItems is off for the same reason. This is not a ParentId + DateCreated list.
+ */
+internal fun latestItemsPath(
+    userId: String,
+    parentId: String,
+    includeItemTypes: String,
+    limit: Int,
+    apiKey: String,
+): String {
+    val type = if (includeItemTypes.isBlank()) "" else "&IncludeItemTypes=$includeItemTypes"
+    return "/Users/$userId/Items/Latest?Limit=$limit&ParentId=$parentId&GroupItems=false" +
+            type +
+            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
 object EmbyApi {
     private const val TAG = "EmbyApi"
     const val CLIENT = "shareven/openemby_tv"
@@ -333,12 +353,10 @@ object EmbyApi {
         apiKey: String,
         deviceId: String,
         userId: String,
-        parentId: String
+        parentId: String,
+        includeItemTypes: String,
     ): List<BaseItemDto> {
-        val url = "/Users/$userId/Items/Latest?Limit=20&ParentId=$parentId" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
-                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
-                "&X-Emby-Token=$apiKey"
+        val url = latestItemsPath(userId, parentId, includeItemTypes, 16, apiKey)
         return httpAsBaseItemDtoListDirect(context, serverUrl, apiKey, deviceId, url)
     }
 
@@ -355,8 +373,11 @@ object EmbyApi {
         val views = getViews(context, serverUrl, apiKey, deviceId, userId)
         return views.map { view ->
             val id = view.id ?: ""
-            if (id.isNotEmpty()) {
-                val items = getLatestItemsByViews(context, serverUrl, apiKey, deviceId, userId, id)
+            val types = com.xxxx.emby_tv.util.EmbyPresentation.latestIncludeTypes(view)
+            if (id.isNotEmpty() && !types.isNullOrBlank()) {
+                val items = getLatestItemsByViews(
+                    context, serverUrl, apiKey, deviceId, userId, id, types,
+                )
                 view.copy(latestItems = items)
             } else {
                 view

@@ -44,9 +44,17 @@ object HomeSampleData {
     )
 
     val libraries = listOf(
-        item("sample-lib-movies", "电影Movies", null, "CollectionFolder", movies),
-        item("sample-lib-series", "剧集Series", null, "CollectionFolder", series),
-        item("sample-lib-sets", "专题影单", null, "CollectionFolder", collections),
+        item("sample-lib-movies", "电影Movies", null, "CollectionFolder", movies, "movies"),
+        item("sample-lib-series", "剧集Series", null, "CollectionFolder", series, "tvshows"),
+        item(
+            "sample-lib-sets",
+            "专题影单",
+            null,
+            "CollectionFolder",
+            collections,
+            "boxsets",
+            imageTags = mapOf("Primary" to "boxset-view-primary"),
+        ),
     )
 
     val becauseGrandmaster = RecommendationDto(
@@ -79,12 +87,16 @@ object HomeSampleData {
         year: Int?,
         type: String,
         latest: List<BaseItemDto>? = null,
+        collectionType: String? = null,
+        imageTags: Map<String, String>? = null,
     ) = BaseItemDto(
         id = id,
         name = name,
         type = type,
+        collectionType = collectionType,
         productionYear = year,
         latestItems = latest,
+        imageTags = imageTags,
         primaryImageAspectRatio = if (type == "Episode") 1.77 else 0.67,
     )
 

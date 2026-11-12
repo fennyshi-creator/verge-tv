@@ -31,13 +31,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -66,7 +69,7 @@ import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
 import kotlinx.coroutines.yield
 
-enum class SeriesFocus { Hero, Episodes, Cast, Similar }
+enum class SeriesFocus { Hero, Seasons, Episodes, Cast, Similar }
 
 @Composable
 fun SeriesDetailConnected(
@@ -150,8 +153,7 @@ fun SeriesDetailPage(
         .coerceAtLeast(0)
     val blurForLower = forceFocus != null && forceFocus != SeriesFocus.Hero
     var blurBackdrop by remember(series.id) { mutableStateOf(blurForLower) }
-    val blurRadius by animateDpAsState(if (blurBackdrop) 26.dp else 0.dp, tween(280), label = "series-blur")
-    val dim by animateFloatAsState(if (blurBackdrop) 0.52f else 0f, tween(280), label = "series-dim")
+    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "series-dim")
     LaunchedEffect(requestInitialFocus, series.id) {
         if (!requestInitialFocus) return@LaunchedEffect
         yield()
@@ -171,7 +173,7 @@ fun SeriesDetailPage(
                     url = backdrop,
                     role = ArtRole.Backdrop,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize().then(if (blurRadius > 0.5.dp) Modifier.blur(blurRadius) else Modifier),
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             if (dim > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
@@ -201,7 +203,6 @@ fun SeriesDetailPage(
                     forceFocused = forceFocus == SeriesFocus.Hero,
                     onFocused = { blurBackdrop = false },
                     onPlay = onPlay,
-                    onVersions = {},
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
                     showVersions = false,
@@ -216,6 +217,7 @@ fun SeriesDetailPage(
                         down = episodeFocus,
                         onSelect = onSelectSeason,
                         onFocused = { blurBackdrop = true },
+                        forceFocused = forceFocus == SeriesFocus.Seasons,
                     )
                 }
                 if (episodes.isNotEmpty()) {
@@ -405,10 +407,21 @@ private fun SeasonTabs(
     down: FocusRequester?,
     onSelect: (Int) -> Unit,
     onFocused: () -> Unit,
+    forceFocused: Boolean = false,
 ) {
+    if (seasons.isEmpty()) return
     var slot by remember { mutableIntStateOf(selected.coerceIn(0, seasons.lastIndex)) }
-    var rowFocused by remember { mutableStateOf(false) }
-    Row(
+    var rowFocused by remember { mutableStateOf(forceFocused) }
+    val chipLeft = remember(seasons.size) { mutableStateMapOf<Int, Int>() }
+    val chipWidth = remember(seasons.size) { mutableStateMapOf<Int, Int>() }
+    var rowLeft by remember { mutableIntStateOf(0) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val targetLeft = chipLeft[slot] ?: 0
+    val targetWidth = chipWidth[slot] ?: 0
+    val pillX by animateDpAsState(with(density) { targetLeft.toDp() }, tween(220), label = "season-pill-x")
+    val pillW by animateDpAsState(with(density) { targetWidth.toDp() }, tween(220), label = "season-pill-w")
+    val showFill = rowFocused || forceFocused
+    Box(
         Modifier
             .padding(start = 48.dp, top = 22.dp, bottom = 8.dp)
             .focusRequester(focusRequester)
@@ -417,54 +430,69 @@ private fun SeasonTabs(
                 down?.let { this.down = it }
             }
             .onFocusChanged {
-                rowFocused = it.isFocused
+                rowFocused = it.isFocused || forceFocused
                 if (it.isFocused) onFocused()
             }
             .focusable()
+            .onGloballyPositioned { rowLeft = it.positionInWindow().x.roundToInt() }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionRight -> {
-                        if (slot < seasons.lastIndex) slot++
+                        if (slot < seasons.lastIndex) {
+                            slot++
+                            onSelect(slot)
+                        }
                         true
                     }
                     Key.DirectionLeft -> {
                         if (slot == 0) false else {
                             slot--
+                            onSelect(slot)
                             true
                         }
-                    }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        onSelect(slot)
-                        true
                     }
                     else -> false
                 }
             },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        seasons.forEachIndexed { index, season ->
-            val shape = RoundedCornerShape(50)
-            val isSelected = index == selected
-            val showRing = rowFocused && index == slot
+        if (showFill && targetWidth > 0) {
             Box(
                 Modifier
-                    .clip(shape)
-                    .background(if (isSelected) Color(0xFFE6E6E8) else Color.Transparent)
-                    .clickable {
-                        slot = index
-                        onSelect(index)
-                    }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-                HomeText(
-                    EmbyPresentation.seasonTabLabel(season).ifBlank { seasonLabel(season, index) },
-                    15.sp,
-                    if (isSelected) Color(0xFF161616) else Color.White,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (showRing) BreathingStroke(Modifier.matchParentSize(), shape)
+                    .offset(x = pillX)
+                    .width(pillW)
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            seasons.forEachIndexed { index, season ->
+                val on = showFill && index == slot
+                Box(
+                    Modifier
+                        .onGloballyPositioned { coords ->
+                            chipLeft[index] = coords.positionInWindow().x.roundToInt() - rowLeft
+                            chipWidth[index] = coords.size.width
+                        }
+                        .clip(RoundedCornerShape(50))
+                        .background(if (on && targetWidth == 0) Color.White else Color.Transparent)
+                        .clickable {
+                            slot = index
+                            onSelect(index)
+                        }
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    HomeText(
+                        EmbyPresentation.seasonTabLabel(season).ifBlank { seasonLabel(season, index) },
+                        15.sp,
+                        if (on) Color(0xFF161616) else Color.White,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
     }

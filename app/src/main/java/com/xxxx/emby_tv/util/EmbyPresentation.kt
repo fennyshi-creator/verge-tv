@@ -135,6 +135,52 @@ object EmbyPresentation {
 
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION
 
+    /**
+     * Secondary line under a version. Bitrate is omitted when it is missing or too small
+     * to be a real rate (a strm probe of 192 bps otherwise prints as "0 kbps").
+     */
+    fun versionDetail(source: MediaSourceInfoDto): String {
+        val video = source.mediaStreams.orEmpty().firstOrNull { it.type.equals("Video", true) }
+        val head = video?.displayTitle?.takeIf { it.isNotBlank() }
+            ?: listOfNotNull(
+                identifiableQuality(source),
+                video?.codec?.takeIf { it.isNotBlank() }?.uppercase(Locale.US),
+            ).joinToString(" ")
+        val bitrate = source.bitrate ?: video?.bitRate
+        val rate = if (bitrate != null && bitrate >= 1000) {
+            val kbps = bitrate / 1000
+            if (kbps > 0) "$kbps kbps" else ""
+        } else {
+            ""
+        }
+        return listOf(head, rate).filter { it.isNotBlank() }.joinToString(" / ")
+    }
+
+    /** Movies, series, and boxsets each use a typed Latest query. Null means "do not list". */
+    fun latestIncludeTypes(view: BaseItemDto): String? = when (view.collectionType?.lowercase(Locale.US)) {
+        "movies" -> "Movie"
+        "tvshows" -> "Series"
+        "boxsets" -> "BoxSet"
+        else -> null
+    }
+
+    fun isPosterRowLibrary(view: BaseItemDto): Boolean {
+        if (latestIncludeTypes(view) == "Movie" || latestIncludeTypes(view) == "Series") return true
+        val child = view.latestItems?.firstOrNull()?.type
+        return child == "Movie" || child == "Series"
+    }
+
+    /**
+     * View tiles (especially 专题影单) carry art on ImageTags.Primary. A separate boolean
+     * primary flag is not part of this payload and must not gate the URL.
+     */
+    fun viewPrimaryImageUrl(serverUrl: String, view: BaseItemDto, maxWidth: Int = 800): String {
+        if (serverUrl.isBlank()) return ""
+        val tag = view.imageTags?.get("Primary")?.takeIf { it.isNotBlank() } ?: return ""
+        val id = view.id?.takeIf { it.isNotBlank() } ?: return ""
+        return "$serverUrl/emby/Items/$id/Images/Primary?maxWidth=$maxWidth&tag=$tag&quality=80"
+    }
+
     fun identifiableQuality(source: MediaSourceInfoDto): String? {
         val video = source.mediaStreams.orEmpty().firstOrNull { it.type.equals("Video", true) }
         val fromPixels = video?.let { qualityFromPixels(it.width, it.height) }

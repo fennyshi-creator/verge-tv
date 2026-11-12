@@ -80,6 +80,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import coil3.request.transformations
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.util.EmbyPresentation
@@ -94,6 +95,7 @@ fun OfficialHome(
     serverUrl: String,
     onResume: (BaseItemDto) -> Unit,
     onOpenLibrary: (BaseItemDto) -> Unit,
+    onOpenItem: (BaseItemDto) -> Unit,
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
     onSettings: () -> Unit,
@@ -109,7 +111,12 @@ fun OfficialHome(
     val settingsFocus = remember { FocusRequester() }
     val continueFocus = remember { FocusRequester() }
     val libraryFocus = remember { FocusRequester() }
+    val posterRows = libraries.filter { library ->
+        EmbyPresentation.isPosterRowLibrary(library) && library.latestItems.orEmpty().isNotEmpty()
+    }
+    val posterFocus = remember(posterRows.size) { List(posterRows.size) { FocusRequester() } }
     val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
+    val belowLibraries = posterFocus.firstOrNull()
 
     LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, libraries.firstOrNull()?.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -176,7 +183,7 @@ fun OfficialHome(
                             corner = HomeStyle.libraryCorner,
                             focusRequester = libraryFocus,
                             up = if (resumeItems.isNotEmpty()) continueFocus else homeTabFocus,
-                            down = null,
+                            down = belowLibraries,
                             onActivate = onOpenLibrary,
                             onMenu = onSettings,
                             caption = { library ->
@@ -184,6 +191,38 @@ fun OfficialHome(
                             },
                         ) { library ->
                             LibraryCollage(library, serverUrl)
+                        }
+                    }
+                }
+                posterRows.forEachIndexed { index, library ->
+                    item(key = "latest-${library.id ?: index}") {
+                        SectionTitle(library.name.orEmpty())
+                        LeadingSlotRow(
+                            items = library.latestItems.orEmpty(),
+                            cardWidth = HomeStyle.posterWidth,
+                            cardHeight = HomeStyle.posterHeight,
+                            corner = HomeStyle.cardCorner,
+                            focusRequester = posterFocus[index],
+                            up = if (index == 0) libraryFocus else posterFocus[index - 1],
+                            down = posterFocus.getOrNull(index + 1),
+                            onActivate = onOpenItem,
+                            onMenu = onSettings,
+                            caption = { item ->
+                                CardCaption(
+                                    item.name.orEmpty(),
+                                    item.productionYear?.toString().orEmpty(),
+                                    HomeStyle.posterWidth,
+                                )
+                            },
+                        ) { item ->
+                            HomeImage(
+                                itemId = item.id,
+                                fallbackArtId = item.seriesId,
+                                url = primaryUrl(serverUrl, item),
+                                role = ArtRole.Primary,
+                                contentDescription = item.name,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
                     }
                 }
@@ -603,25 +642,39 @@ private fun ContinueArt(item: BaseItemDto, serverUrl: String) {
 
 @Composable
 private fun LibraryCollage(library: BaseItemDto, serverUrl: String) {
-    val posters = library.latestItems.orEmpty().take(4)
+    val posters = library.latestItems.orEmpty()
+        .filter { hasPrimaryArt(serverUrl, it) }
+        .take(4)
+    val viewPrimary = EmbyPresentation.viewPrimaryImageUrl(serverUrl, library)
     Box(Modifier.fillMaxSize()) {
-        if (posters.isEmpty()) {
-            Box(Modifier.fillMaxSize().background(Color(0xFF2A2422)))
-        } else {
-            Row(Modifier.fillMaxSize()) {
-                posters.forEach { child ->
-                    HomeImage(
-                        itemId = child.id,
-                        fallbackArtId = child.seriesId,
-                        url = primaryUrl(serverUrl, child),
-                        role = ArtRole.Primary,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                    )
+        when {
+            posters.isNotEmpty() -> {
+                Row(Modifier.fillMaxSize()) {
+                    posters.forEach { child ->
+                        HomeImage(
+                            itemId = child.id,
+                            fallbackArtId = child.seriesId,
+                            url = primaryUrl(serverUrl, child),
+                            role = ArtRole.Primary,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        )
+                    }
                 }
             }
+            viewPrimary.isNotBlank() || SampleArt.lookup(library.id, ArtRole.Primary) != null -> {
+                HomeImage(
+                    itemId = library.id,
+                    fallbackArtId = null,
+                    url = viewPrimary,
+                    role = ArtRole.Primary,
+                    contentDescription = library.name,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            else -> Box(Modifier.fillMaxSize().background(Color(0xFF2A2422)))
         }
         Box(
             Modifier
@@ -732,6 +785,7 @@ fun HomeImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(url)
                 .crossfade(180)
+                .apply { if (LocalArtworkSoften.current) transformations(HeavyBlurTransformation()) }
                 .build(),
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
@@ -756,5 +810,12 @@ private fun thumbUrl(serverUrl: String, item: BaseItemDto): String {
 
 private fun primaryUrl(serverUrl: String, item: BaseItemDto): String {
     if (serverUrl.isBlank()) return ""
-    return Utils.getImageUrl(serverUrl, item, false)
+    return EmbyPresentation.viewPrimaryImageUrl(serverUrl, item).ifBlank {
+        Utils.getImageUrl(serverUrl, item, false)
+    }
+}
+
+private fun hasPrimaryArt(serverUrl: String, item: BaseItemDto): Boolean {
+    if (SampleArt.lookup(item.id, ArtRole.Primary) != null) return true
+    return primaryUrl(serverUrl, item).isNotBlank()
 }

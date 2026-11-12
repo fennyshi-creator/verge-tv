@@ -34,13 +34,35 @@ object MovieDetailSample {
         mediaSources = listOf(
             MediaSourceInfoDto(
                 id = "src-4k",
-                name = "4K",
-                mediaStreams = listOf(MediaStreamDto(width = 3840, height = 2160, type = "Video")),
+                name = "2160p",
+                bitrate = 192,
+                mediaStreams = listOf(
+                    MediaStreamDto(
+                        width = 3840,
+                        height = 2160,
+                        type = "Video",
+                        codec = "hevc",
+                        displayTitle = "4K HDR 10 HEVC",
+                        bitRate = 192,
+                    ),
+                ),
             ),
             MediaSourceInfoDto(
                 id = "src-1080",
                 name = "1080p",
-                mediaStreams = listOf(MediaStreamDto(width = 1920, height = 1080, type = "Video")),
+                mediaStreams = listOf(
+                    MediaStreamDto(
+                        width = 1920,
+                        height = 1080,
+                        type = "Video",
+                        codec = "hevc",
+                        displayTitle = "1080p HEVC",
+                    ),
+                ),
+            ),
+            MediaSourceInfoDto(
+                id = "src-other",
+                name = "奥德赛",
             ),
         ),
     )

@@ -7,9 +7,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import com.xxxx.emby_tv.ui.detail.DetailCastPreview
 import com.xxxx.emby_tv.ui.detail.DetailHeroPreview
+import com.xxxx.emby_tv.ui.detail.DetailVersionPreview
 import com.xxxx.emby_tv.ui.detail.SeriesCastPreview
 import com.xxxx.emby_tv.ui.detail.SeriesEpisodesPreview
 import com.xxxx.emby_tv.ui.detail.SeriesHeroPreview
+import com.xxxx.emby_tv.ui.detail.SeriesSeasonFocusedPreview
 import java.io.File
 
 private const val TV = "spec:width=960dp,height=540dp,dpi=320"
@@ -70,4 +72,32 @@ fun SeriesEpisodesScreenshot() {
 @Composable
 fun SeriesCastScreenshot() {
     SeriesCastPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "home-latest-rows", device = "spec:width=960dp,height=1080dp,dpi=320", locale = "zh")
+@Composable
+fun HomeLatestScreenshot() {
+    HomeLatestPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "movie-detail-blurred", device = TV, locale = "zh")
+@Composable
+fun MovieBlurredScreenshot() {
+    DetailCastPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-season-focused", device = TV, locale = "zh")
+@Composable
+fun SeriesSeasonFocusedScreenshot() {
+    SeriesSeasonFocusedPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "movie-version-picker", device = TV, locale = "zh")
+@Composable
+fun MovieVersionScreenshot() {
+    DetailVersionPreview(fontFamily = previewFont())
 }

@@ -1,16 +1,20 @@
 package com.xxxx.emby_tv.ui.home
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +76,10 @@ object SampleArt {
         "sample-ep-officer" to ArtSet(primary = portrait("新官", Color(0xFF243044), Color(0xFF10141C), Color(0xFF6A8AB0), 0.55f, 0.4f)),
         "sample-ep-three" to ArtSet(primary = portrait("三位", Color(0xFF3A2418), Color(0xFF140E0C), Color(0xFFD0A060), 0.35f, 0.5f)),
         "sample-ep-rebuild" to ArtSet(primary = portrait("重建", Color(0xFF2A2428), Color(0xFF101014), Color(0xFF8A3030), 0.7f, 0.4f)),
+        "sample-s3-1" to ArtSet(primary = portrait("暗流", Color(0xFF243028), Color(0xFF101410), Color(0xFF8FBF6A), 0.4f, 0.45f)),
+        "sample-s3-2" to ArtSet(primary = portrait("赌局", Color(0xFF3A2418), Color(0xFF140E0C), Color(0xFFD0A060), 0.55f, 0.4f)),
+        "sample-s3-3" to ArtSet(primary = portrait("牧场", Color(0xFF4A3828), Color(0xFF1A140E), Color(0xFFE0C090), 0.35f, 0.5f)),
+        "sample-s3-4" to ArtSet(primary = portrait("清算", Color(0xFF2A181C), Color(0xFF10080C), Color(0xFFC04040), 0.65f, 0.42f)),
         "sample-ep-prev" to ArtSet(primary = portrait("前集", Color(0xFF30343A), Color(0xFF121418), Color(0xFF9AA4AE), 0.3f, 0.35f)),
         "sample-mayor" to ArtSet(primary = portrait("金斯", Color(0xFF1C2430), Color(0xFF0C1018), Color(0xFFD8D8D8), 0.4f, 0.55f)),
         "sample-dexter" to ArtSet(primary = portrait("法医", Color(0xFF12304A), Color(0xFF081018), Color(0xFFE23A3A), 0.45f, 0.4f)),
@@ -189,6 +197,18 @@ object SampleArt {
         "sample-set-b" to ArtSet(primary = portrait("特辑", Color(0xFF14283A), Color(0xFF080E16), Color(0xFF7EB0D8), 0.7f, 0.4f)),
         "sample-set-c" to ArtSet(primary = portrait("影单", Color(0xFF3A2418), Color(0xFF140E0A), Color(0xFFE0A878), 0.3f, 0.45f)),
         "sample-set-d" to ArtSet(primary = portrait("武侠", Color(0xFF2A1818), Color(0xFF100808), Color(0xFFC84A3A), 0.6f, 0.55f)),
+        "sample-lib-sets" to ArtSet(
+            primary = PosterArt(
+                top = Color(0xFF3A2418),
+                bottom = Color(0xFF140E0C),
+                glow = Color(0xFFE0A060),
+                glowX = 0.7f,
+                glowY = 0.4f,
+                kicker = "影单",
+                align = Alignment.Center,
+                kickerSize = 22.sp,
+            ),
+        ),
     )
 
     fun lookup(id: String?, role: ArtRole): PosterArt? {
@@ -237,22 +257,18 @@ private fun portrait(
 @Composable
 fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
     val soften = LocalArtworkSoften.current
-    Box(modifier.background(if (soften) Color(0xFF2A211C) else art.bottom)) {
+    if (soften) {
+        val blurred = remember(art) { blurredSampleBackdrop(art) }
+        Image(
+            bitmap = blurred.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+    Box(modifier.background(art.bottom)) {
         Canvas(Modifier.fillMaxSize()) {
-            if (soften) {
-                drawRect(Color(0xFF2A211C))
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(art.glow.copy(alpha = 0.28f), Color.Transparent),
-                        center = Offset(size.width * 0.72f, size.height * 0.45f),
-                        radius = size.maxDimension * 0.9f,
-                    ),
-                    radius = size.maxDimension * 0.9f,
-                    center = Offset(size.width * 0.72f, size.height * 0.45f),
-                )
-                drawRect(Color.Black.copy(alpha = 0.45f))
-                return@Canvas
-            }
             drawRect(
                 brush = Brush.linearGradient(
                     colors = listOf(art.top, art.bottom),
@@ -261,7 +277,7 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
                 )
             )
             val center = Offset(size.width * art.glowX, size.height * art.glowY)
-            val radius = size.maxDimension * art.glowRadius * if (soften) 2.6f else 1f
+            val radius = size.maxDimension * art.glowRadius
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(art.glow.copy(alpha = 0.9f), art.glow.copy(alpha = 0f)),
@@ -271,7 +287,7 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
                 radius = radius,
                 center = center,
             )
-            if (art.spark.alpha > 0f && !soften) {
+            if (art.spark.alpha > 0f) {
                 drawCircle(
                     color = art.spark.copy(alpha = 0.28f),
                     radius = size.minDimension * 0.12f,
@@ -290,19 +306,9 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
             drawRect(
                 brush = Brush.verticalGradient(
                     0.55f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = if (soften) 0.72f else 0.45f),
+                    1f to Color.Black.copy(alpha = 0.45f),
                 )
             )
-            if (soften) {
-                drawRect(Color.Black.copy(alpha = 0.55f))
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.05f), Color.Transparent),
-                        center = center,
-                        radius = radius,
-                    )
-                )
-            }
         }
     }
 }

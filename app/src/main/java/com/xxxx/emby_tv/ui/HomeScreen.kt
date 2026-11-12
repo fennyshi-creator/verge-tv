@@ -24,6 +24,7 @@ import com.xxxx.emby_tv.ui.components.MenuDialog
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.OfficialHome
 import com.xxxx.emby_tv.ui.viewmodel.HomeViewModel
+import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
 
 @Composable
@@ -99,11 +100,16 @@ fun HomeScreen(
         navController.navigate("player/$id?position=$position")
     }
 
+    fun libraryType(item: BaseItemDto): String {
+        return EmbyPresentation.latestIncludeTypes(item)
+            ?: item.latestItems?.firstOrNull()?.type
+            ?: ""
+    }
+
     fun openLibrary(item: BaseItemDto) {
         val id = item.id ?: return
         val title = item.name ?: ""
-        val type = item.latestItems?.firstOrNull()?.type ?: ""
-        navController.navigate("library/$id?libraryName=$title&type=$type")
+        navController.navigate("library/$id?libraryName=$title&type=${libraryType(item)}")
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -123,14 +129,21 @@ fun HomeScreen(
                 serverUrl = serverUrl,
                 onResume = { goPlay(it) },
                 onOpenLibrary = { openLibrary(it) },
+                onOpenItem = { item ->
+                    val id = item.id ?: return@OfficialHome
+                    if (item.type == "Series" || item.isSeries) {
+                        navController.navigate("series/$id")
+                    } else {
+                        navController.navigate("media/$id")
+                    }
+                },
                 onSearch = { navController.navigate("search") },
                 onFavorites = {
                     val library = libraryLatestItems.firstOrNull() ?: return@OfficialHome
                     val id = library.id ?: return@OfficialHome
                     val title = library.name ?: ""
-                    val type = library.latestItems?.firstOrNull()?.type ?: ""
                     navController.navigate(
-                        "library/$id?libraryName=$title&type=$type&filter=IsFavorite"
+                        "library/$id?libraryName=$title&type=${libraryType(library)}&filter=IsFavorite"
                     )
                 },
                 onSettings = { showMenu = true },

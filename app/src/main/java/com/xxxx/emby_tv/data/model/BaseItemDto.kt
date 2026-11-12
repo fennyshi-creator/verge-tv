@@ -45,6 +45,7 @@ data class BaseItemDto(
     @SerializedName("IsFolder") val isFolder: Boolean? = null,
      @SerializedName("ParentId") val parentId: String? = null,
      @SerializedName("Type") val type: String? = null,
+     @SerializedName("CollectionType") val collectionType: String? = null,
      @SerializedName("Role") val role: String? = null,
      @SerializedName("People") val people: List<PersonInfo>? = null,
     @SerializedName("Studios") val studios: List<NameGuidPairDto>? = null,

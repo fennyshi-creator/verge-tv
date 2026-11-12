@@ -5,6 +5,7 @@ import com.xxxx.emby_tv.data.model.EmbyResponseDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.UserDataDto
 import com.xxxx.emby_tv.data.remote.EmbyJson
+import com.xxxx.emby_tv.data.remote.latestItemsPath
 import com.xxxx.emby_tv.data.remote.similarItemsPath
 import com.google.gson.reflect.TypeToken
 import org.junit.Assert.assertEquals
@@ -98,6 +99,18 @@ class EmbyPresentationTest {
             object : TypeToken<EmbyResponseDto<BaseItemDto>>() {}.type,
         )
         assertEquals(listOf("电影Movies", "剧集Series", "专题影单"), views.items.map { it.name })
+        assertEquals(listOf("Movie", "Series", "BoxSet"), views.items.map { EmbyPresentation.latestIncludeTypes(it) })
+        val boxsets = views.items[2]
+        assertEquals("24aa2a69b92cbe771992deda3385f7cb", boxsets.imageTags?.get("Primary"))
+        val primary = EmbyPresentation.viewPrimaryImageUrl("https://example.test", boxsets)
+        assertTrue(primary.contains("/Items/${boxsets.id}/Images/Primary"))
+        assertTrue(primary.contains("tag=${boxsets.imageTags?.get("Primary")}"))
+        val latest = latestItemsPath("user", "3", "Movie", 16, "token")
+        assertTrue(latest.contains("IncludeItemTypes=Movie"))
+        assertTrue(latest.contains("GroupItems=false"))
+        assertTrue(latest.contains("/Items/Latest"))
+        assertFalse(latest.contains("SortBy=DateCreated"))
+        assertTrue(latestItemsPath("user", "237", "Series", 16, "token").contains("IncludeItemTypes=Series"))
     }
 
     @Test
@@ -137,5 +150,25 @@ class EmbyPresentationTest {
         )
         assertNull(EmbyPresentation.qualityBadge(unlabeled))
         assertEquals("其他版本", EmbyPresentation.versionLabel(unlabeled.mediaSources!!.first()))
+        val zeroRate = MediaSourceInfoDto(
+            name = "2160p",
+            bitrate = 192,
+            mediaStreams = listOf(
+                com.xxxx.emby_tv.data.model.MediaStreamDto(
+                    type = "Video",
+                    codec = "hevc",
+                    displayTitle = "4K HDR 10 HEVC",
+                    width = 3840,
+                    height = 2160,
+                    bitRate = 192,
+                ),
+            ),
+        )
+        val detail = EmbyPresentation.versionDetail(zeroRate)
+        assertEquals("4K HDR 10 HEVC", detail)
+        assertFalse(detail.contains("kbps"))
+        assertEquals("", EmbyPresentation.versionDetail(MediaSourceInfoDto(name = "奥德赛", bitrate = 0)))
+        val real = MediaSourceInfoDto(name = "2160p", bitrate = 8_000_000)
+        assertTrue(EmbyPresentation.versionDetail(real).contains("8000 kbps"))
     }
 }

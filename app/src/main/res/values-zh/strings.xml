@@ -22,6 +22,7 @@
     <string name="more_options_hint">长按确认键打开更多选项</string>
     <string name="resume_remaining">续看 · 还剩 %1$s</string>
     <string name="versions">版本</string>
+    <string name="choose_version">选择版本</string>
     <string name="settings">设置</string>
     <string name="continue_watching">继续观看</string>
     <string name="continue_playing">继续播放</string>

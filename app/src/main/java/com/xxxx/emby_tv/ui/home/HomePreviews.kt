@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import java.util.Locale
 
 private const val TV = "spec:width=960dp,height=540dp,dpi=320"
+private const val TV_TALL = "spec:width=960dp,height=1080dp,dpi=320"
 
 @Composable
 fun HomePreviewChrome(fontFamily: FontFamily = FontFamily.Default, content: @Composable () -> Unit) {
@@ -37,6 +38,7 @@ fun HomeTopPreview(fontFamily: FontFamily = FontFamily.Default) {
             serverUrl = "",
             onResume = {},
             onOpenLibrary = {},
+            onOpenItem = {},
             onSearch = {},
             onFavorites = {},
             onSettings = {},
@@ -57,12 +59,33 @@ fun HomeScrolledPreview(fontFamily: FontFamily = FontFamily.Default) {
             serverUrl = "",
             onResume = {},
             onOpenLibrary = {},
+            onOpenItem = {},
             onSearch = {},
             onFavorites = {},
             onSettings = {},
             requestInitialFocus = false,
             continueWindowStart = 3,
             forceContinueFocus = true,
+            fontFamily = fontFamily,
+        )
+    }
+}
+
+@Preview(name = "home-latest-rows", device = TV_TALL, locale = "zh", showBackground = true)
+@Composable
+fun HomeLatestPreview(fontFamily: FontFamily = FontFamily.Default) {
+    HomePreviewChrome(fontFamily) {
+        OfficialHome(
+            resumeItems = HomeSampleData.resume,
+            libraries = HomeSampleData.libraries,
+            serverUrl = "",
+            onResume = {},
+            onOpenLibrary = {},
+            onOpenItem = {},
+            onSearch = {},
+            onFavorites = {},
+            onSettings = {},
+            requestInitialFocus = false,
             fontFamily = fontFamily,
         )
     }

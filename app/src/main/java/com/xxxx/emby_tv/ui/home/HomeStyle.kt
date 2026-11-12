@@ -24,6 +24,8 @@ object HomeStyle {
     val continueHeight = 104.dp
     val libraryWidth = 272.dp
     val libraryHeight = 118.dp
+    val posterWidth = 124.dp
+    val posterHeight = 186.dp
     val cardCorner = 11.dp
     val libraryCorner = 13.dp
 

@@ -49,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -74,7 +73,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.xxxx.emby_tv.R
@@ -93,7 +91,7 @@ import com.xxxx.emby_tv.util.EmbyPresentation
 import kotlinx.coroutines.yield
 import kotlin.math.min
 
-enum class DetailFocus { Play, Cast, Similar }
+enum class DetailFocus { Play, Version, Cast, Similar }
 
 @Composable
 fun MovieDetailConnected(
@@ -106,16 +104,12 @@ fun MovieDetailConnected(
     LaunchedEffect(item.id) {
         item.id?.let { detailViewModel.loadMovieExtras(it) }
     }
-    var showVersions by remember { mutableStateOf(false) }
     MovieDetailPage(
         item = item,
         similar = detailViewModel.similarItems,
         serverUrl = serverUrl,
         onPlay = { onPlay(item, null) },
-        onPickSource = { sourceId ->
-            showVersions = false
-            onPlay(item, sourceId)
-        },
+        onPickSource = { sourceId -> onPlay(item, sourceId) },
         onToggleFavorite = {
             val id = item.id ?: return@MovieDetailPage
             detailViewModel.toggleFavorite(id, item.userData?.isFavorite != true)
@@ -125,18 +119,7 @@ fun MovieDetailConnected(
             detailViewModel.togglePlayed(id, item.userData?.played != true)
         },
         onOpenSimilar = onOpenSimilar,
-        onShowVersions = { showVersions = true },
     )
-    if (showVersions) {
-        VersionDialog(
-            sources = item.mediaSources.orEmpty(),
-            onDismiss = { showVersions = false },
-            onPick = { sourceId ->
-                showVersions = false
-                onPlay(item, sourceId)
-            },
-        )
-    }
 }
 
 @Composable
@@ -149,7 +132,6 @@ fun MovieDetailPage(
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
-    onShowVersions: () -> Unit,
     scrollOffset: Dp = 0.dp,
     forceFocus: DetailFocus? = null,
     requestInitialFocus: Boolean = true,
@@ -171,8 +153,10 @@ fun MovieDetailPage(
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1920)
     val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
-    val blurRadius by animateDpAsState(if (blurBackdrop) 26.dp else 0.dp, tween(280), label = "backdrop-blur")
-    val dim by animateFloatAsState(if (blurBackdrop) 0.5f else 0f, tween(280), label = "backdrop-dim")
+    val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "backdrop-dim")
+    val sources = item.mediaSources.orEmpty()
+    var versionFocused by remember(item.id) { mutableStateOf(forceFocus == DetailFocus.Version) }
+    var versionIndex by remember(item.id) { mutableIntStateOf(0) }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         Box(
             modifier
@@ -187,9 +171,7 @@ fun MovieDetailPage(
                     url = backdrop,
                     role = ArtRole.Backdrop,
                     contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(if (blurRadius > 0.5.dp) Modifier.blur(blurRadius) else Modifier),
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             if (dim > 0.01f) {
@@ -231,10 +213,16 @@ fun MovieDetailPage(
                     item = item,
                     focusRequester = playFocus,
                     down = if (people.isNotEmpty()) castFocus else if (similar.isNotEmpty()) similarFocus else null,
-                    forceFocused = forceFocus == DetailFocus.Play,
+                    forceFocused = forceFocus == DetailFocus.Play || forceFocus == DetailFocus.Version,
+                    initialSlot = if (forceFocus == DetailFocus.Version) 1 else 0,
+                    versionIndex = versionIndex,
+                    onVersionIndex = { versionIndex = it },
                     onFocused = { blurBackdrop = false },
+                    onAction = { action -> versionFocused = action == "version" },
                     onPlay = onPlay,
-                    onVersions = onShowVersions,
+                    onPickVersion = {
+                        onPickSource(sources.getOrNull(versionIndex)?.id)
+                    },
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
                     modifier = Modifier.padding(horizontal = 48.dp),
@@ -263,6 +251,15 @@ fun MovieDetailPage(
                         onOpen = onOpenSimilar,
                     )
                 }
+            }
+            if (versionFocused && sources.isNotEmpty()) {
+                VersionPanel(
+                    sources = sources,
+                    selected = versionIndex.coerceIn(0, sources.lastIndex),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 36.dp),
+                )
             }
         }
     }
@@ -363,19 +360,29 @@ internal fun ActionRow(
     forceFocused: Boolean,
     onFocused: () -> Unit = {},
     onPlay: () -> Unit,
-    onVersions: () -> Unit,
+    onPickVersion: () -> Unit = {},
     onFavorite: () -> Unit,
     onPlayed: () -> Unit,
     showVersions: Boolean = true,
     playbackItem: BaseItemDto = item,
+    initialSlot: Int = 0,
+    versionIndex: Int = 0,
+    onVersionIndex: (Int) -> Unit = {},
+    onAction: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val actions = if (showVersions) listOf("play", "version", "favorite", "played") else listOf("play", "favorite", "played")
-    var slot by remember { mutableIntStateOf(0) }
+    var slot by remember { mutableIntStateOf(initialSlot.coerceIn(0, actions.lastIndex)) }
     var rowFocused by remember { mutableStateOf(forceFocused) }
     val label = EmbyPresentation.playActionLabel(playbackItem)
     val favorite = item.userData?.isFavorite == true
     val played = item.userData?.played == true
+    val sources = item.mediaSources.orEmpty()
+    val versionLabel = sources.getOrNull(versionIndex)?.let { EmbyPresentation.versionLabel(it) }.orEmpty()
+    val highlighted = rowFocused || forceFocused
+    LaunchedEffect(slot, highlighted) {
+        if (highlighted) onAction(actions[slot])
+    }
     Row(
         modifier
             .focusRequester(focusRequester)
@@ -398,10 +405,26 @@ internal fun ActionRow(
                             true
                         }
                     }
+                    Key.DirectionDown -> {
+                        if (actions[slot] == "version" && versionIndex < sources.lastIndex) {
+                            onVersionIndex(versionIndex + 1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        if (actions[slot] == "version" && versionIndex > 0) {
+                            onVersionIndex(versionIndex - 1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         when (actions[slot]) {
                             "play" -> onPlay()
-                            "version" -> onVersions()
+                            "version" -> onPickVersion()
                             "favorite" -> onFavorite()
                             "played" -> onPlayed()
                         }
@@ -413,29 +436,31 @@ internal fun ActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PlayPill(label, showRing = (rowFocused || forceFocused) && actions[slot] == "play", onClick = onPlay)
+        val playOn = highlighted && actions[slot] == "play"
+        val versionOn = highlighted && actions[slot] == "version"
+        val favoriteOn = highlighted && actions[slot] == "favorite"
+        val playedOn = highlighted && actions[slot] == "played"
+        PlayPill(label, focused = playOn, onClick = onPlay)
         if (showVersions) {
-            IconBubble(showRing = (rowFocused || forceFocused) && actions[slot] == "version", onClick = onVersions) {
-                DiamondIcon(Modifier.size(18.dp))
-            }
+            VersionPill(
+                label = versionLabel,
+                focused = versionOn,
+                onClick = onPickVersion,
+            )
         }
-        IconBubble(showRing = (rowFocused || forceFocused) && actions[slot] == "favorite", onClick = onFavorite) {
+        IconBubble(focused = favoriteOn, onClick = onFavorite) {
             Icon(
                 imageVector = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 contentDescription = null,
-                tint = Color.White,
+                tint = if (favoriteOn) Color(0xFF161616) else Color.White,
                 modifier = Modifier.size(20.dp),
             )
         }
-        IconBubble(
-            showRing = (rowFocused || forceFocused) && actions[slot] == "played",
-            onClick = onPlayed,
-            filled = played,
-        ) {
+        IconBubble(focused = playedOn, onClick = onPlayed, filled = played) {
             Icon(
                 imageVector = Icons.Filled.Check,
                 contentDescription = null,
-                tint = if (played) Color.Black else Color.White,
+                tint = if (playedOn) Color(0xFF161616) else Color.White,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -443,30 +468,46 @@ internal fun ActionRow(
 }
 
 @Composable
-private fun PlayPill(label: String, showRing: Boolean, onClick: () -> Unit) {
+private fun PlayPill(label: String, focused: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    Box {
-        Box(
-            Modifier
-                .padding(3.dp)
-                .clip(shape)
-                .background(Color(0xFFE6E6E8))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.PlayArrow, null, tint = Color(0xFF161616), modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(4.dp))
-                HomeText(label, 15.sp, Color(0xFF161616), fontWeight = FontWeight.Medium)
-            }
+    val fg = if (focused) Color(0xFF161616) else Color.White
+    Box(
+        Modifier
+            .clip(shape)
+            .background(if (focused) Color.White else Color.White.copy(0.16f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.PlayArrow, null, tint = fg, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(4.dp))
+            HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
         }
-        if (showRing) BreathingStroke(Modifier.matchParentSize(), shape)
+    }
+}
+
+@Composable
+private fun VersionPill(label: String, focused: Boolean, onClick: () -> Unit) {
+    val fg = if (focused) Color(0xFF161616) else Color.White
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (focused) Color.White else Color.White.copy(0.16f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DiamondIcon(Modifier.size(16.dp), color = fg)
+        if (label.isNotBlank()) {
+            Spacer(Modifier.width(6.dp))
+            HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
+        }
     }
 }
 
 @Composable
 private fun IconBubble(
-    showRing: Boolean,
+    focused: Boolean,
     onClick: () -> Unit,
     filled: Boolean = false,
     icon: @Composable BoxScope.() -> Unit,
@@ -475,17 +516,22 @@ private fun IconBubble(
         Modifier
             .size(42.dp)
             .clip(CircleShape)
-            .background(if (filled) Color.White else Color.White.copy(0.16f))
+            .background(
+                when {
+                    focused -> Color.White
+                    filled -> Color.White.copy(0.28f)
+                    else -> Color.White.copy(0.16f)
+                }
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         icon()
-        if (showRing) BreathingStroke(Modifier.matchParentSize(), CircleShape)
     }
 }
 
 @Composable
-private fun DiamondIcon(modifier: Modifier = Modifier) {
+private fun DiamondIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
     Canvas(modifier) {
         val path = Path().apply {
             moveTo(size.width / 2f, 0f)
@@ -494,10 +540,10 @@ private fun DiamondIcon(modifier: Modifier = Modifier) {
             lineTo(0f, size.height / 2f)
             close()
         }
-        drawPath(path, Color.White.copy(0.15f))
+        drawPath(path, color.copy(alpha = 0.18f))
         drawPath(
             path,
-            Color.White,
+            color,
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
         )
     }
@@ -750,38 +796,56 @@ internal fun AvatarPlaceholder(name: String, index: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun VersionDialog(
+private fun VersionPanel(
     sources: List<MediaSourceInfoDto>,
-    onDismiss: () -> Unit,
-    onPick: (String?) -> Unit,
+    selected: Int,
+    modifier: Modifier = Modifier,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .width(420.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF1C1C1C))
-                .padding(20.dp),
-        ) {
-            HomeText(stringResource(R.string.versions), 20.sp, Color.White)
-            Spacer(Modifier.height(12.dp))
-            val rows = sources.ifEmpty { listOf(MediaSourceInfoDto(name = stringResource(R.string.play))) }
-            rows.forEach { source ->
-                val label = if (source.id.isNullOrBlank() && source.mediaStreams.isNullOrEmpty() && sources.isEmpty()) {
-                    source.name ?: stringResource(R.string.play)
-                } else {
-                    EmbyPresentation.versionLabel(source)
+    Column(
+        modifier
+            .width(320.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xF01A1A1A))
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        HomeText(stringResource(R.string.choose_version), 20.sp, Color.White, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(12.dp))
+        sources.forEachIndexed { index, source ->
+            val on = index == selected
+            val title = EmbyPresentation.versionLabel(source)
+            val detail = EmbyPresentation.versionDetail(source)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Color.White else Color.Transparent)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    HomeText(
+                        title,
+                        16.sp,
+                        if (on) Color(0xFF161616) else Color.White,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (detail.isNotBlank()) {
+                        HomeText(
+                            detail,
+                            12.sp,
+                            if (on) Color(0xFF4A4A4A) else Color(0xFFB5B5B5),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(0.08f))
-                        .clickable { onPick(source.id) }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                ) {
-                    HomeText(label, 16.sp, Color.White)
+                if (on) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = Color(0xFF161616),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }

@@ -49,6 +49,32 @@ fun SeriesEpisodesPreview(fontFamily: FontFamily = FontFamily.Default) {
     SeriesFrame(fontFamily, scrollOffset = (-300).dp, focus = SeriesFocus.Episodes)
 }
 
+@Preview(name = "series-season-focused", device = TV, locale = "zh")
+@Composable
+fun SeriesSeasonFocusedPreview(fontFamily: FontFamily = FontFamily.Default) {
+    HomePreviewChrome(fontFamily) {
+        SeriesDetailPage(
+            series = SeriesDetailSample.series,
+            seasons = SeriesDetailSample.seasons,
+            episodes = SeriesDetailSample.seasonThree,
+            resume = null,
+            similar = SeriesDetailSample.similar,
+            selectedSeason = 2,
+            serverUrl = "",
+            onSelectSeason = {},
+            onPlay = {},
+            onOpenEpisode = {},
+            onToggleFavorite = {},
+            onTogglePlayed = {},
+            onOpenSimilar = {},
+            scrollOffset = (-200).dp,
+            forceFocus = SeriesFocus.Seasons,
+            requestInitialFocus = false,
+            fontFamily = fontFamily,
+        )
+    }
+}
+
 @Preview(name = "series-cast-similar", device = TV, locale = "zh")
 @Composable
 fun SeriesCastPreview(fontFamily: FontFamily = FontFamily.Default) {

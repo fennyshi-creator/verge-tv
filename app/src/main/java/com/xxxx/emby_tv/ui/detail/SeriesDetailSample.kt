@@ -14,12 +14,13 @@ object SeriesDetailSample {
         minutes: Int,
         overview: String,
         progress: Float = 0f,
+        season: Int = 2,
     ) = BaseItemDto(
         id = id,
         name = name,
         type = "Episode",
         seriesName = "TULSA KING",
-        parentIndexNumber = 2,
+        parentIndexNumber = season,
         indexNumber = number,
         overview = overview,
         runTimeTicks = minutes * 60L * TICKS,
@@ -44,6 +45,13 @@ object SeriesDetailSample {
         episode("sample-ep-officer", 8, "新官上任", 42, "贝维拉卡准备复仇。瑟瑞舍和明讨论了一项新的安排。"),
         episode("sample-ep-three", 9, "三位一体", 36, "玛格丽特被卷入德怀特的生意中。随着局势进一步恶化，芬纳里奥牧场的平静也不复存在。"),
         episode("sample-ep-rebuild", 10, "重建", 35, "德怀特和他的团队在帝国扩张的同时，开始着手将未完成的事一一解决。"),
+    )
+
+    val seasonThree = listOf(
+        episode("sample-s3-1", 1, "暗流", 38, "一场没写进账本的交易把第三季的局重新掀开。", season = 3),
+        episode("sample-s3-2", 2, "赌局", 41, "牧场上的新客人不是来喝酒的。", season = 3),
+        episode("sample-s3-3", 3, "旧牧场", 36, "德怀特回到那座没人再提起的牧场。", season = 3),
+        episode("sample-s3-4", 4, "清算", 44, "该结的账在这一集里开始结清。", season = 3),
     )
 
     val seasons = listOf(
