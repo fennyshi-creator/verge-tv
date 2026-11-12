@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.TextUnitType
 import coil3.compose.SubcomposeAsyncImage
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.ui.detail.MovieDetailConnected
+import com.xxxx.emby_tv.ui.detail.SeriesDetailConnected
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.delay
@@ -108,6 +109,14 @@ fun MediaDetailScreen(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color.White)
         }
+    } else if (mediaInfo.isSeries) {
+        SeriesDetailConnected(
+            detailViewModel = detailViewModel,
+            serverUrl = serverUrl,
+            onPlay = onNavigateToPlayer,
+            onOpenSeries = onNavigateToSeries,
+            onOpenMovie = onOpenMovie,
+        )
     } else if (mediaInfo.type == "Movie") {
         MovieDetailConnected(
             detailViewModel = detailViewModel,

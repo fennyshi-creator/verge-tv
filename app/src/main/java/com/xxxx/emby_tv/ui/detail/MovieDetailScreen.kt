@@ -4,6 +4,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -48,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -84,6 +86,7 @@ import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import kotlinx.coroutines.yield
@@ -165,6 +168,10 @@ fun MovieDetailPage(
         }
     }
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1920)
+    val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
+    var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
+    val blurRadius by animateDpAsState(if (blurBackdrop) 26.dp else 0.dp, tween(280), label = "backdrop-blur")
+    val dim by animateFloatAsState(if (blurBackdrop) 0.5f else 0f, tween(280), label = "backdrop-dim")
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         Box(
             modifier
@@ -172,14 +179,21 @@ fun MovieDetailPage(
                 .background(Color(0xFF100E0C))
                 .clipToBounds(),
         ) {
-            HomeImage(
-                itemId = item.id,
-                fallbackArtId = null,
-                url = backdrop,
-                role = ArtRole.Backdrop,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-            )
+            CompositionLocalProvider(LocalArtworkSoften provides blurBackdrop) {
+                HomeImage(
+                    itemId = item.id,
+                    fallbackArtId = null,
+                    url = backdrop,
+                    role = ArtRole.Backdrop,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (blurRadius > 0.5.dp) Modifier.blur(blurRadius) else Modifier),
+                )
+            }
+            if (dim > 0.01f) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
+            }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -217,6 +231,7 @@ fun MovieDetailPage(
                     focusRequester = playFocus,
                     down = if (people.isNotEmpty()) castFocus else if (similar.isNotEmpty()) similarFocus else null,
                     forceFocused = forceFocus == DetailFocus.Play,
+                    onFocused = { blurBackdrop = false },
                     onPlay = onPlay,
                     onVersions = onShowVersions,
                     onFavorite = onToggleFavorite,
@@ -232,6 +247,7 @@ fun MovieDetailPage(
                         up = playFocus,
                         down = if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == DetailFocus.Cast,
+                        onFocused = { blurBackdrop = true },
                     )
                 }
                 if (similar.isNotEmpty()) {
@@ -242,6 +258,7 @@ fun MovieDetailPage(
                         focusRequester = similarFocus,
                         up = if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
+                        onFocused = { blurBackdrop = true },
                         onOpen = onOpenSimilar,
                     )
                 }
@@ -327,18 +344,20 @@ private fun Dot() {
 }
 
 @Composable
-private fun ActionRow(
+internal fun ActionRow(
     item: BaseItemDto,
     focusRequester: FocusRequester,
     down: FocusRequester?,
     forceFocused: Boolean,
+    onFocused: () -> Unit = {},
     onPlay: () -> Unit,
     onVersions: () -> Unit,
     onFavorite: () -> Unit,
     onPlayed: () -> Unit,
+    showVersions: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val actions = listOf("play", "version", "favorite", "played")
+    val actions = if (showVersions) listOf("play", "version", "favorite", "played") else listOf("play", "favorite", "played")
     var slot by remember { mutableIntStateOf(0) }
     var rowFocused by remember { mutableStateOf(forceFocused) }
     val position = item.userData?.playbackPositionTicks ?: 0L
@@ -355,7 +374,10 @@ private fun ActionRow(
         modifier
             .focusRequester(focusRequester)
             .focusProperties { down?.let { this.down = it } }
-            .onFocusChanged { rowFocused = it.isFocused || forceFocused }
+            .onFocusChanged {
+                rowFocused = it.isFocused || forceFocused
+                if (it.isFocused) onFocused()
+            }
             .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -385,11 +407,13 @@ private fun ActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PlayPill(label, showRing = (rowFocused || forceFocused) && slot == 0, onClick = onPlay)
-        IconBubble(showRing = (rowFocused || forceFocused) && slot == 1, onClick = onVersions) {
-            DiamondIcon(Modifier.size(18.dp))
+        PlayPill(label, showRing = (rowFocused || forceFocused) && actions[slot] == "play", onClick = onPlay)
+        if (showVersions) {
+            IconBubble(showRing = (rowFocused || forceFocused) && actions[slot] == "version", onClick = onVersions) {
+                DiamondIcon(Modifier.size(18.dp))
+            }
         }
-        IconBubble(showRing = (rowFocused || forceFocused) && slot == 2, onClick = onFavorite) {
+        IconBubble(showRing = (rowFocused || forceFocused) && actions[slot] == "favorite", onClick = onFavorite) {
             Icon(
                 imageVector = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 contentDescription = null,
@@ -398,7 +422,7 @@ private fun ActionRow(
             )
         }
         IconBubble(
-            showRing = (rowFocused || forceFocused) && slot == 3,
+            showRing = (rowFocused || forceFocused) && actions[slot] == "played",
             onClick = onPlayed,
             filled = played,
         ) {
@@ -474,7 +498,7 @@ private fun DiamondIcon(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String) {
     HomeText(
         text = text,
         fontSize = 22.sp,
@@ -491,6 +515,7 @@ private fun PersonRow(
     up: FocusRequester?,
     down: FocusRequester?,
     forceFocused: Boolean,
+    onFocused: () -> Unit = {},
 ) {
     DetailSlotRow(
         count = people.size,
@@ -502,6 +527,7 @@ private fun PersonRow(
         up = up,
         down = down,
         forceFocused = forceFocused,
+        onFocused = onFocused,
         onActivate = {},
         caption = { index ->
             val person = people[index]
@@ -555,6 +581,7 @@ private fun SimilarRow(
     focusRequester: FocusRequester,
     up: FocusRequester?,
     forceFocused: Boolean,
+    onFocused: () -> Unit = {},
     onOpen: (BaseItemDto) -> Unit,
 ) {
     DetailSlotRow(
@@ -567,6 +594,7 @@ private fun SimilarRow(
         up = up,
         down = null,
         forceFocused = forceFocused,
+        onFocused = onFocused,
         onActivate = { onOpen(items[it]) },
         caption = { index ->
             HomeText(
@@ -594,7 +622,7 @@ private fun SimilarRow(
 }
 
 @Composable
-private fun DetailSlotRow(
+internal fun DetailSlotRow(
     count: Int,
     cardWidth: Dp,
     cardHeight: Dp,
@@ -605,6 +633,9 @@ private fun DetailSlotRow(
     down: FocusRequester?,
     forceFocused: Boolean,
     onActivate: (Int) -> Unit,
+    initialWindowStart: Int = 0,
+    peekPrevious: Boolean = false,
+    onFocused: () -> Unit = {},
     caption: @Composable (Int) -> Unit,
     art: @Composable BoxScope.(Int) -> Unit,
 ) {
@@ -614,13 +645,16 @@ private fun DetailSlotRow(
         val stride = cardWidth + gap
         val fullSlots = (((maxWidth - 48.dp) + gap) / stride).toInt().coerceAtLeast(1)
         val maxStart = (count - fullSlots).coerceAtLeast(0)
-        var windowStart by remember { mutableIntStateOf(0) }
+        var windowStart by remember(count) {
+            mutableIntStateOf(initialWindowStart.coerceIn(0, maxStart))
+        }
         var slot by remember { mutableIntStateOf(0) }
         var rowFocused by remember { mutableStateOf(forceFocused) }
         if (windowStart > maxStart) windowStart = maxStart
         val lastSlot = (min(fullSlots, count - windowStart) - 1).coerceAtLeast(0)
         if (slot > lastSlot) slot = lastSlot
-        val slide by animateDpAsState(-(stride * windowStart), tween(220), label = "detail-slide")
+        val peek = if (peekPrevious && windowStart > 0) 36.dp else 0.dp
+        val slide by animateDpAsState(-(stride * windowStart) + peek, tween(220), label = "detail-slide")
         val ringX by animateDpAsState(stride * slot, tween(220), label = "detail-ring")
         val focusIndex = (windowStart + slot).coerceIn(0, count - 1)
         Box(
@@ -631,7 +665,10 @@ private fun DetailSlotRow(
                     up?.let { this.up = it }
                     down?.let { this.down = it }
                 }
-                .onFocusChanged { rowFocused = it.isFocused || forceFocused }
+                .onFocusChanged {
+                    rowFocused = it.isFocused || forceFocused
+                    if (it.isFocused) onFocused()
+                }
                 .focusable()
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -657,7 +694,7 @@ private fun DetailSlotRow(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 48.dp)
+                    .padding(start = 48.dp - peek)
                     .clipToBounds(),
             ) {
                 Row(
@@ -696,7 +733,7 @@ private fun DetailSlotRow(
 }
 
 @Composable
-private fun AvatarPlaceholder(name: String, index: Int, modifier: Modifier) {
+internal fun AvatarPlaceholder(name: String, index: Int, modifier: Modifier) {
     val colors = listOf(
         Color(0xFF8C5A3C), Color(0xFFC4A574), Color(0xFF6E5344),
         Color(0xFF3E4C63), Color(0xFF2F2A28), Color(0xFFD8C3A5), Color(0xFF5C6B73),
@@ -747,7 +784,7 @@ private fun VersionDialog(
 }
 
 @Composable
-private fun BreathingStroke(modifier: Modifier, shape: Shape, solid: Boolean = false) {
+internal fun BreathingStroke(modifier: Modifier, shape: Shape, solid: Boolean = false) {
     val transition = rememberInfiniteTransition(label = "detail-breathe")
     val alpha by transition.animateFloat(
         initialValue = 1f,
@@ -764,7 +801,7 @@ private fun BreathingStroke(modifier: Modifier, shape: Shape, solid: Boolean = f
     )
 }
 
-private fun formatClock(ticks: Long): String {
+internal fun formatClock(ticks: Long): String {
     val totalMinutes = (ticks / 10_000_000L / 60L).coerceAtLeast(0L)
     val hours = totalMinutes / 60L
     val minutes = totalMinutes % 60L

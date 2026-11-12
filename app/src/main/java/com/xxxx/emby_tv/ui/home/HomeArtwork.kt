@@ -54,6 +54,29 @@ object SampleArt {
             primary = nightInterior,
             backdrop = nightInterior,
         ),
+        "sample-tulsa" to ArtSet(
+            primary = portrait("塔尔萨", Color(0xFF8A8680), Color(0xFF2A3338), Color(0xFFD0D4D8), 0.55f, 0.4f),
+            backdrop = PosterArt(
+                top = Color(0xFFB7B3AE),
+                bottom = Color(0xFF6A7380),
+                glow = Color(0xFFE07A3A),
+                glowX = 0.78f,
+                glowY = 0.62f,
+                glowRadius = 0.35f,
+                spark = Color(0xFF9AA3AD),
+                sparkX = 0.3f,
+                sparkY = 0.35f,
+            ),
+        ),
+        "sample-ep-support" to ArtSet(primary = portrait("支援", Color(0xFF3A4038), Color(0xFF141816), Color(0xFFC4A06A), 0.4f, 0.45f)),
+        "sample-ep-officer" to ArtSet(primary = portrait("新官", Color(0xFF243044), Color(0xFF10141C), Color(0xFF6A8AB0), 0.55f, 0.4f)),
+        "sample-ep-three" to ArtSet(primary = portrait("三位", Color(0xFF3A2418), Color(0xFF140E0C), Color(0xFFD0A060), 0.35f, 0.5f)),
+        "sample-ep-rebuild" to ArtSet(primary = portrait("重建", Color(0xFF2A2428), Color(0xFF101014), Color(0xFF8A3030), 0.7f, 0.4f)),
+        "sample-ep-prev" to ArtSet(primary = portrait("前集", Color(0xFF30343A), Color(0xFF121418), Color(0xFF9AA4AE), 0.3f, 0.35f)),
+        "sample-mayor" to ArtSet(primary = portrait("金斯", Color(0xFF1C2430), Color(0xFF0C1018), Color(0xFFD8D8D8), 0.4f, 0.55f)),
+        "sample-dexter" to ArtSet(primary = portrait("法医", Color(0xFF12304A), Color(0xFF081018), Color(0xFFE23A3A), 0.45f, 0.4f)),
+        "sample-mobland" to ArtSet(primary = portrait("黑帮", Color(0xFF2A1014), Color(0xFF10080A), Color(0xFFC42020), 0.5f, 0.5f)),
+        "sample-1883" to ArtSet(primary = portrait("1883", Color(0xFFC4A060), Color(0xFF3A2A18), Color(0xFFF0E0C0), 0.7f, 0.35f)),
         "sample-odyssey" to ArtSet(
             primary = portrait("奥德赛", Color(0xFF10284A), Color(0xFF3A1408), Color(0xFFE36A22), 0.78f, 0.72f),
             backdrop = PosterArt(
@@ -213,8 +236,23 @@ private fun portrait(
 
 @Composable
 fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
-    Box(modifier.background(art.bottom)) {
+    val soften = LocalArtworkSoften.current
+    Box(modifier.background(if (soften) Color(0xFF2A211C) else art.bottom)) {
         Canvas(Modifier.fillMaxSize()) {
+            if (soften) {
+                drawRect(Color(0xFF2A211C))
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(art.glow.copy(alpha = 0.28f), Color.Transparent),
+                        center = Offset(size.width * 0.72f, size.height * 0.45f),
+                        radius = size.maxDimension * 0.9f,
+                    ),
+                    radius = size.maxDimension * 0.9f,
+                    center = Offset(size.width * 0.72f, size.height * 0.45f),
+                )
+                drawRect(Color.Black.copy(alpha = 0.45f))
+                return@Canvas
+            }
             drawRect(
                 brush = Brush.linearGradient(
                     colors = listOf(art.top, art.bottom),
@@ -223,7 +261,7 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
                 )
             )
             val center = Offset(size.width * art.glowX, size.height * art.glowY)
-            val radius = size.maxDimension * art.glowRadius
+            val radius = size.maxDimension * art.glowRadius * if (soften) 2.6f else 1f
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(art.glow.copy(alpha = 0.9f), art.glow.copy(alpha = 0f)),
@@ -233,7 +271,7 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
                 radius = radius,
                 center = center,
             )
-            if (art.spark.alpha > 0f) {
+            if (art.spark.alpha > 0f && !soften) {
                 drawCircle(
                     color = art.spark.copy(alpha = 0.28f),
                     radius = size.minDimension * 0.12f,
@@ -252,9 +290,19 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
             drawRect(
                 brush = Brush.verticalGradient(
                     0.55f to Color.Transparent,
-                    1f to Color.Black.copy(alpha = 0.45f),
+                    1f to Color.Black.copy(alpha = if (soften) 0.72f else 0.45f),
                 )
             )
+            if (soften) {
+                drawRect(Color.Black.copy(alpha = 0.55f))
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.05f), Color.Transparent),
+                        center = center,
+                        radius = radius,
+                    )
+                )
+            }
         }
     }
 }

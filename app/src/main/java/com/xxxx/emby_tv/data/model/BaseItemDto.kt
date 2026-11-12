@@ -73,6 +73,7 @@ data class BaseItemDto(
      @SerializedName("IndexNumber") val indexNumber: Int? = null,
      @SerializedName("ParentIndexNumber") val parentIndexNumber: Int? = null,
      @SerializedName("Status") val status: String? = null,
+    @SerializedName("EndDate") val endDate: String? = null,
      @SerializedName("SeasonName") val seasonName: String? = null,
      @SerializedName("SeasonId") val seasonId: String? = null,
      @SerializedName("Album") val album: String? = null,

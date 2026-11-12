@@ -1,0 +1,56 @@
+package com.xxxx.emby_tv.ui.detail
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.xxxx.emby_tv.ui.home.HomePreviewChrome
+
+private const val TV = "spec:width=960dp,height=540dp,dpi=320"
+
+@Composable
+private fun SeriesFrame(
+    fontFamily: FontFamily,
+    scrollOffset: androidx.compose.ui.unit.Dp = 0.dp,
+    focus: SeriesFocus,
+) {
+    HomePreviewChrome(fontFamily) {
+        SeriesDetailPage(
+            series = SeriesDetailSample.series,
+            seasons = SeriesDetailSample.seasons,
+            episodes = SeriesDetailSample.episodes,
+            resume = SeriesDetailSample.resume,
+            similar = SeriesDetailSample.similar,
+            selectedSeason = 1,
+            serverUrl = "",
+            onSelectSeason = {},
+            onPlay = {},
+            onOpenEpisode = {},
+            onToggleFavorite = {},
+            onTogglePlayed = {},
+            onOpenSimilar = {},
+            scrollOffset = scrollOffset,
+            forceFocus = focus,
+            requestInitialFocus = false,
+            fontFamily = fontFamily,
+        )
+    }
+}
+
+@Preview(name = "series-hero", device = TV, locale = "zh")
+@Composable
+fun SeriesHeroPreview(fontFamily: FontFamily = FontFamily.Default) {
+    SeriesFrame(fontFamily, focus = SeriesFocus.Hero)
+}
+
+@Preview(name = "series-seasons-episodes", device = TV, locale = "zh")
+@Composable
+fun SeriesEpisodesPreview(fontFamily: FontFamily = FontFamily.Default) {
+    SeriesFrame(fontFamily, scrollOffset = (-300).dp, focus = SeriesFocus.Episodes)
+}
+
+@Preview(name = "series-cast-similar", device = TV, locale = "zh")
+@Composable
+fun SeriesCastPreview(fontFamily: FontFamily = FontFamily.Default) {
+    SeriesFrame(fontFamily, scrollOffset = (-700).dp, focus = SeriesFocus.Cast)
+}

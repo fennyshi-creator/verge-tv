@@ -168,6 +168,26 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun loadSeriesDetail(seriesId: String) {
+        loadMovieExtras(seriesId)
+        viewModelScope.launch {
+            seasons = try {
+                withContext(Dispatchers.IO) { repository.getSeasonList(seriesId) }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            resumeItem = try {
+                withContext(Dispatchers.IO) { repository.getResumeItems(seriesId).firstOrNull() }
+            } catch (_: Exception) {
+                null
+            }
+            val season = seasons.orEmpty().firstOrNull { it.id != null && it.id == resumeItem?.seasonId }
+                ?: seasons.orEmpty().getOrNull((resumeItem?.parentIndexNumber ?: 1) - 1)
+                ?: seasons.orEmpty().firstOrNull()
+            season?.id?.let { loadEpisodes(it) }
+        }
+    }
+
     fun loadMovieExtras(itemId: String) {
         viewModelScope.launch {
             val detail = try {

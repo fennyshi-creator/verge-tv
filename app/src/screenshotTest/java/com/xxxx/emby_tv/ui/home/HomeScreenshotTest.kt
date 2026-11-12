@@ -7,6 +7,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
 import com.xxxx.emby_tv.ui.detail.DetailCastPreview
 import com.xxxx.emby_tv.ui.detail.DetailHeroPreview
+import com.xxxx.emby_tv.ui.detail.SeriesCastPreview
+import com.xxxx.emby_tv.ui.detail.SeriesEpisodesPreview
+import com.xxxx.emby_tv.ui.detail.SeriesHeroPreview
 import java.io.File
 
 private const val TV = "spec:width=960dp,height=540dp,dpi=320"
@@ -46,4 +49,25 @@ fun DetailHeroScreenshot() {
 @Composable
 fun DetailCastScreenshot() {
     DetailCastPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-hero", device = TV, locale = "zh")
+@Composable
+fun SeriesHeroScreenshot() {
+    SeriesHeroPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-seasons-episodes", device = TV, locale = "zh")
+@Composable
+fun SeriesEpisodesScreenshot() {
+    SeriesEpisodesPreview(fontFamily = previewFont())
+}
+
+@PreviewTest
+@Preview(name = "series-cast-similar", device = TV, locale = "zh")
+@Composable
+fun SeriesCastScreenshot() {
+    SeriesCastPreview(fontFamily = previewFont())
 }

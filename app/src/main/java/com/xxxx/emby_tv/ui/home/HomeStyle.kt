@@ -8,6 +8,9 @@ import androidx.compose.ui.unit.sp
 
 val LocalHomeFont = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
+/** When true, generated artwork is painted as a soft wash so a blurred backdrop reads in previews. */
+val LocalArtworkSoften = staticCompositionLocalOf { false }
+
 object HomeStyle {
     val background = Color(0xFF141210)
     val title = Color(0xFFF2F2F2)

@@ -17,6 +17,8 @@
     <string name="home_tab">Home</string>
     <string name="detail_cast">Cast</string>
     <string name="detail_more_like">More like this</string>
+    <string name="episode_line">Episode %1$d · %2$s</string>
+    <string name="more_options_hint">Hold select for more options</string>
     <string name="resume_remaining">Resume · %1$s left</string>
     <string name="versions">Versions</string>
     <string name="settings">Settings</string>
