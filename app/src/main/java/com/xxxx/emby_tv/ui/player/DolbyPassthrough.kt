@@ -66,7 +66,23 @@ object DolbyPassthrough {
             else -> false
         }
         val mode = if (passthrough && !fellBackToPcm) "透传" else "解码"
-        return "「$name · $mode」"
+        val layout = if (passthrough) null else pcmLayout(stream?.channels)
+        val label = if (layout == null) name else "$name $layout"
+        return "「$label · $mode」"
+    }
+
+    /** Speaker layout for decoded PCM. Passthrough lines do not use this. */
+    fun pcmLayout(channels: Int?): String? = when (channels) {
+        null, 0 -> null
+        1 -> "1.0"
+        2 -> "2.0"
+        3 -> "2.1"
+        4 -> "4.0"
+        5 -> "5.0"
+        6 -> "5.1"
+        7 -> "6.1"
+        8 -> "7.1"
+        else -> "${channels}ch"
     }
 
     data class Decision(val encoding: Int, val joc: Boolean, val fallbackPcm: Boolean)

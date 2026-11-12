@@ -1,19 +1,27 @@
 package com.xxxx.emby_tv.ui.player
 
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Surface
 import com.debugly.fsplayer.player.FSPlayer
+import com.debugly.fsplayer.player.FSSubtitlePreference
 import com.debugly.fsplayer.player.IMediaPlayer
 import com.debugly.fsplayer.player.misc.FSTrackInfo
 import com.debugly.fsplayer.player.misc.ITrackInfo
+import com.xxxx.emby_tv.data.remote.HttpClient
+import okhttp3.Request
+import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 
 /**
  * FSPlayer wrapper used by the player screen. Video is MediaCodec. AC-3 / E-AC-3
  * audio is bitstream passthrough unless speed is not 1.0 or the endpoint rejects
  * the encoded AudioTrack.
  */
-class FsPlayback {
+class FsPlayback(private val appContext: Context) {
     interface Listener {
         fun onPlayingChanged(playing: Boolean) {}
         fun onPlaybackStateChanged(state: Int) {}
@@ -30,6 +38,8 @@ class FsPlayback {
     }
 
     private val listeners = CopyOnWriteArrayList<Listener>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val subtitleIo = Executors.newSingleThreadExecutor()
     private var engine: FSPlayer? = null
     private var surface: Surface? = null
     private var released = false
@@ -51,6 +61,9 @@ class FsPlayback {
     private var audioOrdinal: Int = -1
     private var subtitleOrdinal: Int = -1
     private var externalSubtitleUrl: String? = null
+    private var localSubtitlePath: String? = null
+    private var subtitleGeneration = 0
+    @Volatile private var subtitleCues: List<SubtitleCue> = emptyList()
 
     val isPlaying: Boolean
         get() = try {
@@ -212,9 +225,42 @@ class FsPlayback {
     fun selectEmbyTracks(audioOrdinal: Int, subtitleOrdinal: Int, externalSubtitleUrl: String?) {
         this.audioOrdinal = audioOrdinal
         this.subtitleOrdinal = subtitleOrdinal
+        val sameSubtitle = this.externalSubtitleUrl == externalSubtitleUrl
         this.externalSubtitleUrl = externalSubtitleUrl
-        applyTracks()
+        val generation = ++subtitleGeneration
+        if (externalSubtitleUrl.isNullOrBlank()) {
+            localSubtitlePath = null
+            subtitleCues = emptyList()
+            mainHandler.post { if (generation == subtitleGeneration) applyTracks(null) }
+            return
+        }
+        if (sameSubtitle && (subtitleCues.isNotEmpty() || localSubtitlePath != null)) {
+            mainHandler.post { if (generation == subtitleGeneration) applyTracks(localSubtitlePath) }
+            return
+        }
+        subtitleIo.execute {
+            var local: String? = null
+            var cues = emptyList<SubtitleCue>()
+            try {
+                val file = downloadSubtitle(externalSubtitleUrl)
+                if (file != null) {
+                    local = file.absolutePath
+                    cues = SubtitleCues.parse(file.readText())
+                }
+            } catch (error: Exception) {
+                Log.w(TAG, "subtitle download failed", error)
+            }
+            if (generation != subtitleGeneration) return@execute
+            localSubtitlePath = local
+            subtitleCues = cues
+            Log.i(TAG, "subtitle cues=${cues.size} local=${local != null}")
+            mainHandler.post {
+                if (generation == subtitleGeneration) applyTracks(local)
+            }
+        }
     }
+
+    fun subtitleTextAt(positionMs: Long): String? = SubtitleCues.textAt(subtitleCues, positionMs)
 
     fun passthroughEncoding(): Int {
         return try {
@@ -314,9 +360,9 @@ class FsPlayback {
             if (engine !== player) return@setOnPreparedListener
             val resume = startMs
             if (resume > 0L) player.seekTo(resume)
-            applyTracks()
             setState(STATE_READY)
             dispatchVideoDecoder("mediacodec")
+            applyTracks(localSubtitlePath)
             if (playWhenReady) {
                 player.start()
                 dispatchPlaying(true)
@@ -360,28 +406,58 @@ class FsPlayback {
         }
     }
 
-    private fun applyTracks() {
+    private fun applyTracks(subtitlePath: String?) {
         val player = engine ?: return
         val tracks = try {
             player.trackInfo?.filterIsInstance<FSTrackInfo>().orEmpty()
         } catch (error: Exception) {
             Log.w(TAG, "trackInfo failed", error)
-            return
+            emptyList()
         }
         val audio = tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_AUDIO }
         if (audioOrdinal in audio.indices) {
             val index = audio[audioOrdinal].streamIndex
             if (index >= 0) player.selectTrack(index)
         }
-        val external = externalSubtitleUrl
-        if (!external.isNullOrBlank()) {
-            try {
-                player.loadThenActiveSubtitle(external)
-            } catch (error: Exception) {
-                Log.w(TAG, "external subtitle failed", error)
+        val requested = externalSubtitleUrl
+        if (requested.isNullOrBlank()) {
+            player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", 1)
+            if (subtitleOrdinal < 0) {
+                try {
+                    player.deselectTrack(-1)
+                } catch (error: Exception) {
+                    Log.w(TAG, "subtitle off failed", error)
+                }
+                return
+            }
+            val embedded = tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT }
+            if (subtitleOrdinal in embedded.indices) {
+                val index = embedded[subtitleOrdinal].streamIndex
+                if (index >= 0) player.selectTrack(index)
             }
             return
         }
+        val path = subtitlePath?.takeIf { it.isNotBlank() } ?: requested
+        var loaded = false
+        try {
+            loaded = player.loadThenActiveSubtitle(path)
+        } catch (error: Exception) {
+            Log.w(TAG, "loadThenActiveSubtitle failed for $path", error)
+        }
+        if (!loaded && path != requested) {
+            try {
+                loaded = player.loadThenActiveSubtitle(requested)
+            } catch (error: Exception) {
+                Log.w(TAG, "loadThenActiveSubtitle http retry failed", error)
+            }
+        }
+        Log.i(TAG, "subtitle loaded=$loaded path=$path cues=${subtitleCues.size}")
+        applySubtitleFont(player)
+        // Parsed text is drawn on the Android overlay. Leave GPU mix on only when
+        // we have nothing to draw ourselves (embedded bitmap / failed download).
+        val mix = if (subtitleCues.isEmpty()) 1L else 0L
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", mix)
+        if (subtitleCues.isNotEmpty()) return
         val subs = tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT }
         if (subtitleOrdinal < 0) {
             subs.forEach { track ->
@@ -391,6 +467,59 @@ class FsPlayback {
         } else if (subtitleOrdinal in subs.indices) {
             val index = subs[subtitleOrdinal].streamIndex
             if (index >= 0) player.selectTrack(index)
+        }
+    }
+
+    private fun downloadSubtitle(url: String): File? {
+        val dir = File(appContext.cacheDir, "subtitles").apply { mkdirs() }
+        val extension = if (url.contains("Stream.vtt", ignoreCase = true)) "vtt" else "srt"
+        val file = File(dir, "${url.hashCode()}.$extension")
+        if (file.length() > 16) return file
+        val request = Request.Builder().url(url).apply {
+            headers.forEach { (name, value) -> header(name, value) }
+        }.build()
+        HttpClient.getClient(appContext).newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                Log.w(TAG, "subtitle http ${response.code} $url")
+                return null
+            }
+            val body = response.body.string()
+            if (body.isBlank()) return null
+            file.writeText(body)
+            return file
+        }
+    }
+
+    private fun applySubtitleFont(player: FSPlayer) {
+        val fontsDir = ensureSubtitleFontDir() ?: return
+        val preference = FSSubtitlePreference()
+        preference.ForceOverride = 1
+        preference.FontName = "Noto Sans SC"
+        preference.FontsDir = fontsDir
+        preference.PrimaryColour = 0xFFFFFF00.toInt()
+        preference.OutlineColour = 0x00000000
+        preference.Outline = 1.2f
+        preference.BackColour = 0x00000080
+        try {
+            player.setSubtitlePreference(preference)
+        } catch (error: Exception) {
+            Log.w(TAG, "subtitle preference failed", error)
+        }
+    }
+
+    private fun ensureSubtitleFontDir(): String? {
+        return try {
+            val dir = File(appContext.cacheDir, "subtitle-fonts").apply { mkdirs() }
+            val out = File(dir, "NotoSansSC-Regular.otf")
+            if (!out.exists() || out.length() < 1024) {
+                appContext.assets.open("fonts/NotoSansSC-Regular.otf").use { input ->
+                    out.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            dir.absolutePath
+        } catch (error: Exception) {
+            Log.w(TAG, "subtitle font unavailable", error)
+            null
         }
     }
 

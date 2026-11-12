@@ -23,6 +23,7 @@
  */
 
 #include "android_audiotrack.h"
+#include "fs_android_channels.h"
 
 #include <assert.h>
 #include "j4au/class/android/media/AudioTrack.util.h"
@@ -35,16 +36,11 @@
 #define SDLTRACE(...)
 #endif
 
-typedef struct AudioChannelMapEntry {
-    Uint8 sdl_channel;
-    int android_channel;
-    const char *sdl_name;
-    const char *android_name;
-} AudioChannelMapEntry;
-static AudioChannelMapEntry g_audio_channel_map[] = {
-    { 2, CHANNEL_OUT_STEREO, "2-chan", "CHANNEL_OUT_STEREO" },
-    { 1, CHANNEL_OUT_MONO, "1-chan", "CHANNEL_OUT_MONO" },
-};
+_Static_assert(CHANNEL_OUT_MONO == FS_CHANNEL_OUT_MONO, "mono mask");
+_Static_assert(CHANNEL_OUT_STEREO == FS_CHANNEL_OUT_STEREO, "stereo mask");
+_Static_assert(CHANNEL_OUT_QUAD == FS_CHANNEL_OUT_QUAD, "quad mask");
+_Static_assert(CHANNEL_OUT_5POINT1 == FS_CHANNEL_OUT_5POINT1, "5.1 mask");
+_Static_assert(CHANNEL_OUT_7POINT1 == FS_CHANNEL_OUT_7POINT1, "7.1 mask");
 
 typedef struct AudioFormatMapEntry {
     SDL_AudioFormat sdl_format;
@@ -71,22 +67,13 @@ static int audiotrack_format_is_encoded(int format)
 
 static Uint8 find_sdl_channel(int android_channel)
 {
-    for (int i = 0; i < NELEM(g_audio_channel_map); ++i) {
-        AudioChannelMapEntry *entry = &g_audio_channel_map[i];
-        if (entry->android_channel == android_channel)
-            return entry->sdl_channel;
-    }
-    return 0;
+    return (Uint8) fs_android_channel_count(android_channel);
 }
 
 static int find_android_channel(int sdl_channel)
 {
-    for (int i = 0; i < NELEM(g_audio_channel_map); ++i) {
-        AudioChannelMapEntry *entry = &g_audio_channel_map[i];
-        if (entry->sdl_channel == sdl_channel)
-            return entry->android_channel;
-    }
-    return CHANNEL_OUT_INVALID;
+    int mask = fs_android_channel_mask(sdl_channel);
+    return mask == FS_CHANNEL_OUT_INVALID ? CHANNEL_OUT_INVALID : mask;
 }
 
 static SDL_AudioFormat find_sdl_format(int android_format)
@@ -211,6 +198,15 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
     case CHANNEL_OUT_STEREO:
         ALOGI("SDL_Android_AudioTrack: %s", "CHANNEL_OUT_STEREO");
         break;
+    case CHANNEL_OUT_QUAD:
+        ALOGI("SDL_Android_AudioTrack: %s", "CHANNEL_OUT_QUAD");
+        break;
+    case CHANNEL_OUT_5POINT1:
+        ALOGI("SDL_Android_AudioTrack: %s", "CHANNEL_OUT_5POINT1");
+        break;
+    case CHANNEL_OUT_7POINT1:
+        ALOGI("SDL_Android_AudioTrack: %s", "CHANNEL_OUT_7POINT1");
+        break;
     default:
         ALOGE("%s: invalid channel %d", __func__, spec->channel_config);
         return NULL;
@@ -278,7 +274,12 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
         atrack->spec.channel_config,
         atrack->spec.audio_format);
     if (J4A_ExceptionCheck__catchAll(env) || min_buffer_size <= 0) {
-        ALOGE("%s: J4AC_AudioTrack__getMinBufferSize: return %d:", __func__, min_buffer_size);
+        if (!atrack->encoded && fs_android_channel_count(atrack->spec.channel_config) > 2) {
+            ALOGE("%s: multichannel PCM getMinBufferSize failed mask=0x%x (%d); falling back",
+                  __func__, atrack->spec.channel_config, min_buffer_size);
+        } else {
+            ALOGE("%s: J4AC_AudioTrack__getMinBufferSize: return %d:", __func__, min_buffer_size);
+        }
         free(atrack);
         return NULL;
     }
@@ -302,7 +303,12 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
             atrack->spec.mode);
     }
     if (!atrack->thiz) {
-        ALOGE("%s: failed to open AudioTrack format %d", __func__, atrack->spec.audio_format);
+        if (!atrack->encoded && fs_android_channel_count(atrack->spec.channel_config) > 2) {
+            ALOGE("%s: multichannel PCM AudioTrack open failed mask=0x%x; falling back",
+                  __func__, atrack->spec.channel_config);
+        } else {
+            ALOGE("%s: failed to open AudioTrack format %d", __func__, atrack->spec.audio_format);
+        }
         free(atrack);
         return NULL;
     }

@@ -48,6 +48,7 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
 import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioCapabilities
@@ -93,6 +94,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xxxx.emby_tv.ui.player.DolbyPassthrough
 import com.xxxx.emby_tv.ui.player.EmbyPlayback
+import com.xxxx.emby_tv.ui.player.EmbySubtitles
 import com.xxxx.emby_tv.ui.player.FsPlayback
 import com.xxxx.emby_tv.ui.player.MkvCompressedSubtitleDetector
 import com.xxxx.emby_tv.ui.viewmodel.PlayerViewModel
@@ -568,7 +570,7 @@ fun PlayerScreen(
             }
     }
 
-    val player = remember { FsPlayback() }
+    val player = remember { FsPlayback(context.applicationContext) }
 
     fun playbackHeaders(): Map<String, String> {
         return mapOf(
@@ -734,7 +736,6 @@ fun PlayerScreen(
         when (audioRecoveryStage) {
             0 -> {
                 audioRecoveryStage = 1
-                audioSafeModeChannels = 2
                 Log.w(AUDIO_RECOVERY_TAG, "音频输出初始化失败，关闭直通并以 PCM 重开")
                 player.forcePcm(player.currentPosition)
             }
@@ -774,6 +775,25 @@ fun PlayerScreen(
     // decoder; returning to 1.0 reopens passthrough.
     LaunchedEffect(subtitleTimeOffsetMs) {
         player.setSubtitleDelayMs(subtitleTimeOffsetMs)
+    }
+
+    LaunchedEffect(player) {
+        while (isActive) {
+            val text = player.subtitleTextAt(position + subtitleTimeOffsetMs)
+            overlaySubtitleView.value?.setCues(
+                if (text.isNullOrBlank()) {
+                    emptyList()
+                } else {
+                    listOf(
+                        Cue.Builder()
+                            .setText(text)
+                            .setTextAlignment(android.text.Layout.Alignment.ALIGN_CENTER)
+                            .build()
+                    )
+                }
+            )
+            delay(200)
+        }
     }
 
     LaunchedEffect(playbackSpeed) {
@@ -1030,13 +1050,16 @@ fun PlayerScreen(
 
     // 设置 MediaItem 和 字幕
     fun externalSubtitleUrl(mediaSourceId: String, routedIndices: Set<Int>): String? {
+        if (selectedSubtitleIndex < 0) return null
         val track = subtitleTracks.firstOrNull { it.index == selectedSubtitleIndex } ?: return null
-        val index = track.index ?: return null
-        val external = track.isExternal == true || index in routedIndices
-        if (!external || mediaSourceId.isBlank()) return null
-        val codec = track.codec?.lowercase().orEmpty()
-        val format = if (codec.contains("vtt")) "vtt" else "srt"
-        return "$serverUrl/emby/Videos/$mediaId/$mediaSourceId/Subtitles/$index/Stream.$format?api_key=$apiKey"
+        return EmbySubtitles.streamUrl(
+            serverUrl = serverUrl,
+            mediaId = mediaId,
+            mediaSourceId = mediaSourceId,
+            apiKey = apiKey,
+            track = track,
+            routedIndices = routedIndices,
+        )
     }
 
     LaunchedEffect(videoUrl) {
@@ -1568,8 +1591,8 @@ fun PlayerScreen(
                             android.graphics.Color.WHITE,
                             android.graphics.Color.TRANSPARENT,
                             android.graphics.Color.TRANSPARENT,
-                            CaptionStyleCompat.EDGE_TYPE_NONE,
-                            android.graphics.Color.WHITE,
+                            CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                            android.graphics.Color.BLACK,
                             null
                         )
                         setStyle(transparentStyle)

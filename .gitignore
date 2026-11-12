@@ -21,3 +21,5 @@ key.properties
 .myconfig
 # FSPlayer Gradle outputs
 third_party/fsplayer/android/fsplayer/build/
+
+third_party/fsplayer/FFToolChain

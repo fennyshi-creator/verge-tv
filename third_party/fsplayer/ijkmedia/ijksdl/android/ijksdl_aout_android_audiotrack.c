@@ -83,7 +83,15 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
     SDL_AudioCallback audio_cblk = opaque->spec.callback;
     void *userdata = opaque->spec.userdata;
     uint8_t *buffer = opaque->buffer;
-    int copy_size = 256;
+    int bytes_per_frame = opaque->encoded ? 1 : (int) opaque->spec.channels * 2;
+    if (bytes_per_frame < 1)
+        bytes_per_frame = 1;
+    /* 5.1 S16 is 12 bytes/frame. A 256-byte chunk would rotate the channels. */
+    int copy_size = (256 / bytes_per_frame) * bytes_per_frame;
+    if (copy_size < bytes_per_frame)
+        copy_size = bytes_per_frame;
+    if (!opaque->encoded && opaque->buffer_size > bytes_per_frame && copy_size > opaque->buffer_size)
+        copy_size = (opaque->buffer_size / bytes_per_frame) * bytes_per_frame;
 
     assert(atrack);
     assert(buffer);
