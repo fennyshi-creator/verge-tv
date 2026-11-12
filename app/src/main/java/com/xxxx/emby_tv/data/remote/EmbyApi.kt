@@ -100,6 +100,35 @@ internal fun recentlyPlayedSeriesPath(
             "&X-Emby-Token=$apiKey"
 }
 
+/**
+ * Series rows must not use Items/Latest. This server returns episodes for that call
+ * even with IncludeItemTypes=Series. DateLastContentAdded keeps one card per series.
+ */
+internal fun seriesAddedPath(
+    userId: String,
+    parentId: String,
+    limit: Int,
+    apiKey: String,
+): String {
+    return "/Users/$userId/Items?ParentId=$parentId&IncludeItemTypes=Series&Recursive=true" +
+            "&SortBy=DateLastContentAdded,DateCreated&SortOrder=Descending&Limit=$limit" +
+            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags,SeriesId,SeriesName,SeriesPrimaryImageTag" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
+internal fun seasonEpisodesPath(
+    seriesId: String,
+    seasonId: String,
+    userId: String,
+    apiKey: String,
+): String {
+    return "/Shows/$seriesId/Episodes?SeasonId=$seasonId&UserId=$userId" +
+            "&Fields=Overview,PrimaryImageAspectRatio,ImageTags,IndexNumber,ParentIndexNumber," +
+            "SeriesName,SeasonName,RunTimeTicks,UserData,MediaSources" +
+            "&X-Emby-Token=$apiKey"
+}
+
 internal fun latestItemsPath(
     userId: String,
     parentId: String,
@@ -437,8 +466,27 @@ object EmbyApi {
         parentId: String,
         includeItemTypes: String,
     ): List<BaseItemDto> {
+        if (includeItemTypes.equals("Series", true)) {
+            val url = seriesAddedPath(userId, parentId, 16, apiKey)
+            return com.xxxx.emby_tv.util.EmbyPresentation.coalesceSeriesCards(
+                httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url),
+            )
+        }
         val url = latestItemsPath(userId, parentId, includeItemTypes, 16, apiKey)
         return httpAsBaseItemDtoListDirect(context, serverUrl, apiKey, deviceId, url)
+    }
+
+    suspend fun getSeasonEpisodes(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        seriesId: String,
+        seasonId: String,
+    ): List<BaseItemDto> {
+        val url = seasonEpisodesPath(seriesId, seasonId, userId, apiKey)
+        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
 
     /**
@@ -481,7 +529,7 @@ object EmbyApi {
     ): BaseItemDto {
         return httpAsBaseItemDto(
             context, serverUrl, apiKey, deviceId,
-            "/Users/$userId/Items/$mediaId?fields=ShareLevel&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
+            "/Users/$userId/Items/$mediaId?Fields=People,ShareLevel&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
         )
     }
 

@@ -28,7 +28,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +69,7 @@ import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
 enum class SeriesFocus { Hero, Seasons, Episodes, Cast, Similar }
@@ -75,6 +78,7 @@ enum class SeriesFocus { Hero, Seasons, Episodes, Cast, Similar }
 fun SeriesDetailConnected(
     detailViewModel: DetailViewModel,
     serverUrl: String,
+    apiKey: String = "",
     onPlay: (BaseItemDto) -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenMovie: (String) -> Unit,
@@ -88,8 +92,12 @@ fun SeriesDetailConnected(
         mutableIntStateOf(initialSeasonIndex(seasons, detailViewModel.resumeItem))
     }
     val season = seasons.getOrNull(seasonIndex)
-    LaunchedEffect(season?.id) {
-        season?.id?.let { detailViewModel.loadEpisodes(it) }
+    LaunchedEffect(item.id, season?.id) {
+        val seriesId = item.id
+        val seasonId = season?.id
+        if (!seriesId.isNullOrBlank() && !seasonId.isNullOrBlank()) {
+            detailViewModel.loadEpisodes(seriesId, seasonId)
+        }
     }
     val episodes = season?.id?.let { detailViewModel.episodes[it] }.orEmpty()
     SeriesDetailPage(
@@ -100,6 +108,7 @@ fun SeriesDetailConnected(
         similar = detailViewModel.similarItems,
         selectedSeason = seasonIndex,
         serverUrl = serverUrl,
+        apiKey = apiKey,
         onSelectSeason = { seasonIndex = it },
         onPlay = {
             val target = detailViewModel.resumeItem ?: episodes.firstOrNull() ?: return@SeriesDetailPage
@@ -130,6 +139,7 @@ fun SeriesDetailPage(
     similar: List<BaseItemDto>,
     selectedSeason: Int,
     serverUrl: String,
+    apiKey: String = "",
     onSelectSeason: (Int) -> Unit,
     onPlay: () -> Unit,
     onOpenEpisode: (BaseItemDto) -> Unit,
@@ -148,11 +158,22 @@ fun SeriesDetailPage(
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
     val people = series.people.orEmpty().filter { it.name?.isNotBlank() == true }
+    val season = seasons.getOrNull(selectedSeason)
     val resumeIndex = episodes.indexOfFirst { it.id != null && it.id == resume?.id }
         .let { if (it >= 0) it else episodes.indexOfFirst { ep -> ep.indexNumber == resume?.indexNumber && ep.parentIndexNumber == resume?.parentIndexNumber } }
         .coerceAtLeast(0)
     val blurForLower = forceFocus != null && forceFocus != SeriesFocus.Hero
     var blurBackdrop by remember(series.id) { mutableStateOf(blurForLower) }
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    fun revealHero() {
+        blurBackdrop = false
+        scope.launch {
+            scrollState.animateScrollTo(0)
+            withFrameNanos { }
+            scrollState.scrollTo(0)
+        }
+    }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "series-dim")
     LaunchedEffect(requestInitialFocus, series.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -188,7 +209,7 @@ fun SeriesDetailPage(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState(), enabled = scrollOffset == 0.dp)
+                    .verticalScroll(scrollState, enabled = scrollOffset == 0.dp)
                     .offset(y = scrollOffset)
                     .padding(bottom = 24.dp),
             ) {
@@ -201,7 +222,7 @@ fun SeriesDetailPage(
                     focusRequester = heroFocus,
                     down = if (seasons.isNotEmpty()) seasonFocus else episodeFocus,
                     forceFocused = forceFocus == SeriesFocus.Hero,
-                    onFocused = { blurBackdrop = false },
+                    onFocused = { revealHero() },
                     onPlay = onPlay,
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
@@ -220,9 +241,13 @@ fun SeriesDetailPage(
                         forceFocused = forceFocus == SeriesFocus.Seasons,
                     )
                 }
+                androidx.compose.runtime.key(season?.id ?: "episodes") {
                 if (episodes.isNotEmpty()) {
                     EpisodeRow(
                         episodes = episodes,
+                        season = season,
+                        series = series,
+                        apiKey = apiKey,
                         serverUrl = serverUrl,
                         focusRequester = episodeFocus,
                         up = if (seasons.isNotEmpty()) seasonFocus else heroFocus,
@@ -232,6 +257,7 @@ fun SeriesDetailPage(
                         onFocused = { blurBackdrop = true },
                         onOpen = onOpenEpisode,
                     )
+                }
                 }
                 if (people.isNotEmpty()) {
                     SectionLabel(stringResource(R.string.detail_cast))
@@ -259,7 +285,19 @@ fun SeriesDetailPage(
                         },
                     ) { index ->
                         val person = people[index]
-                        AvatarPlaceholder(person.name.orEmpty(), index, Modifier.fillMaxSize())
+                        val url = EmbyPresentation.personImageUrl(serverUrl, person, apiKey)
+                        if (url.isNotBlank()) {
+                            coil3.compose.AsyncImage(
+                                model = coil3.request.ImageRequest.Builder(
+                                    androidx.compose.ui.platform.LocalContext.current,
+                                ).data(url).build(),
+                                contentDescription = person.name,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            AvatarPlaceholder(person.name.orEmpty(), index, Modifier.fillMaxSize())
+                        }
                     }
                     HomeText(
                         stringResource(R.string.more_options_hint),
@@ -501,6 +539,9 @@ private fun SeasonTabs(
 @Composable
 private fun EpisodeRow(
     episodes: List<BaseItemDto>,
+    season: BaseItemDto?,
+    series: BaseItemDto,
+    apiKey: String,
     serverUrl: String,
     focusRequester: FocusRequester,
     up: FocusRequester?,
@@ -547,7 +588,7 @@ private fun EpisodeRow(
             HomeImage(
                 itemId = episode.id,
                 fallbackArtId = null,
-                url = if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, episode, true),
+                url = EmbyPresentation.episodeStillUrl(serverUrl, episode, season, series, apiKey),
                 role = ArtRole.Thumb,
                 contentDescription = episode.name,
                 modifier = Modifier.fillMaxSize(),

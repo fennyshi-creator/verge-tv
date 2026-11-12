@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,7 +43,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +88,7 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.math.min
 
@@ -116,6 +120,15 @@ fun OfficialHome(
     }
     val posterFocus = remember(posterRows.size) { List(posterRows.size) { FocusRequester() } }
     val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    fun scrollToTop() {
+        scope.launch {
+            listState.animateScrollToItem(0)
+            withFrameNanos { }
+            listState.scrollToItem(0)
+        }
+    }
     val belowLibraries = posterFocus.firstOrNull()
 
     LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, libraries.firstOrNull()?.id) {
@@ -135,6 +148,7 @@ fun OfficialHome(
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         Box(modifier.fillMaxSize().background(HomeStyle.background)) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 36.dp),
             ) {
@@ -165,6 +179,7 @@ fun OfficialHome(
                             forceFocused = forceContinueFocus,
                             onActivate = onResume,
                             onMenu = onSettings,
+                            onFocused = { scrollToTop() },
                             caption = { item ->
                                 CardCaption(cardTitle(item), cardMeta(item), HomeStyle.continueWidth)
                             },
@@ -186,6 +201,7 @@ fun OfficialHome(
                             down = belowLibraries,
                             onActivate = onOpenLibrary,
                             onMenu = onSettings,
+                            onFocused = if (resumeItems.isEmpty()) ({ scrollToTop() }) else null,
                             caption = { library ->
                                 CardCaption(library.name.orEmpty(), "", HomeStyle.libraryWidth)
                             },
@@ -427,6 +443,7 @@ internal fun LeadingSlotRow(
     down: FocusRequester?,
     onActivate: (BaseItemDto) -> Unit,
     onMenu: () -> Unit,
+    onFocused: (() -> Unit)? = null,
     initialWindowStart: Int = 0,
     forceFocused: Boolean = false,
     caption: @Composable (BaseItemDto) -> Unit,
@@ -486,7 +503,10 @@ internal fun LeadingSlotRow(
                     up?.let { this.up = it }
                     down?.let { this.down = it }
                 }
-                .onFocusChanged { rowFocused = it.isFocused || forceFocused }
+                .onFocusChanged {
+                    rowFocused = it.isFocused || forceFocused
+                    if (it.isFocused) onFocused?.invoke()
+                }
                 .focusable()
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false

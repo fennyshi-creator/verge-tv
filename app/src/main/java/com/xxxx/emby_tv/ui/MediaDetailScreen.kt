@@ -113,6 +113,7 @@ fun MediaDetailScreen(
         SeriesDetailConnected(
             detailViewModel = detailViewModel,
             serverUrl = serverUrl,
+            apiKey = repository.apiKey.orEmpty(),
             onPlay = onNavigateToPlayer,
             onOpenSeries = onNavigateToSeries,
             onOpenMovie = onOpenMovie,
@@ -121,6 +122,7 @@ fun MediaDetailScreen(
         MovieDetailConnected(
             detailViewModel = detailViewModel,
             serverUrl = serverUrl,
+            apiKey = repository.apiKey.orEmpty(),
             onPlay = onPlayMovie,
             onOpenSimilar = { similar ->
                 val id = similar.id ?: return@MovieDetailConnected

@@ -46,7 +46,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +90,7 @@ import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.math.min
 
@@ -97,6 +100,7 @@ enum class DetailFocus { Play, Version, Cast, Similar }
 fun MovieDetailConnected(
     detailViewModel: DetailViewModel,
     serverUrl: String,
+    apiKey: String = "",
     onPlay: (item: BaseItemDto, sourceId: String?) -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
 ) {
@@ -108,6 +112,7 @@ fun MovieDetailConnected(
         item = item,
         similar = detailViewModel.similarItems,
         serverUrl = serverUrl,
+        apiKey = apiKey,
         onPlay = { onPlay(item, null) },
         onPickSource = { sourceId -> onPlay(item, sourceId) },
         onToggleFavorite = {
@@ -127,6 +132,7 @@ fun MovieDetailPage(
     item: BaseItemDto,
     similar: List<BaseItemDto>,
     serverUrl: String,
+    apiKey: String = "",
     onPlay: () -> Unit,
     onPickSource: (String?) -> Unit,
     onToggleFavorite: () -> Unit,
@@ -153,6 +159,16 @@ fun MovieDetailPage(
     val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1920)
     val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    fun revealHero() {
+        blurBackdrop = false
+        scope.launch {
+            scrollState.animateScrollTo(0)
+            withFrameNanos { }
+            scrollState.scrollTo(0)
+        }
+    }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, tween(280), label = "backdrop-dim")
     val sources = item.mediaSources.orEmpty()
     var versionFocused by remember(item.id) { mutableStateOf(forceFocus == DetailFocus.Version) }
@@ -202,7 +218,7 @@ fun MovieDetailPage(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState(), enabled = scrollOffset == 0.dp)
+                    .verticalScroll(scrollState, enabled = scrollOffset == 0.dp)
                     .offset(y = scrollOffset)
                     .padding(bottom = 28.dp),
             ) {
@@ -217,7 +233,7 @@ fun MovieDetailPage(
                     initialSlot = if (forceFocus == DetailFocus.Version) 1 else 0,
                     versionIndex = versionIndex,
                     onVersionIndex = { versionIndex = it },
-                    onFocused = { blurBackdrop = false },
+                    onFocused = { revealHero() },
                     onAction = { action -> versionFocused = action == "version" },
                     onPlay = onPlay,
                     onPickVersion = {
@@ -232,6 +248,7 @@ fun MovieDetailPage(
                     PersonRow(
                         people = people,
                         serverUrl = serverUrl,
+                        apiKey = apiKey,
                         focusRequester = castFocus,
                         up = playFocus,
                         down = if (similar.isNotEmpty()) similarFocus else null,
@@ -563,6 +580,7 @@ internal fun SectionLabel(text: String) {
 private fun PersonRow(
     people: List<PersonInfo>,
     serverUrl: String,
+    apiKey: String,
     focusRequester: FocusRequester,
     up: FocusRequester?,
     down: FocusRequester?,
@@ -612,7 +630,7 @@ private fun PersonRow(
         },
     ) { index ->
         val person = people[index]
-        val url = EmbyPresentation.personImageUrl(serverUrl, person)
+        val url = EmbyPresentation.personImageUrl(serverUrl, person, apiKey)
         if (url.isNotBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current).data(url).build(),

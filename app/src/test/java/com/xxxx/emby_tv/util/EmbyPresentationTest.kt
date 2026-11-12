@@ -5,7 +5,10 @@ import com.xxxx.emby_tv.data.model.EmbyResponseDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.UserDataDto
 import com.xxxx.emby_tv.data.remote.EmbyJson
+import com.xxxx.emby_tv.data.model.PersonInfo
 import com.xxxx.emby_tv.data.remote.latestItemsPath
+import com.xxxx.emby_tv.data.remote.seasonEpisodesPath
+import com.xxxx.emby_tv.data.remote.seriesAddedPath
 import com.xxxx.emby_tv.data.remote.libraryGenresPath
 import com.xxxx.emby_tv.data.remote.libraryItemsPath
 import com.xxxx.emby_tv.data.remote.recentlyPlayedSeriesPath
@@ -140,6 +143,69 @@ class EmbyPresentationTest {
             played = listOf(BaseItemDto(id = "s2", type = "Series", name = "金斯敦市长")),
         )
         assertEquals(listOf("s1" to "塔尔萨之王", "s2" to "金斯敦市长"), seeds)
+        val seriesAdded = seriesAddedPath("user", "237", 16, "token")
+        assertTrue(seriesAdded.contains("/Users/user/Items?"))
+        assertTrue(seriesAdded.contains("IncludeItemTypes=Series"))
+        assertTrue(seriesAdded.contains("Recursive=true"))
+        assertTrue(seriesAdded.contains("ParentId=237"))
+        assertTrue(seriesAdded.contains("SortBy=DateLastContentAdded,DateCreated"))
+        assertFalse(seriesAdded.contains("/Items/Latest"))
+        val episodes = listOf(
+            BaseItemDto(
+                id = "e5",
+                name = "第 5 集",
+                type = "Episode",
+                seriesId = "series-1",
+                seriesName = "塔尔萨之王",
+                seriesPrimaryImageTag = "series-primary",
+                productionYear = 2026,
+                imageTags = mapOf("Primary" to "episode-still"),
+            ),
+            BaseItemDto(
+                id = "e4",
+                name = "第 4 集",
+                type = "Episode",
+                seriesId = "series-1",
+                seriesName = "塔尔萨之王",
+                seriesPrimaryImageTag = "series-primary",
+            ),
+            BaseItemDto(id = "series-2", name = "巴比伦柏林", type = "Series", productionYear = 2017, imageTags = mapOf("Primary" to "bb")),
+        )
+        val cards = EmbyPresentation.coalesceSeriesCards(episodes)
+        assertEquals(listOf("series-1", "series-2"), cards.map { it.id })
+        assertEquals("塔尔萨之王", cards[0].name)
+        assertEquals("Series", cards[0].type)
+        assertEquals("series-primary", cards[0].imageTags?.get("Primary"))
+        val seasonPath = seasonEpisodesPath("77420", "season-2", "user", "token")
+        assertTrue(seasonPath.startsWith("/Shows/77420/Episodes?"))
+        assertTrue(seasonPath.contains("SeasonId=season-2"))
+        assertTrue(seasonPath.contains("UserId=user"))
+        assertTrue(seasonPath.contains("Overview"))
+        assertTrue(seasonPath.contains("PrimaryImageAspectRatio"))
+        val still = BaseItemDto(
+            id = "ep7",
+            type = "Episode",
+            parentBackdropItemId = "series-backdrop",
+            parentBackdropImageTags = listOf("backdrop-tag"),
+            imageTags = mapOf("Primary" to "still-tag", "Thumb" to "thumb-tag"),
+        )
+        val stillUrl = EmbyPresentation.episodeStillUrl("https://example.test", still, apiKey = "secret")
+        assertTrue(stillUrl.contains("/Items/ep7/Images/Primary"))
+        assertTrue(stillUrl.contains("tag=still-tag"))
+        assertFalse(stillUrl.contains("series-backdrop"))
+        assertTrue(stillUrl.contains("X-Emby-Token=secret"))
+        val personUrl = EmbyPresentation.personImageUrl(
+            "https://example.test",
+            PersonInfo(id = "8298", name = "马特·达蒙", primaryImageTag = "face"),
+            apiKey = "secret",
+        )
+        assertTrue(personUrl.contains("/Items/8298/Images/Primary"))
+        assertTrue(personUrl.contains("tag=face"))
+        assertTrue(personUrl.contains("api_key=secret"))
+        assertEquals(
+            "",
+            EmbyPresentation.personImageUrl("https://example.test", PersonInfo(id = "1", name = "无名")),
+        )
     }
 
     @Test

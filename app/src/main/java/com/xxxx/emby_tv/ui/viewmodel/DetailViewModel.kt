@@ -58,7 +58,13 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
                 val info = withContext(Dispatchers.IO) {
                     repository.getMediaInfo(mediaId)
                 }
-                mediaInfo = info
+                val current = mediaInfo
+                val currentRicher = current?.id == mediaId &&
+                    !current.people.isNullOrEmpty() &&
+                    info.people.isNullOrEmpty()
+                if (!currentRicher) {
+                    mediaInfo = info
+                }
             } catch (e: Exception) {
                 errorMessage = e.message
                 mediaInfo = null
@@ -86,14 +92,14 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 加载剧集列表
      */
-    fun loadEpisodes(seasonId: String) {
-        // 如果已加载，不重复请求
+    fun loadEpisodes(seriesId: String, seasonId: String) {
+        if (seriesId.isBlank() || seasonId.isBlank()) return
         if (episodes.containsKey(seasonId)) return
 
         viewModelScope.launch {
             try {
                 val list = withContext(Dispatchers.IO) {
-                    repository.getSeriesList(seasonId)
+                    repository.getSeasonEpisodes(seriesId, seasonId)
                 }
                 episodes = episodes + (seasonId to list)
             } catch (e: Exception) {
@@ -187,7 +193,7 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
             val season = seasons.orEmpty().firstOrNull { it.id != null && it.id == resumeItem?.seasonId }
                 ?: seasons.orEmpty().getOrNull((resumeItem?.parentIndexNumber ?: 1) - 1)
                 ?: seasons.orEmpty().firstOrNull()
-            season?.id?.let { loadEpisodes(it) }
+            season?.id?.let { loadEpisodes(seriesId, it) }
         }
     }
 

@@ -41,11 +41,87 @@ object EmbyPresentation {
         return com.xxxx.emby_tv.Utils.getImageUrl(serverUrl, item, true)
     }
 
-    fun personImageUrl(serverUrl: String, person: PersonInfo, maxWidth: Int = 400): String {
+    fun personImageUrl(
+        serverUrl: String,
+        person: PersonInfo,
+        apiKey: String? = null,
+        maxWidth: Int = 400,
+    ): String {
         val id = person.id ?: return ""
         val tag = person.primaryImageTag ?: return ""
         if (serverUrl.isBlank() || tag.isBlank()) return ""
-        return "$serverUrl/emby/Items/$id/Images/Primary?maxWidth=$maxWidth&tag=$tag&quality=80"
+        return "$serverUrl/emby/Items/$id/Images/Primary?maxWidth=$maxWidth&tag=$tag&quality=80${tokenQuery(apiKey)}"
+    }
+
+    /**
+     * One series card. Episodes and seasons that leak out of a latest query collapse
+     * onto SeriesId, and the poster tag is the series primary, not the episode still.
+     */
+    fun coalesceSeriesCards(items: List<BaseItemDto>): List<BaseItemDto> {
+        val seen = LinkedHashSet<String>()
+        val cards = ArrayList<BaseItemDto>()
+        for (item in items) {
+            val card = toSeriesCard(item) ?: continue
+            val id = card.id ?: continue
+            if (!seen.add(id)) continue
+            cards += card
+        }
+        return cards
+    }
+
+    fun toSeriesCard(item: BaseItemDto): BaseItemDto? {
+        if (item.type.equals("Series", true)) {
+            return item.takeIf { !it.id.isNullOrBlank() }
+        }
+        if (item.type != "Episode" && item.type != "Season") return null
+        val seriesId = item.seriesId?.takeIf { it.isNotBlank() } ?: return null
+        val name = item.seriesName?.takeIf { it.isNotBlank() } ?: item.name
+        val tag = item.seriesPrimaryImageTag?.takeIf { it.isNotBlank() }
+        return BaseItemDto(
+            id = seriesId,
+            name = name,
+            type = "Series",
+            productionYear = item.productionYear,
+            seriesId = seriesId,
+            seriesName = name,
+            seriesPrimaryImageTag = tag,
+            imageTags = if (tag == null) null else mapOf("Primary" to tag),
+        )
+    }
+
+    /**
+     * Episode still: own primary, own thumb, season primary, then series backdrop.
+     * Parent backdrop is not used first — that painted the series art on every card.
+     */
+    fun episodeStillUrl(
+        serverUrl: String,
+        episode: BaseItemDto,
+        season: BaseItemDto? = null,
+        series: BaseItemDto? = null,
+        apiKey: String? = null,
+        maxWidth: Int = 800,
+    ): String {
+        if (serverUrl.isBlank()) return ""
+        val token = tokenQuery(apiKey)
+        fun image(id: String?, kind: String, tag: String?): String? {
+            if (id.isNullOrBlank() || tag.isNullOrBlank()) return null
+            return "$serverUrl/emby/Items/$id/Images/$kind?maxWidth=$maxWidth&tag=$tag&quality=80$token"
+        }
+        image(episode.id, "Primary", episode.imageTags?.get("Primary"))?.let { return it }
+        image(episode.id, "Thumb", episode.imageTags?.get("Thumb"))?.let { return it }
+        image(season?.id, "Primary", season?.imageTags?.get("Primary"))?.let { return it }
+        val backdropTag = series?.backdropImageTags?.firstOrNull()
+        val backdropId = series?.id
+        if (!backdropId.isNullOrBlank() && !backdropTag.isNullOrBlank()) {
+            return "$serverUrl/emby/Items/$backdropId/Images/Backdrop?maxWidth=$maxWidth&tag=$backdropTag&quality=80$token"
+        }
+        return ""
+    }
+
+    private fun tokenQuery(apiKey: String?): String {
+        if (apiKey.isNullOrBlank()) return ""
+        val encoded = java.net.URLEncoder.encode(apiKey, "UTF-8")
+        return "&api_key=$encoded&X-Emby-Token=$encoded"
     }
 
     fun genresLine(item: BaseItemDto): String = item.genres.orEmpty().filter { it.isNotBlank() }.joinToString(" / ")

@@ -450,6 +450,19 @@ class EmbyRepository private constructor(private val context: Context) {
         )
     }
 
+    suspend fun getSeasonEpisodes(seriesId: String, seasonId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSeasonEpisodes(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            seriesId,
+            seasonId,
+        )
+    }
+
     /**
      * 获取下一集
      */
