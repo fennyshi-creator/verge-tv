@@ -41,8 +41,6 @@ fun HomeScreen(
 
     val resumeItems = homeViewModel.resumeItems
     val libraryLatestItems = homeViewModel.libraryLatestItems
-    val favoriteItems = homeViewModel.favoriteItems
-    val becauseYouWatched = homeViewModel.becauseYouWatched
     val errorMessage = homeViewModel.errorMessage
 
     LaunchedEffect(errorMessage) {
@@ -101,45 +99,12 @@ fun HomeScreen(
         navController.navigate("player/$id?position=$position")
     }
 
-    fun openDetails(item: BaseItemDto) {
-        when (item.type) {
-            "Series" -> {
-                val id = item.id ?: return
-                navController.navigate("series/$id")
-            }
-            "Episode" -> {
-                val id = item.seriesId ?: item.id ?: return
-                navController.navigate("series/$id")
-            }
-            else -> {
-                val id = item.id ?: return
-                navController.navigate("media/$id")
-            }
-        }
-    }
-
     fun openLibrary(item: BaseItemDto) {
         val id = item.id ?: return
         val title = item.name ?: ""
         val type = item.latestItems?.firstOrNull()?.type ?: ""
         navController.navigate("library/$id?libraryName=$title&type=$type")
     }
-
-    fun openBrowse(item: BaseItemDto) {
-        if (item.isSeries) {
-            val seriesId = item.id
-            if (!seriesId.isNullOrEmpty()) {
-                homeViewModel.playNextUp(seriesId) { next -> goPlay(next) }
-            } else {
-                goPlay(item)
-            }
-        } else {
-            goPlay(item)
-        }
-    }
-
-    val hero = resumeItems?.firstOrNull()
-        ?: libraryLatestItems?.firstNotNullOfOrNull { it.latestItems?.firstOrNull() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (libraryLatestItems == null) {
@@ -153,17 +118,22 @@ fun HomeScreen(
             }
         } else {
             OfficialHome(
-                hero = hero,
                 resumeItems = resumeItems.orEmpty(),
                 libraries = libraryLatestItems,
-                favorites = favoriteItems.orEmpty(),
-                recommendations = becauseYouWatched,
                 serverUrl = serverUrl,
                 onResume = { goPlay(it) },
-                onOpenDetails = { openDetails(it) },
                 onOpenLibrary = { openLibrary(it) },
-                onOpenItem = { openBrowse(it) },
-                onMenu = { showMenu = true },
+                onSearch = { navController.navigate("search") },
+                onFavorites = {
+                    val library = libraryLatestItems.firstOrNull() ?: return@OfficialHome
+                    val id = library.id ?: return@OfficialHome
+                    val title = library.name ?: ""
+                    val type = library.latestItems?.firstOrNull()?.type ?: ""
+                    navController.navigate(
+                        "library/$id?libraryName=$title&type=$type&filter=IsFavorite"
+                    )
+                },
+                onSettings = { showMenu = true },
             )
         }
         DoubleBackExitHandler(doubleBackToExit)

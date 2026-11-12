@@ -200,7 +200,6 @@ private fun portrait(
 
 @Composable
 fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
-    val font = LocalHomeFont.current
     Box(modifier.background(art.bottom)) {
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
@@ -242,21 +241,6 @@ fun SampleArtwork(art: PosterArt, modifier: Modifier = Modifier) {
                     0.55f to Color.Transparent,
                     1f to Color.Black.copy(alpha = 0.45f),
                 )
-            )
-        }
-        if (!art.kicker.isNullOrBlank()) {
-            Text(
-                text = art.kicker,
-                color = art.kickerColor,
-                fontSize = art.kickerSize,
-                fontWeight = if (art.script) FontWeight.Normal else FontWeight.Medium,
-                fontStyle = if (art.script) FontStyle.Italic else FontStyle.Normal,
-                fontFamily = if (art.script) FontFamily.Serif else font,
-                letterSpacing = art.tracking,
-                lineHeight = art.kickerSize * 1.15f,
-                modifier = Modifier
-                    .align(art.align)
-                    .padding(art.pad),
             )
         }
     }

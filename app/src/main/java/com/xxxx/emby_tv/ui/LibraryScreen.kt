@@ -44,6 +44,7 @@ fun LibraryScreen(
     type: String,
     libraryViewModel: LibraryViewModel,
     onNavigateToSeries: (String) -> Unit,
+    initialFilter: String? = null,
 ) {
     val context = LocalContext.current
     val firstItemFocusRequester = remember { FocusRequester() }
@@ -73,8 +74,8 @@ fun LibraryScreen(
     )
     val sortIcon = if (currentSortOrder == "Ascending") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward
 
-    LaunchedEffect(parentId, type) {
-        libraryViewModel.loadItems(parentId, type)
+    LaunchedEffect(parentId, type, initialFilter) {
+        libraryViewModel.loadItems(parentId, type, initialFilter?.ifBlank { null })
     }
 
     LaunchedEffect(libraryItems) {

@@ -235,7 +235,7 @@ fun EmbyTvApp() {
 
                     // 媒体库页面
                     composable(
-                        "library/{libraryId}?libraryName={libraryName}&type={type}",
+                        "library/{libraryId}?libraryName={libraryName}&type={type}&filter={filter}",
                         arguments = listOf(
                             navArgument("libraryId") { type = NavType.StringType },
                             navArgument("libraryName") {
@@ -245,12 +245,17 @@ fun EmbyTvApp() {
                             navArgument("type") {
                                 type = NavType.StringType
                                 defaultValue = ""
+                            },
+                            navArgument("filter") {
+                                type = NavType.StringType
+                                defaultValue = ""
                             }
                         )
                     ) { backStackEntry ->
                         val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
                         val libraryName = backStackEntry.arguments?.getString("libraryName") ?: ""
                         val type = backStackEntry.arguments?.getString("type") ?: ""
+                        val filter = backStackEntry.arguments?.getString("filter").orEmpty()
                         val libraryViewModel: LibraryViewModel = viewModel()
 
                         LibraryScreen(
@@ -260,7 +265,8 @@ fun EmbyTvApp() {
                             libraryViewModel = libraryViewModel,
                             onNavigateToSeries = { seriesId ->
                                 navController.navigate("series/$seriesId")
-                            }
+                            },
+                            initialFilter = filter.ifBlank { null },
                         )
                     }
 

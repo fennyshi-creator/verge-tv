@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.data.model.BaseItemDto
-import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -19,8 +18,6 @@ import kotlinx.coroutines.launch
  * 职责：
  * - 加载继续观看列表
  * - 加载媒体库最新内容
- * - 加载收藏列表
- * - 加载「因为你看过」推荐行
  */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = EmbyRepository.getInstance(application)
@@ -29,10 +26,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var resumeItems by mutableStateOf<List<BaseItemDto>?>(null)
         private set
     var libraryLatestItems by mutableStateOf<List<BaseItemDto>?>(null)
-        private set
-    var favoriteItems by mutableStateOf<List<BaseItemDto>?>(null)
-        private set
-    var becauseYouWatched by mutableStateOf<List<RecommendationDto>>(emptyList())
         private set
 
     // === 加载状态 ===
@@ -52,8 +45,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (!repository.isLoggedIn) {
             resumeItems = emptyList()
             libraryLatestItems = emptyList()
-            favoriteItems = emptyList()
-            becauseYouWatched = emptyList()
             return
         }
 
@@ -70,27 +61,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     try { repository.getLatestItems() }
                     catch (e: Exception) { errorMessage = e.message; emptyList() }
                 }
-                val favDeferred = async {
-                    try { repository.getFavoriteItems() }
-                    catch (e: Exception) { errorMessage = e.message; emptyList() }
-                }
 
-                val resume = resumeDeferred.await()
-                resumeItems = resume
+                resumeItems = resumeDeferred.await()
                 libraryLatestItems = latestDeferred.await()
-                favoriteItems = favDeferred.await()
-                becauseYouWatched = try {
-                    repository.getBecauseYouWatched(resume)
-                } catch (e: Exception) {
-                    ErrorHandler.logError("HomeViewModel", "推荐行加载失败", e)
-                    emptyList()
-                }
             } catch (e: Exception) {
                 if (errorMessage == null) errorMessage = e.message
                 resumeItems = emptyList()
                 libraryLatestItems = emptyList()
-                favoriteItems = emptyList()
-                becauseYouWatched = emptyList()
             } finally {
                 isLoading = false
             }

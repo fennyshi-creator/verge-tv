@@ -17,14 +17,10 @@ object HomeStyle {
 
     val gutter = 32.dp
     val rowGap = 14.dp
-    val heroHeight = 138.dp
-    val heroCorner = 18.dp
     val continueWidth = 186.dp
     val continueHeight = 104.dp
-    val posterWidth = 150.dp
-    val posterHeight = 214.dp
-    val libraryWidth = 258.dp
-    val libraryHeight = 90.dp
+    val libraryWidth = 272.dp
+    val libraryHeight = 118.dp
     val cardCorner = 11.dp
     val libraryCorner = 13.dp
 
@@ -32,7 +28,10 @@ object HomeStyle {
     val cardTitle = 14.sp
     val metaSize = 12.sp
     val chipSize = 10.sp
+    val navSize = 16.sp
 
-    const val focusScale = 1.045f
+    val navPill = Color(0xFFE8E8EA)
+    val navPillText = Color(0xFF161616)
+    val logoGreen = Color(0xFF52B54B)
     val focusStroke = 2.5.dp
 }

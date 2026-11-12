@@ -1,13 +1,21 @@
 package com.xxxx.emby_tv.ui.home
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,35 +24,41 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -62,11 +76,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Glow
-import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -74,133 +83,123 @@ import coil3.request.crossfade
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
-import com.xxxx.emby_tv.data.model.RecommendationDto
 import kotlinx.coroutines.yield
+import kotlin.math.min
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun OfficialHome(
-    hero: BaseItemDto?,
     resumeItems: List<BaseItemDto>,
     libraries: List<BaseItemDto>,
-    favorites: List<BaseItemDto>,
-    recommendations: List<RecommendationDto>,
     serverUrl: String,
     onResume: (BaseItemDto) -> Unit,
-    onOpenDetails: (BaseItemDto) -> Unit,
     onOpenLibrary: (BaseItemDto) -> Unit,
-    onOpenItem: (BaseItemDto) -> Unit,
-    onMenu: () -> Unit,
+    onSearch: () -> Unit,
+    onFavorites: () -> Unit,
+    onSettings: () -> Unit,
     requestInitialFocus: Boolean = true,
-    focusedId: String? = null,
+    continueWindowStart: Int = 0,
+    forceContinueFocus: Boolean = false,
     fontFamily: FontFamily = FontFamily.Default,
     modifier: Modifier = Modifier,
 ) {
+    val searchFocus = remember { FocusRequester() }
+    val homeTabFocus = remember { FocusRequester() }
+    val favoritesFocus = remember { FocusRequester() }
+    val settingsFocus = remember { FocusRequester() }
     val continueFocus = remember { FocusRequester() }
-    val heroFocus = remember { FocusRequester() }
-    val libraryRows = libraries.filter { !it.latestItems.isNullOrEmpty() }
+    val libraryFocus = remember { FocusRequester() }
+    val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
 
-    LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, hero?.id) {
+    LaunchedEffect(requestInitialFocus, resumeItems.firstOrNull()?.id, libraries.firstOrNull()?.id) {
         if (!requestInitialFocus) return@LaunchedEffect
         yield()
         val target = when {
             resumeItems.isNotEmpty() -> continueFocus
-            hero != null -> heroFocus
-            else -> null
+            libraries.isNotEmpty() -> libraryFocus
+            else -> homeTabFocus
         }
         try {
-            target?.requestFocus()
+            target.requestFocus()
         } catch (_: IllegalStateException) {
         }
     }
 
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         Box(modifier.fillMaxSize().background(HomeStyle.background)) {
-            if (hero == null && resumeItems.isEmpty() && libraries.isEmpty() && favorites.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    HomeText(
-                        text = stringResource(R.string.no_data),
-                        fontSize = 18.sp,
-                        color = HomeStyle.meta,
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 36.dp),
+            ) {
+                item(key = "top-bar") {
+                    HomeTopBar(
+                        searchFocus = searchFocus,
+                        homeTabFocus = homeTabFocus,
+                        favoritesFocus = favoritesFocus,
+                        settingsFocus = settingsFocus,
+                        down = contentFocus,
+                        onSearch = onSearch,
+                        onFavorites = onFavorites,
+                        onSettings = onSettings,
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 28.dp),
-                ) {
-                    if (hero != null) {
-                        item(key = "hero") {
-                            HeroBanner(
-                                item = hero,
-                                serverUrl = serverUrl,
-                                onDetails = { onOpenDetails(hero) },
-                                onMenu = onMenu,
-                                focusRequester = heroFocus,
-                            )
+                if (resumeItems.isNotEmpty()) {
+                    item(key = "resume") {
+                        SectionTitle(stringResource(R.string.continue_watching))
+                        LeadingSlotRow(
+                            items = resumeItems,
+                            cardWidth = HomeStyle.continueWidth,
+                            cardHeight = HomeStyle.continueHeight,
+                            corner = HomeStyle.cardCorner,
+                            focusRequester = continueFocus,
+                            up = homeTabFocus,
+                            down = if (libraries.isNotEmpty()) libraryFocus else null,
+                            initialWindowStart = continueWindowStart,
+                            forceFocused = forceContinueFocus,
+                            onActivate = onResume,
+                            onMenu = onSettings,
+                            caption = { item ->
+                                CardCaption(cardTitle(item), cardMeta(item), HomeStyle.continueWidth)
+                            },
+                        ) { item ->
+                            ContinueArt(item, serverUrl)
                         }
                     }
-                    if (resumeItems.isNotEmpty()) {
-                        item(key = "resume") {
-                            ContinueRow(
-                                title = stringResource(R.string.continue_watching),
-                                items = resumeItems,
-                                serverUrl = serverUrl,
-                                focusedId = focusedId,
-                                onClick = onResume,
-                                onMenu = onMenu,
-                                focusRequester = continueFocus,
-                            )
+                }
+                if (libraries.isNotEmpty()) {
+                    item(key = "libraries") {
+                        SectionTitle(stringResource(R.string.home_libraries))
+                        LeadingSlotRow(
+                            items = libraries,
+                            cardWidth = HomeStyle.libraryWidth,
+                            cardHeight = HomeStyle.libraryHeight,
+                            corner = HomeStyle.libraryCorner,
+                            focusRequester = libraryFocus,
+                            up = if (resumeItems.isNotEmpty()) continueFocus else homeTabFocus,
+                            down = null,
+                            onActivate = onOpenLibrary,
+                            onMenu = onSettings,
+                            caption = { library ->
+                                CardCaption(library.name.orEmpty(), "", HomeStyle.libraryWidth)
+                            },
+                        ) { library ->
+                            LibraryCollage(library, serverUrl)
                         }
                     }
-                    if (libraries.isNotEmpty()) {
-                        item(key = "libraries") {
-                            LibraryRow(
-                                title = stringResource(R.string.home_libraries),
-                                libraries = libraries,
-                                serverUrl = serverUrl,
-                                onClick = onOpenLibrary,
-                                onMenu = onMenu,
+                }
+                if (resumeItems.isEmpty() && libraries.isEmpty()) {
+                    item(key = "empty") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 80.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            HomeText(
+                                text = stringResource(R.string.no_data),
+                                fontSize = 18.sp,
+                                color = HomeStyle.meta,
                             )
                         }
-                    }
-                    items(
-                        items = libraryRows,
-                        key = { it.id ?: it.name ?: it.hashCode() },
-                    ) { library ->
-                        PosterRow(
-                            title = library.name.orEmpty(),
-                            items = library.latestItems.orEmpty(),
-                            serverUrl = serverUrl,
-                            focusedId = focusedId,
-                            onClick = onOpenItem,
-                            onMenu = onMenu,
-                        )
-                    }
-                    if (favorites.isNotEmpty()) {
-                        item(key = "favorites") {
-                            PosterRow(
-                                title = stringResource(R.string.favorite),
-                                items = favorites,
-                                serverUrl = serverUrl,
-                                focusedId = focusedId,
-                                onClick = onOpenItem,
-                                onMenu = onMenu,
-                            )
-                        }
-                    }
-                    itemsIndexed(
-                        items = recommendations,
-                        key = { index, row -> row.baselineItemName ?: "rec-$index" },
-                    ) { _, row ->
-                        PosterRow(
-                            title = recommendationLabel(row),
-                            items = row.items.orEmpty(),
-                            serverUrl = serverUrl,
-                            focusedId = focusedId,
-                            onClick = onOpenItem,
-                            onMenu = onMenu,
-                        )
                     }
                 }
             }
@@ -209,381 +208,309 @@ fun OfficialHome(
 }
 
 @Composable
-fun recommendationLabel(row: RecommendationDto): String {
-    val name = row.baselineItemName.orEmpty()
-    val liked = row.recommendationType == "SimilarToLikedItem" ||
-            row.recommendationType == "HasLikedDirector" ||
-            row.recommendationType == "HasLikedActor"
-    return if (liked) {
-        stringResource(R.string.because_you_liked, name)
-    } else {
-        stringResource(R.string.because_you_watched, name)
+private fun HomeTopBar(
+    searchFocus: FocusRequester,
+    homeTabFocus: FocusRequester,
+    favoritesFocus: FocusRequester,
+    settingsFocus: FocusRequester,
+    down: FocusRequester,
+    onSearch: () -> Unit,
+    onFavorites: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = HomeStyle.gutter, vertical = 12.dp),
+    ) {
+        EmbyMark(Modifier.align(Alignment.CenterStart))
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            NavIconButton(
+                focusRequester = searchFocus,
+                left = null,
+                right = homeTabFocus,
+                down = down,
+                onClick = onSearch,
+                contentDescription = stringResource(R.string.search),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            NavPill(
+                text = stringResource(R.string.home_tab),
+                selected = true,
+                focusRequester = homeTabFocus,
+                left = searchFocus,
+                right = favoritesFocus,
+                down = down,
+                onClick = {},
+            )
+            NavPill(
+                text = stringResource(R.string.favorite),
+                selected = false,
+                focusRequester = favoritesFocus,
+                left = homeTabFocus,
+                right = settingsFocus,
+                down = down,
+                onClick = onFavorites,
+            )
+        }
+        NavIconButton(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            focusRequester = settingsFocus,
+            left = favoritesFocus,
+            right = null,
+            down = down,
+            onClick = onSettings,
+            contentDescription = stringResource(R.string.settings),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun HeroBanner(
-    item: BaseItemDto,
-    serverUrl: String,
-    onDetails: () -> Unit,
-    onMenu: () -> Unit,
-    focusRequester: FocusRequester?,
-    modifier: Modifier = Modifier,
-) {
+private fun EmbyMark(modifier: Modifier = Modifier) {
     Box(
         modifier
-            .padding(horizontal = HomeStyle.gutter)
-            .padding(top = 10.dp)
-            .fillMaxWidth()
-            .height(HomeStyle.heroHeight),
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(HomeStyle.logoGreen),
+        contentAlignment = Alignment.Center,
     ) {
+        Canvas(Modifier.size(13.dp).offset(x = 1.dp)) {
+            val path = Path().apply {
+                moveTo(0f, 0f)
+                lineTo(size.width, size.height / 2f)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(path, Color.White)
+        }
+    }
+}
+
+@Composable
+private fun NavIconButton(
+    focusRequester: FocusRequester,
+    left: FocusRequester?,
+    right: FocusRequester?,
+    down: FocusRequester,
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    icon: @Composable BoxScope.() -> Unit,
+) {
+    var focused by rememberFocusState()
+    Box(
+        modifier
+            .size(36.dp)
+            .focusRequester(focusRequester)
+            .focusProperties {
+                left?.let { this.left = it }
+                right?.let { this.right = it }
+                this.down = down
+            }
+            .onFocusChanged { focused = it.isFocused }
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        icon()
+        if (focused) {
+            BreathingStroke(Modifier.matchParentSize(), CircleShape)
+        }
+    }
+}
+
+@Composable
+private fun NavPill(
+    text: String,
+    selected: Boolean,
+    focusRequester: FocusRequester,
+    left: FocusRequester?,
+    right: FocusRequester?,
+    down: FocusRequester,
+    onClick: () -> Unit,
+) {
+    var focused by rememberFocusState()
+    val shape = RoundedCornerShape(50)
+    Box(
+        Modifier
+            .focusRequester(focusRequester)
+            .focusProperties {
+                left?.let { this.left = it }
+                right?.let { this.right = it }
+                this.down = down
+            }
+            .onFocusChanged { focused = it.isFocused }
+            .clip(shape)
+            .background(if (selected) HomeStyle.navPill else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        HomeText(
+            text = text,
+            fontSize = HomeStyle.navSize,
+            color = if (selected) HomeStyle.navPillText else Color.White,
+            fontWeight = FontWeight.Medium,
+        )
+        if (focused) {
+            BreathingStroke(Modifier.matchParentSize(), shape)
+        }
+    }
+}
+
+@Composable
+private fun LeadingSlotRow(
+    items: List<BaseItemDto>,
+    cardWidth: Dp,
+    cardHeight: Dp,
+    corner: Dp,
+    focusRequester: FocusRequester,
+    up: FocusRequester?,
+    down: FocusRequester?,
+    onActivate: (BaseItemDto) -> Unit,
+    onMenu: () -> Unit,
+    initialWindowStart: Int = 0,
+    forceFocused: Boolean = false,
+    caption: @Composable (BaseItemDto) -> Unit,
+    art: @Composable BoxScope.(BaseItemDto) -> Unit,
+) {
+    if (items.isEmpty()) return
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stride = cardWidth + HomeStyle.rowGap
+        val usable = maxWidth - HomeStyle.gutter
+        val fullSlots = ((usable + HomeStyle.rowGap) / stride).toInt().coerceAtLeast(1)
+        val maxStart = (items.size - fullSlots).coerceAtLeast(0)
+        var windowStart by remember(items.size, fullSlots) {
+            mutableIntStateOf(initialWindowStart.coerceIn(0, maxStart))
+        }
+        var slot by remember(items.size) { mutableIntStateOf(0) }
+        var rowFocused by rememberFocusState(forceFocused)
+        if (windowStart > maxStart) windowStart = maxStart
+        val lastSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
+        if (slot > lastSlot) slot = lastSlot
+
+        fun moveRight() {
+            val moreRight = items.size - windowStart - fullSlots
+            val endSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
+            if (slot == 0 && moreRight > 0) {
+                windowStart++
+            } else if (slot < endSlot) {
+                slot++
+            }
+        }
+
+        fun moveLeft() {
+            if (slot > 0) {
+                slot--
+            } else if (windowStart > 0) {
+                windowStart--
+            }
+        }
+
+        val slide by animateDpAsState(
+            targetValue = -(stride * windowStart),
+            animationSpec = tween(durationMillis = 220),
+            label = "leading-slot-slide",
+        )
+        val ringX by animateDpAsState(
+            targetValue = stride * slot,
+            animationSpec = tween(durationMillis = 220),
+            label = "leading-slot-ring",
+        )
+        val shape = RoundedCornerShape(corner)
+        val focusedIndex = (windowStart + slot).coerceIn(0, items.lastIndex)
+
         Box(
             Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(HomeStyle.heroCorner)),
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .focusProperties {
+                    up?.let { this.up = it }
+                    down?.let { this.down = it }
+                }
+                .onFocusChanged { rowFocused = it.isFocused || forceFocused }
+                .focusable()
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            moveRight()
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            if (slot == 0 && windowStart == 0) false else {
+                                moveLeft()
+                                true
+                            }
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            onActivate(items[focusedIndex])
+                            true
+                        }
+                        Key.Menu, Key.Bookmark -> {
+                            onMenu()
+                            true
+                        }
+                        else -> false
+                    }
+                },
         ) {
-            HomeImage(
-                itemId = item.id,
-                fallbackArtId = item.seriesId,
-                url = backdropUrl(serverUrl, item),
-                role = ArtRole.Backdrop,
-                contentDescription = item.name,
-                modifier = Modifier.fillMaxSize(),
-            )
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(72.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
-                        )
-                    ),
-            )
-        }
-        DetailsPill(
-            onClick = onDetails,
-            onMenu = onMenu,
-            focusRequester = focusRequester,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 16.dp, bottom = 14.dp),
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun ContinueRow(
-    title: String,
-    items: List<BaseItemDto>,
-    serverUrl: String,
-    focusedId: String?,
-    onClick: (BaseItemDto) -> Unit,
-    onMenu: () -> Unit,
-    focusRequester: FocusRequester?,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth()) {
-        SectionTitle(title)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = HomeStyle.gutter, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
-        ) {
-            itemsIndexed(items, key = { _, item -> item.id ?: item.hashCode() }) { index, item ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    HomeFocusCard(
-                        width = HomeStyle.continueWidth,
-                        height = HomeStyle.continueHeight,
-                        corner = HomeStyle.cardCorner,
-                        forcedFocus = item.id != null && item.id == focusedId,
-                        onClick = { onClick(item) },
-                        onMenu = onMenu,
-                        focusRequester = if (index == 0) focusRequester else null,
-                    ) {
-                        HomeImage(
-                            itemId = item.id,
-                            fallbackArtId = item.seriesId,
-                            url = thumbUrl(serverUrl, item),
-                            role = ArtRole.Thumb,
-                            contentDescription = cardTitle(item),
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
-                                    )
-                                ),
-                        )
-                        Column(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(start = 8.dp, end = 8.dp, bottom = 7.dp),
-                        ) {
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(HomeStyle.chip)
-                                    .padding(horizontal = 5.dp, vertical = 1.dp),
-                            ) {
-                                HomeText(
-                                    text = stringResource(R.string.continue_playing),
-                                    fontSize = HomeStyle.chipSize,
-                                    color = Color.White,
-                                )
-                            }
-                            Spacer(Modifier.height(5.dp))
-                            ProgressBar(item.playbackProgress)
-                        }
-                    }
-                    CardCaption(cardTitle(item), cardMeta(item), HomeStyle.continueWidth)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun LibraryRow(
-    title: String,
-    libraries: List<BaseItemDto>,
-    serverUrl: String,
-    onClick: (BaseItemDto) -> Unit,
-    onMenu: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth()) {
-        SectionTitle(title)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = HomeStyle.gutter, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
-        ) {
-            items(libraries, key = { it.id ?: it.name ?: it.hashCode() }) { library ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    HomeFocusCard(
-                        width = HomeStyle.libraryWidth,
-                        height = HomeStyle.libraryHeight,
-                        corner = HomeStyle.libraryCorner,
-                        forcedFocus = false,
-                        onClick = { onClick(library) },
-                        onMenu = onMenu,
-                    ) {
-                        val posters = library.latestItems.orEmpty().take(4)
-                        if (posters.isEmpty()) {
-                            Box(Modifier.fillMaxSize().background(Color(0xFF2A2422)))
-                        } else {
-                            Row(Modifier.fillMaxSize()) {
-                                posters.forEach { child ->
-                                    HomeImage(
-                                        itemId = child.id,
-                                        fallbackArtId = child.seriesId,
-                                        url = primaryUrl(serverUrl, child),
-                                        role = ArtRole.Primary,
-                                        contentDescription = child.name,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight(),
-                                    )
-                                }
-                            }
-                        }
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(28.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
-                                    )
-                                ),
-                        )
-                    }
-                    CardCaption(library.name.orEmpty(), "", HomeStyle.libraryWidth)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun PosterRow(
-    title: String,
-    items: List<BaseItemDto>,
-    serverUrl: String,
-    focusedId: String?,
-    onClick: (BaseItemDto) -> Unit,
-    onMenu: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (items.isEmpty()) return
-    Column(modifier.fillMaxWidth()) {
-        SectionTitle(title)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = HomeStyle.gutter, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
-        ) {
-            items(items, key = { it.id ?: it.hashCode() }) { item ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    HomeFocusCard(
-                        width = HomeStyle.posterWidth,
-                        height = HomeStyle.posterHeight,
-                        corner = HomeStyle.cardCorner,
-                        forcedFocus = item.id != null && item.id == focusedId,
-                        onClick = { onClick(item) },
-                        onMenu = onMenu,
-                    ) {
-                        HomeImage(
-                            itemId = item.id,
-                            fallbackArtId = item.seriesId,
-                            url = primaryUrl(serverUrl, item),
-                            role = ArtRole.Primary,
-                            contentDescription = cardTitle(item),
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    CardCaption(cardTitle(item), cardMeta(item), HomeStyle.posterWidth)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun DetailsPill(
-    onClick: () -> Unit,
-    onMenu: () -> Unit,
-    focusRequester: FocusRequester?,
-    modifier: Modifier = Modifier,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val tint = if (focused) Color.Black else Color.White
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { focused = it.isFocused }
-            .onKeyEvent { menuKey(it, onMenu) },
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF2B2B2B).copy(alpha = 0.94f),
-            focusedContainerColor = Color.White,
-            pressedContainerColor = Color.White,
-            contentColor = Color.White,
-            focusedContentColor = Color.Black,
-            pressedContentColor = Color.Black,
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1.06f, pressedScale = 1.02f),
-        border = ClickableSurfaceDefaults.border(
-            border = noBorder(),
-            focusedBorder = Border(
-                border = androidx.compose.foundation.BorderStroke(2.dp, Color.White),
-                shape = RoundedCornerShape(50),
-            ),
-            pressedBorder = noBorder(),
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            glow = Glow.None,
-            focusedGlow = Glow.None,
-            pressedGlow = Glow.None,
-        ),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Info,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            HomeText(
-                text = stringResource(R.string.details),
-                fontSize = 14.sp,
-                color = tint,
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun HomeFocusCard(
-    width: Dp,
-    height: Dp,
-    corner: Dp,
-    forcedFocus: Boolean,
-    onClick: () -> Unit,
-    onMenu: () -> Unit,
-    focusRequester: FocusRequester? = null,
-    content: @Composable BoxScope.() -> Unit,
-) {
-    var tvFocused by remember { mutableStateOf(false) }
-    val ring = forcedFocus || tvFocused
-    val scale by animateFloatAsState(
-        targetValue = if (ring) HomeStyle.focusScale else 1f,
-        animationSpec = if (forcedFocus) snap() else tween(durationMillis = 160),
-        label = "home-card-scale",
-    )
-    val shape = RoundedCornerShape(corner)
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .padding(vertical = 4.dp)
-            .width(width)
-            .height(height)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { tvFocused = it.isFocused }
-            .onKeyEvent { menuKey(it, onMenu) },
-        shape = ClickableSurfaceDefaults.shape(shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF221C19),
-            focusedContainerColor = Color(0xFF221C19),
-            pressedContainerColor = Color(0xFF221C19),
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
-        border = ClickableSurfaceDefaults.border(
-            border = noBorder(),
-            focusedBorder = noBorder(),
-            pressedBorder = noBorder(),
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            glow = Glow.None,
-            focusedGlow = Glow.None,
-            pressedGlow = Glow.None,
-        ),
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            Box(
+                    .padding(start = HomeStyle.gutter)
+                    .clipToBounds(),
+            ) {
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .clip(shape),
-                content = content,
-            )
-            if (ring) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .border(HomeStyle.focusStroke, Color.White, shape),
+                    .wrapContentWidth(align = Alignment.Start, unbounded = true)
+                    .offset(x = slide),
+                horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
+            ) {
+                items.forEach { item ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier
+                                .width(cardWidth)
+                                .height(cardHeight)
+                                .clip(shape)
+                                .focusProperties { canFocus = false }
+                                .clickable { onActivate(item) },
+                        ) {
+                            art(item)
+                        }
+                        caption(item)
+                    }
+                }
+            }
+            }
+            if (rowFocused || forceFocused) {
+                BreathingStroke(
+                    modifier = Modifier
+                        .padding(start = HomeStyle.gutter)
+                        .offset(x = ringX)
+                        .width(cardWidth)
+                        .height(cardHeight),
+                    shape = shape,
+                    solid = forceFocused && !rowFocused,
                 )
             }
         }
@@ -591,19 +518,120 @@ private fun HomeFocusCard(
 }
 
 @Composable
-private fun ProgressBar(progress: Float) {
+private fun BreathingStroke(
+    modifier: Modifier,
+    shape: Shape,
+    solid: Boolean = false,
+) {
+    val transition = rememberInfiniteTransition(label = "focus-breathe")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.58f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "focus-alpha",
+    )
     Box(
-        Modifier
-            .fillMaxWidth()
-            .height(3.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(HomeStyle.progressTrack),
-    ) {
+        modifier.border(
+            width = HomeStyle.focusStroke,
+            color = Color.White.copy(alpha = if (solid) 1f else alpha),
+            shape = shape,
+        )
+    )
+}
+
+@Composable
+private fun ContinueArt(item: BaseItemDto, serverUrl: String) {
+    Box(Modifier.fillMaxSize()) {
+        HomeImage(
+            itemId = item.id,
+            fallbackArtId = item.seriesId,
+            url = thumbUrl(serverUrl, item),
+            role = ArtRole.Thumb,
+            contentDescription = cardTitle(item),
+            modifier = Modifier.fillMaxSize(),
+        )
         Box(
             Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .background(Color.White),
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(46.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
+                    )
+                ),
+        )
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 8.dp, end = 8.dp, bottom = 7.dp),
+        ) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(HomeStyle.chip)
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                HomeText(
+                    text = stringResource(R.string.continue_playing),
+                    fontSize = HomeStyle.chipSize,
+                    color = Color.White,
+                )
+            }
+            Spacer(Modifier.height(5.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(HomeStyle.progressTrack),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(item.playbackProgress.coerceIn(0f, 1f))
+                        .background(Color.White),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryCollage(library: BaseItemDto, serverUrl: String) {
+    val posters = library.latestItems.orEmpty().take(4)
+    Box(Modifier.fillMaxSize()) {
+        if (posters.isEmpty()) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF2A2422)))
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                posters.forEach { child ->
+                    HomeImage(
+                        itemId = child.id,
+                        fallbackArtId = child.seriesId,
+                        url = primaryUrl(serverUrl, child),
+                        role = ArtRole.Primary,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                }
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(28.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+                    )
+                ),
         )
     }
 }
@@ -614,13 +642,11 @@ private fun SectionTitle(text: String) {
         text = text,
         fontSize = HomeStyle.sectionSize,
         color = HomeStyle.title,
-        fontWeight = FontWeight.Normal,
-        maxLines = 1,
         modifier = Modifier.padding(
             start = HomeStyle.gutter,
             end = HomeStyle.gutter,
             top = 8.dp,
-            bottom = 2.dp,
+            bottom = 6.dp,
         ),
     )
 }
@@ -630,7 +656,7 @@ private fun CardCaption(title: String, meta: String, width: Dp) {
     Column(
         modifier = Modifier
             .width(width)
-            .padding(top = 6.dp),
+            .padding(top = 6.dp, bottom = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeText(
@@ -714,16 +740,9 @@ fun HomeImage(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
-private fun noBorder(): Border = Border(
-    border = androidx.compose.foundation.BorderStroke(0.dp, Color.Transparent),
-)
-
-private fun menuKey(event: KeyEvent, onMenu: () -> Unit): Boolean {
-    if (event.type != KeyEventType.KeyDown) return false
-    if (event.key != Key.Menu && event.key != Key.Bookmark) return false
-    onMenu()
-    return true
+@Composable
+private fun rememberFocusState(initial: Boolean = false): androidx.compose.runtime.MutableState<Boolean> {
+    return androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(initial) }
 }
 
 private fun cardTitle(item: BaseItemDto): String {
@@ -751,9 +770,4 @@ private fun thumbUrl(serverUrl: String, item: BaseItemDto): String {
 private fun primaryUrl(serverUrl: String, item: BaseItemDto): String {
     if (serverUrl.isBlank()) return ""
     return Utils.getImageUrl(serverUrl, item, false)
-}
-
-private fun backdropUrl(serverUrl: String, item: BaseItemDto): String {
-    if (serverUrl.isBlank()) return ""
-    return Utils.getBackdropUrl(serverUrl, item)
 }

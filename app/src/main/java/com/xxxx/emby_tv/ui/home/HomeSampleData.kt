@@ -13,6 +13,11 @@ object HomeSampleData {
         resume("sample-lincoln", "林肯律师", 2011, 0.58f),
         episode(),
         resume("sample-dune", "沙丘", 2021, 0.22f),
+        resume("sample-love", "可能的爱", 2026, 0.41f),
+        resume("sample-bio", "生化危机：爆发夜", 2026, 0.18f),
+        resume("sample-gun", "空枪", 2026, 0.66f),
+        resume("sample-hero-film", "英雄", 2002, 0.27f),
+        resume("sample-mood", "花样年华", 2000, 0.83f),
     )
 
     val movies = listOf(

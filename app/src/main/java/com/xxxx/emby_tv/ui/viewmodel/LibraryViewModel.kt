@@ -76,13 +76,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     var currentSortOrder by mutableStateOf(prefsManager.librarySortOrder)
     var currentFilter by mutableStateOf<String?>(null)
 
-    fun loadItems(parentId: String, type: String) {
-        if (parentId == currentParentId && type == currentType && libraryItems != null) {
+    fun loadItems(parentId: String, type: String, filter: String? = null) {
+        if (parentId == currentParentId && type == currentType && libraryItems != null &&
+            (filter == null || filter == currentFilter)
+        ) {
             return
         }
 
         currentParentId = parentId
         currentType = type
+        if (filter != null) currentFilter = filter
         currentPage = 0
         hasMoreData = true
 

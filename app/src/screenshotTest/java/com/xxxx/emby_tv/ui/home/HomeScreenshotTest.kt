@@ -26,15 +26,8 @@ fun HomeTopScreenshot() {
 }
 
 @PreviewTest
-@Preview(name = "home-movies", device = TV, locale = "zh")
+@Preview(name = "home-scrolled", device = TV, locale = "zh")
 @Composable
-fun HomeMoviesScreenshot() {
-    HomeMoviesPreview(fontFamily = previewFont())
-}
-
-@PreviewTest
-@Preview(name = "home-recommended", device = TV, locale = "zh")
-@Composable
-fun HomeRecommendedScreenshot() {
-    HomeRecommendedPreview(fontFamily = previewFont())
+fun HomeScrolledScreenshot() {
+    HomeScrolledPreview(fontFamily = previewFont())
 }
