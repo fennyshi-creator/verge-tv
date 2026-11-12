@@ -3,6 +3,7 @@ package com.xxxx.emby_tv.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import com.xxxx.emby_tv.ui.motion.Motion
+import com.xxxx.emby_tv.ui.motion.ScreenTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -140,7 +141,6 @@ fun nextEpisodePromptMs(durationMs: Long, chapters: List<com.xxxx.emby_tv.data.m
     return fromChapter ?: fromEnd
 }
 
-private val BarEase = Motion.ease
 
 @Composable
 fun PlayerTransportBar(
@@ -169,8 +169,8 @@ fun PlayerTransportBar(
     val isEpisode = mediaInfo.type == "Episode" && mediaInfo.seriesId != null
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(240, easing = BarEase)) + slideInVertically(tween(240, easing = BarEase)) { it / 3 },
-        exit = fadeOut(tween(200, easing = BarEase)) + slideOutVertically(tween(200, easing = BarEase)) { it / 3 },
+        enter = ScreenTransition.barEnter(),
+        exit = ScreenTransition.barExit(),
         modifier = modifier,
     ) {
         LaunchedEffect(Unit) {
@@ -481,8 +481,8 @@ fun PlayerSideSheet(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(Motion.fade()) + slideInHorizontally(Motion.fade()) { it / 4 },
-        exit = fadeOut(Motion.fade()) + slideOutHorizontally(Motion.fade()) { it / 4 },
+        enter = ScreenTransition.sheetEnter(),
+        exit = ScreenTransition.sheetExit(),
         modifier = modifier,
     ) {
         val sheetFocus = remember { FocusRequester() }
@@ -721,8 +721,8 @@ fun EpisodeStrip(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(240, easing = BarEase)) + slideInVertically(tween(240, easing = BarEase)) { it },
-        exit = fadeOut(tween(180, easing = BarEase)) + slideOutVertically(tween(180, easing = BarEase)) { it },
+        enter = ScreenTransition.stripEnter(),
+        exit = ScreenTransition.stripExit(),
         modifier = modifier,
     ) {
         LaunchedEffect(current, episodes.size) {
@@ -848,8 +848,8 @@ fun NextEpisodeCard(
 ) {
     AnimatedVisibility(
         visible = visible && episode != null,
-        enter = fadeIn(tween(240, easing = BarEase)) + slideInHorizontally(tween(240, easing = BarEase)) { it / 2 },
-        exit = fadeOut(tween(180)),
+        enter = ScreenTransition.cardEnter(),
+        exit = ScreenTransition.cardExit(),
         modifier = modifier,
     ) {
         val item = episode ?: return@AnimatedVisibility

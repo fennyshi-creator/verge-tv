@@ -94,7 +94,10 @@ import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
-import com.xxxx.emby_tv.ui.focus.glideToItem
+import com.xxxx.emby_tv.ui.motion.FadeInImage
+import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
+import com.xxxx.emby_tv.ui.motion.TvLeadingRow
+import com.xxxx.emby_tv.ui.motion.rememberRowGlide
 import com.xxxx.emby_tv.ui.focus.scrolledPastStart
 import com.xxxx.emby_tv.ui.focus.viewportScroll
 import kotlinx.coroutines.launch
@@ -143,27 +146,10 @@ fun OfficialHome(
         else -> if (posterRestore >= 0) posterIndex.getOrElse(posterRestore) { 0 } else 0
     }.coerceAtLeast(0)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialLazy)
-    val scope = rememberCoroutineScope()
     val bringIntoView = remember { TvBringIntoView() }
-    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val glide = rememberRowGlide(listState, bringIntoView)
     fun focusRow(requester: FocusRequester, lazyIndex: Int, pin: Boolean) {
-        bringIntoView.pinToStart = pin
-        rowJob?.cancel()
-        rowJob = scope.launch {
-            if (pin) listState.glideToItem(0, pinToZero = true) else listState.glideToItem(lazyIndex)
-            if (!isActive) return@launch
-            withFrameNanos { }
-            try {
-                requester.requestFocus()
-            } catch (_: IllegalStateException) {
-                withFrameNanos { }
-                try {
-                    requester.requestFocus()
-                } catch (_: IllegalStateException) {
-                }
-            }
-            if (pin) listState.scrollToItem(0, 0)
-        }
+        glide.to(requester, lazyIndex, pin)
     }
 
     LaunchedEffect(requestInitialFocus, restoreRowKey, restoreItemId) {
@@ -214,7 +200,7 @@ fun OfficialHome(
                 if (resumeItems.isNotEmpty()) {
                     item(key = "resume", contentType = "row") {
                         SectionTitle(stringResource(R.string.continue_watching))
-                        LeadingSlotRow(
+                        TvLeadingRow(
                             items = resumeItems,
                             cardWidth = HomeStyle.continueWidth,
                             cardHeight = HomeStyle.continueHeight,
@@ -252,7 +238,7 @@ fun OfficialHome(
                 if (libraries.isNotEmpty()) {
                     item(key = "libraries", contentType = "row") {
                         SectionTitle(stringResource(R.string.home_libraries))
-                        LeadingSlotRow(
+                        TvLeadingRow(
                             items = libraries,
                             cardWidth = HomeStyle.libraryWidth,
                             cardHeight = HomeStyle.libraryHeight,
@@ -289,7 +275,7 @@ fun OfficialHome(
                 posterRows.forEachIndexed { index, library ->
                     item(key = "latest-${library.id ?: index}", contentType = "row") {
                         SectionTitle(library.name.orEmpty())
-                        LeadingSlotRow(
+                        TvLeadingRow(
                             items = library.latestItems.orEmpty(),
                             cardWidth = HomeStyle.posterWidth,
                             cardHeight = HomeStyle.posterHeight,
@@ -490,7 +476,7 @@ private fun NavIconButton(
     ) {
         icon()
         if (focused) {
-            BreathingStroke(Modifier.matchParentSize(), CircleShape)
+            TvFocusHighlight(Modifier.matchParentSize(), CircleShape, stroke = HomeStyle.focusStroke)
         }
     }
 }
@@ -529,206 +515,7 @@ private fun NavPill(
             fontWeight = FontWeight.Medium,
         )
         if (focused) {
-            BreathingStroke(Modifier.matchParentSize(), shape)
-        }
-    }
-}
-
-@Composable
-internal fun LeadingSlotRow(
-    items: List<BaseItemDto>,
-    cardWidth: Dp,
-    cardHeight: Dp,
-    corner: Dp,
-    focusRequester: FocusRequester,
-    up: FocusRequester?,
-    down: FocusRequester?,
-    onActivate: (BaseItemDto) -> Unit,
-    onMenu: () -> Unit,
-    onFocused: (() -> Unit)? = null,
-    onExitDown: (() -> Unit)? = null,
-    onExitUp: (() -> Unit)? = null,
-    initialWindowStart: Int = 0,
-    initialIndex: Int = -1,
-    forceFocused: Boolean = false,
-    imageUrls: List<String> = emptyList(),
-    backdropUrls: List<String> = emptyList(),
-    prefetchRole: ArtRole = ArtRole.Primary,
-    caption: @Composable (BaseItemDto) -> Unit,
-    art: @Composable BoxScope.(BaseItemDto) -> Unit,
-) {
-    if (items.isEmpty()) return
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val stride = cardWidth + HomeStyle.rowGap
-        val usable = maxWidth - HomeStyle.gutter
-        val fullSlots = ((usable + HomeStyle.rowGap) / stride).toInt().coerceAtLeast(1)
-        val maxStart = (items.size - fullSlots).coerceAtLeast(0)
-        val startWindow = if (initialIndex >= 0) {
-            initialIndex.coerceIn(0, maxStart)
-        } else {
-            initialWindowStart.coerceIn(0, maxStart)
-        }
-        val startSlot = if (initialIndex >= 0) (initialIndex - startWindow).coerceAtLeast(0) else 0
-        var windowStart by remember(items.size, fullSlots) {
-            mutableIntStateOf(startWindow)
-        }
-        var slot by remember(items.size) { mutableIntStateOf(startSlot) }
-        var rowFocused by rememberFocusState(forceFocused)
-        var repeating by remember { mutableStateOf(false) }
-        var lastMove by remember { mutableLongStateOf(0L) }
-        if (windowStart > maxStart) windowStart = maxStart
-        val lastSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
-        if (slot > lastSlot) slot = lastSlot
-
-        fun noteRepeat() {
-            val now = System.currentTimeMillis()
-            repeating = now - lastMove < 160L
-            lastMove = now
-        }
-
-        fun moveRight() {
-            val moreRight = items.size - windowStart - fullSlots
-            val endSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
-            if (slot == 0 && moreRight > 0) {
-                windowStart++
-            } else if (slot < endSlot) {
-                slot++
-            }
-        }
-
-        fun moveLeft() {
-            if (slot > 0) {
-                slot--
-            } else if (windowStart > 0) {
-                windowStart--
-            }
-        }
-
-        val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.Dp> =
-            if (repeating) com.xxxx.emby_tv.ui.motion.Motion.repeatStep() else com.xxxx.emby_tv.ui.motion.Motion.row()
-        val slide by animateDpAsState(
-            targetValue = -(stride * windowStart),
-            animationSpec = slideSpec,
-            label = "leading-slot-slide",
-        )
-        val ringX by animateDpAsState(
-            targetValue = stride * slot,
-            animationSpec = slideSpec,
-            label = "leading-slot-ring",
-        )
-        val shape = RoundedCornerShape(corner)
-        val focusedIndex = (windowStart + slot).coerceIn(0, items.lastIndex)
-        val prefetchContext = LocalContext.current
-        LaunchedEffect(windowStart, focusedIndex, imageUrls, backdropUrls) {
-            if (imageUrls.isNotEmpty()) {
-                val end = (windowStart + fullSlots + 4).coerceAtMost(imageUrls.size)
-                val start = windowStart.coerceIn(0, imageUrls.size)
-                ArtworkPrefetch.enqueue(prefetchContext, imageUrls.subList(start, end), prefetchRole)
-            }
-            if (backdropUrls.isNotEmpty()) {
-                ArtworkPrefetch.enqueueBackdrops(
-                    prefetchContext,
-                    listOfNotNull(backdropUrls.getOrNull(focusedIndex), backdropUrls.getOrNull(focusedIndex + 1)),
-                )
-            }
-        }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester)
-                .focusProperties {
-                    up?.let { this.up = it }
-                    down?.let { this.down = it }
-                }
-                .onFocusChanged {
-                    rowFocused = it.isFocused || forceFocused
-                    if (it.isFocused) onFocused?.invoke()
-                }
-                .focusable()
-                .onKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            if (onExitDown != null) {
-                                onExitDown()
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        Key.DirectionUp -> {
-                            if (onExitUp != null) {
-                                onExitUp()
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        Key.DirectionRight -> {
-                            noteRepeat()
-                            moveRight()
-                            true
-                        }
-                        Key.DirectionLeft -> {
-                            if (slot == 0 && windowStart == 0) false else {
-                                noteRepeat()
-                                moveLeft()
-                                true
-                            }
-                        }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            onActivate(items[focusedIndex])
-                            true
-                        }
-                        Key.Menu, Key.Bookmark -> {
-                            onMenu()
-                            true
-                        }
-                        else -> false
-                    }
-                },
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = HomeStyle.gutter)
-                    .clipToBounds(),
-            ) {
-            Row(
-                modifier = Modifier
-                    .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                    .offset(x = slide),
-                horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
-            ) {
-                items.forEach { item ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier
-                                .width(cardWidth)
-                                .height(cardHeight)
-                                .clip(shape)
-                                .focusProperties { canFocus = false }
-                                .clickable { onActivate(item) },
-                        ) {
-                            art(item)
-                        }
-                        caption(item)
-                    }
-                }
-            }
-            }
-            if (rowFocused || forceFocused) {
-                BreathingStroke(
-                    modifier = Modifier
-                        .padding(start = HomeStyle.gutter)
-                        .offset(x = ringX)
-                        .width(cardWidth)
-                        .height(cardHeight),
-                    shape = shape,
-                    solid = forceFocused && !rowFocused,
-                )
-            }
+            TvFocusHighlight(Modifier.matchParentSize(), shape, stroke = HomeStyle.focusStroke)
         }
     }
 }
@@ -931,22 +718,16 @@ fun HomeImage(
     }
     val art = SampleArt.lookup(artId, role)
     val soften = LocalArtworkSoften.current
-    val hardwareBlur = soften && android.os.Build.VERSION.SDK_INT >= 31
     val (pxW, pxH) = ArtworkPrefetch.pixels(role)
     when {
         art != null -> SampleArtwork(art, modifier)
-        url.isNotBlank() -> AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(url)
-                .size(pxW, pxH)
-                .crossfade(com.xxxx.emby_tv.ui.motion.Motion.imageMs)
-                .apply { if (soften && !hardwareBlur) transformations(HeavyBlurTransformation()) }
-                .build(),
+        url.isNotBlank() -> FadeInImage(
+            url = url,
+            widthPx = pxW,
+            heightPx = pxH,
             contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-                .background(Color(0xFF241E1B))
-                .then(if (hardwareBlur) Modifier.blur(32.dp) else Modifier),
+            modifier = modifier,
+            soften = soften,
         )
         else -> Box(modifier.background(Color(0xFF241E1B)))
     }

@@ -21,12 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.navigation.compose.NavHost
-import com.xxxx.emby_tv.ui.motion.Motion
+import com.xxxx.emby_tv.ui.motion.ScreenTransition
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
@@ -124,10 +120,10 @@ fun EmbyTvApp() {
                 NavHost(
                     navController = navController,
                     startDestination = "loading",
-                    enterTransition = { fadeIn(Motion.fade()) + slideInHorizontally(Motion.fade()) { it / 24 } },
-                    exitTransition = { fadeOut(Motion.fade()) },
-                    popEnterTransition = { fadeIn(Motion.fade()) },
-                    popExitTransition = { fadeOut(Motion.fade()) + slideOutHorizontally(Motion.fade()) { it / 24 } },
+                    enterTransition = { ScreenTransition.enter() },
+                    exitTransition = { ScreenTransition.exit() },
+                    popEnterTransition = { ScreenTransition.popEnter() },
+                    popExitTransition = { ScreenTransition.popExit() },
                 ) {
                     // 加载页面
                     composable("loading") {

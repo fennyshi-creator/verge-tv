@@ -9,8 +9,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.xxxx.emby_tv.ui.motion.rememberFocusRestore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,8 +40,7 @@ fun HomeScreen(
     val doubleBackToExit = PreferencesManager(context).doubleBackToExit
     val repository = remember { EmbyRepository.getInstance(context) }
     val serverUrl = repository.serverUrl ?: ""
-    var returnRow by rememberSaveable { mutableStateOf<String?>(null) }
-    var returnItem by rememberSaveable { mutableStateOf<String?>(null) }
+    val restore = rememberFocusRestore()
 
     val resumeItems = homeViewModel.resumeItems
     val libraryLatestItems = homeViewModel.libraryLatestItems
@@ -145,20 +144,15 @@ fun HomeScreen(
                         navController.navigate("media/$id")
                     }
                 },
-                onRememberFocus = { row, id ->
-                    returnRow = row
-                    returnItem = id
-                },
-                restoreRowKey = returnRow,
-                restoreItemId = returnItem,
+                onRememberFocus = { row, id -> restore.mark(row, id) },
+                restoreRowKey = restore.rowKey,
+                restoreItemId = restore.itemId,
                 onSearch = {
-                    returnRow = "search"
-                    returnItem = null
+                    restore.mark("search", null)
                     navController.navigate("search")
                 },
                 onFavorites = {
-                    returnRow = "favorites"
-                    returnItem = null
+                    restore.mark("favorites", null)
                     val library = libraryLatestItems.firstOrNull() ?: return@OfficialHome
                     val id = library.id ?: return@OfficialHome
                     val title = library.name ?: ""

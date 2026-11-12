@@ -32,6 +32,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.*
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.data.repository.EmbyRepository
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.motion.TvLazyGrid
 import com.xxxx.emby_tv.ui.components.Loading
 import com.xxxx.emby_tv.ui.components.NoData
 import com.xxxx.emby_tv.ui.viewmodel.LibraryViewModel
@@ -55,6 +57,7 @@ fun LibraryScreen(
         initialFirstVisibleItemIndex = if (shouldFocusOnReturn) returnFocusIndex.coerceAtLeast(0) else 0,
     )
     val returnFocusRequester = remember { FocusRequester() }
+    val bringIntoView = remember { TvBringIntoView() }
 
     val repository = remember { EmbyRepository.getInstance(context) }
     val serverUrl = repository.serverUrl ?: ""
@@ -276,9 +279,10 @@ fun LibraryScreen(
 
             val num = if (maxAspectRatio > 1.0f) 4 else 6
 
-            LazyVerticalGrid(
+            TvLazyGrid(
                 columns = GridCells.Fixed(num),
                 state = gridState,
+                bringIntoView = bringIntoView,
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp),

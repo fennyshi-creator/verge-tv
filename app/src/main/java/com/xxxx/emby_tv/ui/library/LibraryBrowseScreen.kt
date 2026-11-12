@@ -58,17 +58,20 @@ import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.ui.home.ArtworkPrefetch
-import com.xxxx.emby_tv.ui.home.BreathingStroke
+import com.xxxx.emby_tv.ui.motion.ContentCrossfade
+import com.xxxx.emby_tv.ui.motion.RestoreFocus
+import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
+import com.xxxx.emby_tv.ui.motion.TvLazyGrid
+import com.xxxx.emby_tv.ui.motion.TvLeadingRow
+import com.xxxx.emby_tv.ui.motion.rememberRowGlide
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
-import com.xxxx.emby_tv.ui.focus.glideToItem
 import com.xxxx.emby_tv.ui.focus.scrolledPastStart
 import com.xxxx.emby_tv.ui.focus.viewportScroll
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
-import com.xxxx.emby_tv.ui.home.LeadingSlotRow
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
 import kotlinx.coroutines.isActive
@@ -178,11 +181,7 @@ fun LibraryBrowsePage(
                 onTab = onTab,
             )
             Box(Modifier.fillMaxSize()) {
-                androidx.compose.animation.Crossfade(
-                    targetState = tab,
-                    animationSpec = com.xxxx.emby_tv.ui.motion.Motion.fade(),
-                    label = "library-tab",
-                ) { current ->
+                ContentCrossfade(targetState = tab, label = "library-tab") { current ->
                 when (current) {
                     LibraryTab.Items -> {
                         if (itemsLoading && items.isEmpty()) {
@@ -384,14 +383,12 @@ private fun PosterGrid(
                 ArtworkPrefetch.enqueue(prefetchContext, urls, ArtRole.Primary)
             }
     }
-    LaunchedEffect(restoreItemId, items.size) {
-        if (restoreIndex < 0) return@LaunchedEffect
-        withFrameNanos { }
-        try {
-            firstFocus.requestFocus()
-        } catch (_: IllegalStateException) {
-        }
-    }
+    RestoreFocus(
+        active = restoreIndex >= 0,
+        index = restoreIndex,
+        requester = firstFocus,
+        scrollTo = { gridState.scrollToItem((it / 6) * 6) },
+    )
     LaunchedEffect(gridState, items.size) {
         snapshotFlow {
             val info = gridState.layoutInfo
@@ -399,14 +396,10 @@ private fun PosterGrid(
             info.totalItemsCount > 0 && last >= info.totalItemsCount - 8
         }.collect { if (it) onLoadMore() }
     }
-    ProvideTvBringIntoView(
-        controller = bringIntoView,
-        viewportScroll = { gridState.firstVisibleItemScrollOffset.toFloat() },
-        scrolledPastStart = { gridState.firstVisibleItemIndex > 0 },
-    ) {
-    LazyVerticalGrid(
+    TvLazyGrid(
         columns = GridCells.Fixed(6),
         state = gridState,
+        bringIntoView = bringIntoView,
         contentPadding = PaddingValues(horizontal = 28.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -439,7 +432,6 @@ private fun PosterGrid(
                 },
             )
         }
-    }
     }
 }
 
@@ -478,7 +470,7 @@ private fun PosterCell(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            if (focused) BreathingStroke(Modifier.matchParentSize(), shape)
+            if (focused) TvFocusHighlight(Modifier.matchParentSize(), shape, stroke = HomeStyle.focusStroke)
         }
         HomeText(
             text = item.name.orEmpty(),
@@ -522,8 +514,8 @@ private fun SuggestionRows(
         initialFirstVisibleItemIndex = restoreRow.coerceAtLeast(0),
     )
     val bringIntoView = remember { TvBringIntoView() }
+    val glide = rememberRowGlide(listState, bringIntoView)
     val scope = rememberCoroutineScope()
-    var rowJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val latestLabel = stringResource(R.string.library_recently_added)
     LaunchedEffect(restoreItemId, visible.size) {
         if (restoreRow < 0) return@LaunchedEffect
@@ -539,17 +531,7 @@ private fun SuggestionRows(
         val pin = index == 0
         bringIntoView.pinToStart = pin
         val requester = if (index == 0) firstFocus else focus[index]
-        rowJob?.cancel()
-        rowJob = scope.launch {
-            if (pin) listState.glideToItem(0, pinToZero = true) else listState.glideToItem(index)
-            if (!isActive) return@launch
-            withFrameNanos { }
-            try {
-                requester.requestFocus()
-            } catch (_: IllegalStateException) {
-            }
-            if (pin) listState.scrollToItem(0, 0)
-        }
+        glide.to(requester, index, pin)
     }
     ProvideTvBringIntoView(
         controller = bringIntoView,
@@ -579,7 +561,7 @@ private fun SuggestionRows(
                 modifier = Modifier.padding(start = HomeStyle.gutter, top = 8.dp, bottom = 6.dp, end = HomeStyle.gutter),
             )
             val cards = row.items.orEmpty()
-            LeadingSlotRow(
+            TvLeadingRow(
                 items = cards,
                 cardWidth = 248.dp,
                 cardHeight = 140.dp,
@@ -691,7 +673,7 @@ private fun GenreGrid(
                     maxLines = 1,
                     textAlign = TextAlign.Center,
                 )
-                if (focused) BreathingStroke(Modifier.matchParentSize(), shape)
+                if (focused) TvFocusHighlight(Modifier.matchParentSize(), shape, stroke = HomeStyle.focusStroke)
             }
         }
     }

@@ -88,7 +88,7 @@ import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.PersonInfo
 import com.xxxx.emby_tv.ui.home.ArtRole
-import com.xxxx.emby_tv.ui.home.BreathingStroke
+import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
@@ -832,13 +832,14 @@ internal fun DetailSlotRow(
                 }
             }
             if (rowFocused || forceFocused) {
-                BreathingStroke(
-                    Modifier
+                TvFocusHighlight(
+                    modifier = Modifier
                         .padding(start = 48.dp)
                         .offset(x = ringX)
                         .size(cardWidth, cardHeight),
-                    shape,
+                    shape = shape,
                     solid = forceFocused && !rowFocused,
+                    stroke = HomeStyle.focusStroke,
                 )
             }
         }

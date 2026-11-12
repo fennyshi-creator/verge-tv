@@ -46,6 +46,10 @@ import com.xxxx.emby_tv.ui.components.TvInputDialog
 import com.xxxx.emby_tv.ui.theme.ThemeColorManager
 import com.xxxx.emby_tv.ui.viewmodel.LoginViewModel
 import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
+import com.xxxx.emby_tv.ui.focus.TvBringIntoView
+import com.xxxx.emby_tv.ui.motion.ContentCrossfade
+import com.xxxx.emby_tv.ui.motion.RestoreFocus
+import com.xxxx.emby_tv.ui.motion.TvLazyGrid
 import com.xxxx.emby_tv.ui.viewmodel.SearchViewModel
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +102,7 @@ fun SearchScreen(
     val returnFocus = remember { FocusRequester() }
     var returnId by rememberSaveable { mutableStateOf<String?>(null) }
     val gridState = rememberLazyGridState()
+    val bringIntoView = remember { TvBringIntoView() }
 
 
     // Start Local Server for Search
@@ -141,22 +146,19 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(returnId, searchResults != null) {
-        val results = searchResults
-        val index = if (returnId == null || results == null) -1 else results.indexOfFirst { it.item.id == returnId }
-        if (index >= 0) {
-            gridState.scrollToItem(index)
-            withFrameNanos { }
-            try {
-                returnFocus.requestFocus()
-            } catch (_: IllegalStateException) {
-            }
-        } else {
-            delay(100)
-            try {
-                searchInputFocusRequester.requestFocus()
-            } catch (_: IllegalStateException) {
-            }
+    val restoreIndex = searchResults?.indexOfFirst { it.item.id == returnId } ?: -1
+    RestoreFocus(
+        active = restoreIndex >= 0,
+        index = restoreIndex,
+        requester = returnFocus,
+        scrollTo = { gridState.scrollToItem(it) },
+    )
+    LaunchedEffect(searchResults != null) {
+        if (returnId != null) return@LaunchedEffect
+        delay(100)
+        try {
+            searchInputFocusRequester.requestFocus()
+        } catch (_: IllegalStateException) {
         }
     }
     LaunchedEffect(gridState, searchResults?.size) {
@@ -475,11 +477,7 @@ fun SearchScreen(
                 searchResults != null -> "results"
                 else -> "idle"
             }
-            androidx.compose.animation.Crossfade(
-                targetState = resultsPhase,
-                animationSpec = com.xxxx.emby_tv.ui.motion.Motion.fade(),
-                label = "search-results",
-            ) { phase ->
+            ContentCrossfade(targetState = resultsPhase, label = "search-results") { phase ->
             if (phase == "loading") {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Loading()
@@ -506,9 +504,10 @@ fun SearchScreen(
                         if (maxAspectRatio >= 1f) maxLength else (maxLength.value * maxAspectRatio).dp
                     val numStart = if (maxAspectRatio > 1) 4 else 5
 
-                    LazyVerticalGrid(
+                    TvLazyGrid(
                         columns = GridCells.Fixed(numStart),
                         state = gridState,
+                        bringIntoView = bringIntoView,
                         contentPadding = PaddingValues(top = 10.dp, bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
