@@ -36,6 +36,13 @@ import java.net.UnknownHostException
  * Emby API 接口定义
  * 无状态设计，所有参数显式传入
  */
+internal fun similarItemsPath(userId: String, itemId: String, limit: Int, apiKey: String): String {
+    return "/Items/$itemId/Similar?UserId=$userId&Limit=$limit" +
+            "&Fields=ProductionYear,EndDate,Status,ImageTags,PrimaryImageAspectRatio,BackdropImageTags" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
 object EmbyApi {
     private const val TAG = "EmbyApi"
     const val CLIENT = "shareven/openemby_tv"
@@ -43,7 +50,7 @@ object EmbyApi {
     val DEVICE_NAME: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-    private val gson = Gson()
+    private val gson = EmbyJson.gson
 
     // ==================== 认证相关 ====================
 
@@ -310,8 +317,9 @@ object EmbyApi {
     ): List<BaseItemDto> {
         val limit = if (seriesId.isEmpty()) 15 else 1
         val url = "/Users/$userId/Items/Resume?Limit=$limit&MediaTypes=Video&ParentId=$seriesId" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear,RunTimeTicks,BackdropImageTags,ParentBackdropImageTags,SeriesName" +
-                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+                "&Fields=UserData,RunTimeTicks,ImageTags,SeriesName,IndexNumber,ParentIndexNumber," +
+                "PrimaryImageAspectRatio,ProductionYear,ParentBackdropItemId,ParentThumbItemId,ParentThumbImageTag" +
+                "&EnableImageTypes=Primary,Backdrop,Thumb,Logo&ImageTypeLimit=1" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
@@ -387,7 +395,8 @@ object EmbyApi {
         parentId: String
     ): List<BaseItemDto> {
         val url = "/Users/$userId/Items?UserId=$userId" +
-                "&Fields=BasicSyncInfo%2CCanDelete%2CPrimaryImageAspectRatio%2COverview%2CPremiereDate%2CProductionYear%2CRunTimeTicks%2CSpecialEpisodeNumbers" +
+                "&IncludeItemTypes=Episode&SortBy=IndexNumber&SortOrder=Ascending" +
+                "&Fields=Overview,RunTimeTicks,UserData,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeasonName,MediaSources,PrimaryImageAspectRatio" +
                 "&Recursive=true&IsFolder=false&ParentId=$parentId&Limit=1000&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
@@ -405,7 +414,8 @@ object EmbyApi {
     ): List<BaseItemDto> {
         val url = "/Shows/NextUp?SeriesId=$seriesId&UserId=$userId" +
                 "&EnableTotalRecordCount=false&ExcludeLocationTypes=Virtual" +
-                "&Fields=ProductionYear,PremiereDate,Container,PrimaryImageAspectRatio&X-Emby-Token=$apiKey"
+                "&Fields=Overview,RunTimeTicks,UserData,ImageTags,IndexNumber,ParentIndexNumber,SeriesName,SeasonId,SeasonName,MediaSources" +
+                "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
 
@@ -663,10 +673,7 @@ object EmbyApi {
         itemId: String,
         limit: Int = 16,
     ): List<BaseItemDto> {
-        val url = "/Items/$itemId/Similar?UserId=$userId&Limit=$limit" +
-                "&Fields=PrimaryImageAspectRatio,ProductionYear,BackdropImageTags" +
-                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
-                "&X-Emby-Token=$apiKey"
+        val url = similarItemsPath(userId, itemId, limit, apiKey)
         return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
     }
 
@@ -681,8 +688,9 @@ object EmbyApi {
         userId: String,
         itemId: String,
     ): BaseItemDto {
-        val url = "/Users/$userId/Items/$itemId?Fields=People,Overview,Genres,CommunityRating,OfficialRating," +
-                "RunTimeTicks,Width,Height,ProductionYear,PremiereDate,MediaSources,MediaStreams,BackdropImageTags" +
+        val url = "/Users/$userId/Items/$itemId?Fields=People,Overview,Genres,OfficialRating,CommunityRating," +
+                "ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,RunTimeTicks,UserData," +
+                "Width,Height,MediaSources,MediaStreams" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, url)
     }

@@ -89,6 +89,7 @@ import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
+import com.xxxx.emby_tv.util.EmbyPresentation
 import kotlinx.coroutines.yield
 import kotlin.math.min
 
@@ -224,7 +225,7 @@ fun MovieDetailPage(
                     .padding(bottom = 28.dp),
             ) {
                 Spacer(Modifier.height(236.dp))
-                TitleBlockSpaced(item, Modifier.padding(horizontal = 48.dp))
+                TitleBlockSpaced(item, serverUrl, Modifier.padding(horizontal = 48.dp))
                 Spacer(Modifier.height(18.dp))
                 ActionRow(
                     item = item,
@@ -268,21 +269,31 @@ fun MovieDetailPage(
 }
 
 @Composable
-private fun TitleBlockSpaced(item: BaseItemDto, modifier: Modifier = Modifier) {
-    val raw = item.name.orEmpty()
+private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Modifier = Modifier) {
+    val raw = EmbyPresentation.displayName(item)
     val cjk = raw.isNotEmpty() && raw.all { it.code > 0x2E80 }
     val title = if (cjk && raw.length <= 8) raw.toCharArray().joinToString("\u2003") else raw
-    val genres = item.genres.orEmpty().take(2).joinToString(" / ")
-    val year = item.productionYear?.toString().orEmpty()
-    val score = item.communityRating?.let { "★ ${"%.1f".format(it)}" }.orEmpty()
+    val genres = EmbyPresentation.genresLine(item)
+    val year = EmbyPresentation.yearLabel(item)
+    val score = EmbyPresentation.starLabel(item.communityRating).orEmpty()
     val rating = item.officialRating.orEmpty()
+    val logo = EmbyPresentation.logoUrl(serverUrl, item)
     Column(modifier.width(520.dp)) {
-        HomeText(
-            text = title,
-            fontSize = 40.sp,
-            color = Color.White,
-            fontWeight = FontWeight.Medium,
-        )
+        if (logo.isNotBlank()) {
+            coil3.compose.AsyncImage(
+                model = coil3.request.ImageRequest.Builder(LocalContext.current).data(logo).build(),
+                contentDescription = raw,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.height(72.dp).width(520.dp),
+            )
+        } else {
+            HomeText(
+                text = title,
+                fontSize = 40.sp,
+                color = Color.White,
+                fontWeight = FontWeight.Medium,
+            )
+        }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (genres.isNotBlank()) {
@@ -319,11 +330,12 @@ private fun TitleBlockSpaced(item: BaseItemDto, modifier: Modifier = Modifier) {
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val runtime = item.runTimeTicks?.let { formatClock(it) }.orEmpty()
+            val runtime = EmbyPresentation.runtimeLabel(item.runTimeTicks).orEmpty()
             if (runtime.isNotBlank()) {
                 HomeText(runtime, 14.sp, Color.White)
             }
-            if (is4k(item)) {
+            val badge = EmbyPresentation.qualityBadge(item)
+            if (!badge.isNullOrBlank()) {
                 Spacer(Modifier.width(10.dp))
                 Box(
                     Modifier
@@ -331,7 +343,7 @@ private fun TitleBlockSpaced(item: BaseItemDto, modifier: Modifier = Modifier) {
                         .background(Color(0xFF2C2C2C))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
-                    HomeText("4K", 11.sp, Color.White, fontWeight = FontWeight.Medium)
+                    HomeText(badge, 11.sp, Color.White, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -355,19 +367,13 @@ internal fun ActionRow(
     onFavorite: () -> Unit,
     onPlayed: () -> Unit,
     showVersions: Boolean = true,
+    playbackItem: BaseItemDto = item,
     modifier: Modifier = Modifier,
 ) {
     val actions = if (showVersions) listOf("play", "version", "favorite", "played") else listOf("play", "favorite", "played")
     var slot by remember { mutableIntStateOf(0) }
     var rowFocused by remember { mutableStateOf(forceFocused) }
-    val position = item.userData?.playbackPositionTicks ?: 0L
-    val runtime = item.runTimeTicks ?: 0L
-    val resume = position > 0L && runtime > position
-    val label = if (resume) {
-        stringResource(R.string.resume_remaining, formatClock(runtime - position))
-    } else {
-        stringResource(R.string.play)
-    }
+    val label = EmbyPresentation.playActionLabel(playbackItem)
     val favorite = item.userData?.isFavorite == true
     val played = item.userData?.played == true
     Row(
@@ -560,7 +566,7 @@ private fun PersonRow(
         },
     ) { index ->
         val person = people[index]
-        val url = personImageUrl(serverUrl, person)
+        val url = EmbyPresentation.personImageUrl(serverUrl, person)
         if (url.isNotBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current).data(url).build(),
@@ -761,12 +767,11 @@ private fun VersionDialog(
             Spacer(Modifier.height(12.dp))
             val rows = sources.ifEmpty { listOf(MediaSourceInfoDto(name = stringResource(R.string.play))) }
             rows.forEach { source ->
-                val label = source.name?.takeIf { it.isNotBlank() }
-                    ?: source.mediaStreams?.firstOrNull { it.height != null }?.let { stream ->
-                        val h = stream.height ?: 0
-                        if (h >= 2000 || (stream.width ?: 0) >= 3800) "4K" else "${h}p"
-                    }
-                    ?: stringResource(R.string.play)
+                val label = if (source.id.isNullOrBlank() && source.mediaStreams.isNullOrEmpty() && sources.isEmpty()) {
+                    source.name ?: stringResource(R.string.play)
+                } else {
+                    EmbyPresentation.versionLabel(source)
+                }
                 Box(
                     Modifier
                         .fillMaxWidth()

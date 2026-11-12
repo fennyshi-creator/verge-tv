@@ -82,6 +82,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
+import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import kotlinx.coroutines.yield
 import kotlin.math.min
@@ -745,26 +746,12 @@ private fun rememberFocusState(initial: Boolean = false): androidx.compose.runti
     return androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(initial) }
 }
 
-private fun cardTitle(item: BaseItemDto): String {
-    return if (item.type == "Episode") {
-        item.seriesName?.takeIf { it.isNotBlank() } ?: item.name.orEmpty()
-    } else {
-        item.name.orEmpty()
-    }
-}
+private fun cardTitle(item: BaseItemDto): String = EmbyPresentation.resumeCardTitle(item)
 
-private fun cardMeta(item: BaseItemDto): String {
-    if (item.type == "Episode" && item.parentIndexNumber != null && item.indexNumber != null) {
-        val episodeName = item.name?.takeIf { it.isNotBlank() }.orEmpty()
-        val code = "S${item.parentIndexNumber}:E${item.indexNumber}"
-        return if (episodeName.isBlank()) code else "$code - $episodeName"
-    }
-    return item.productionYear?.toString().orEmpty()
-}
+private fun cardMeta(item: BaseItemDto): String = EmbyPresentation.resumeCardSubtitle(item)
 
 private fun thumbUrl(serverUrl: String, item: BaseItemDto): String {
-    if (serverUrl.isBlank()) return ""
-    return Utils.getImageUrl(serverUrl, item, true)
+    return EmbyPresentation.resumeImageUrl(serverUrl, item)
 }
 
 private fun primaryUrl(serverUrl: String, item: BaseItemDto): String {

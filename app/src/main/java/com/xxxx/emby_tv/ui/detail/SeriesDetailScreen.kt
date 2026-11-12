@@ -63,6 +63,7 @@ import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
+import com.xxxx.emby_tv.util.EmbyPresentation
 import kotlinx.coroutines.yield
 
 enum class SeriesFocus { Hero, Episodes, Cast, Similar }
@@ -190,13 +191,11 @@ fun SeriesDetailPage(
                     .padding(bottom = 24.dp),
             ) {
                 Spacer(Modifier.height(96.dp))
-                SeriesTitleBlock(series, featured, Modifier.padding(horizontal = 48.dp))
+                SeriesTitleBlock(series, featured, serverUrl, Modifier.padding(horizontal = 48.dp))
                 Spacer(Modifier.height(16.dp))
                 ActionRow(
-                    item = series.copy(
-                        runTimeTicks = featured?.runTimeTicks ?: series.runTimeTicks,
-                        userData = featured?.userData ?: series.userData,
-                    ),
+                    item = series,
+                    playbackItem = featured ?: series,
                     focusRequester = heroFocus,
                     down = if (seasons.isNotEmpty()) seasonFocus else episodeFocus,
                     forceFocused = forceFocus == SeriesFocus.Hero,
@@ -288,7 +287,7 @@ fun SeriesDetailPage(
                             val show = similar[index]
                             Column(Modifier.width(220.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 HomeText(show.name.orEmpty(), 14.sp, Color.White, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                                val years = yearRange(show)
+                                val years = EmbyPresentation.yearLabel(show)
                                 if (years.isNotBlank()) {
                                     HomeText(years, 12.sp, Color(0xFFA3A3A3), maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
@@ -312,21 +311,31 @@ fun SeriesDetailPage(
 }
 
 @Composable
-private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, modifier: Modifier = Modifier) {
-    val genres = series.genres.orEmpty().take(2).joinToString(" / ")
+private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverUrl: String, modifier: Modifier = Modifier) {
+    val genres = EmbyPresentation.genresLine(series)
     val rating = series.officialRating.orEmpty()
-    val years = yearRange(series)
-    val score = series.communityRating?.let { "★ ${"%.1f".format(it)}" }.orEmpty()
+    val years = EmbyPresentation.yearLabel(series)
+    val score = EmbyPresentation.starLabel(series.communityRating).orEmpty()
     Column(modifier.width(520.dp)) {
-        Text(
-            text = series.name.orEmpty(),
-            color = Color(0xFFD64532),
-            fontSize = 52.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 1.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        val logo = EmbyPresentation.logoUrl(serverUrl, series)
+        if (logo.isNotBlank()) {
+            coil3.compose.AsyncImage(
+                model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(logo).build(),
+                contentDescription = EmbyPresentation.displayName(series),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.height(72.dp).width(520.dp),
+            )
+        } else {
+            Text(
+                text = EmbyPresentation.displayName(series),
+                color = Color(0xFFD64532),
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (genres.isNotBlank()) {
@@ -351,7 +360,7 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, modifie
             }
         }
         if (episode != null) {
-            val code = episodeCode(episode)
+            val code = EmbyPresentation.episodeHeading(episode)
             Spacer(Modifier.height(12.dp))
             HomeText(code, 15.sp, Color.White, fontWeight = FontWeight.Medium)
             val overview = episode.overview?.takeIf { it.isNotBlank() } ?: series.overview.orEmpty()
@@ -368,16 +377,19 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, modifie
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val runtime = episode.runTimeTicks?.let { formatClock(it) }.orEmpty()
+                val runtime = EmbyPresentation.runtimeLabel(episode.runTimeTicks).orEmpty()
                 if (runtime.isNotBlank()) HomeText(runtime, 14.sp, Color.White)
-                Spacer(Modifier.width(10.dp))
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF2C2C2C))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    HomeText(qualityLabel(episode), 11.sp, Color.White, fontWeight = FontWeight.Medium)
+                val badge = EmbyPresentation.qualityBadge(episode)
+                if (!badge.isNullOrBlank()) {
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF2C2C2C))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        HomeText(badge, 11.sp, Color.White, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }
@@ -447,7 +459,7 @@ private fun SeasonTabs(
                     .padding(horizontal = 14.dp, vertical = 6.dp),
             ) {
                 HomeText(
-                    seasonLabel(season, index),
+                    EmbyPresentation.seasonTabLabel(season).ifBlank { seasonLabel(season, index) },
                     15.sp,
                     if (isSelected) Color(0xFF161616) else Color.White,
                     fontWeight = FontWeight.Medium,
@@ -488,10 +500,8 @@ private fun EpisodeRow(
             val episode = episodes[index]
             Column(Modifier.width(248.dp).padding(top = 8.dp)) {
                 HomeText(episode.name.orEmpty(), 15.sp, Color.White, maxLines = 1)
-                val number = episode.indexNumber ?: (index + 1)
-                val runtime = episode.runTimeTicks?.let { shortRuntime(it) }.orEmpty()
                 HomeText(
-                    stringResource(R.string.episode_line, number, runtime),
+                    EmbyPresentation.episodeMeta(episode),
                     12.sp,
                     Color(0xFFB5B5B5),
                     maxLines = 1,

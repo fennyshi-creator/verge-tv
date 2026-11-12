@@ -122,6 +122,8 @@ dependencies {
     // NanoHTTPD
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
+    testImplementation("junit:junit:4.13.2")
+
     implementation("androidx.compose.ui:ui-tooling-preview:1.10.0")
     screenshotTestImplementation("androidx.compose.ui:ui-tooling:1.10.0")
     screenshotTestImplementation("com.android.tools.screenshot:screenshot-validation-api:0.0.1-alpha16")

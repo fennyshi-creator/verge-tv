@@ -1,0 +1,1417 @@
+{
+  "series": {
+    "Name": "塔尔萨之王",
+    "OriginalTitle": "Tulsa King",
+    "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+    "Id": "77420",
+    "Etag": "4368535fe78d9b872be65a6bc214ce34",
+    "DateCreated": "2026-06-07T12:06:01.0000000Z",
+    "DateModified": "2026-06-07T12:06:01.0000000Z",
+    "CanDelete": true,
+    "CanDownload": false,
+    "PresentationUniqueKey": "413215-zh-CN-c09d55636b5a483ca4ae3557136c3565",
+    "SupportsSync": true,
+    "SortName": "塔尔萨之王",
+    "ForcedSortName": "塔尔萨之王",
+    "PremiereDate": "2022-11-13T00:00:00.0000000Z",
+    "ExternalUrls": [
+      {
+        "Name": "IMDb",
+        "Url": "https://www.imdb.com/title/tt16358384"
+      },
+      {
+        "Name": "TheMovieDb",
+        "Url": "https://www.themoviedb.org/tv/153312"
+      },
+      {
+        "Name": "TheTVDB",
+        "Url": "https://thetvdb.com/?tab=series&id=413215"
+      },
+      {
+        "Name": "Trakt",
+        "Url": "https://trakt.tv/search/tmdb/153312?id_type=show"
+      }
+    ],
+    "OfficialRating": "TV-MA",
+    "Overview": "曾经的纽约黑手党族长德怀特在服刑25年后从监狱获释，却被自己老大流放去了俄克拉荷马州的塔尔萨。德怀特意识到自己的黑帮家族并没有考虑他的最佳利益，于是他从一群并非自己想象中的人物里，逐渐建立起了一个“团队”，来帮助他在一个彻头彻尾的陌生之地打造一个新的犯罪帝国。",
+    "Taglines": [
+      "More power, more problems."
+    ],
+    "Genres": [
+      "犯罪",
+      "剧情"
+    ],
+    "CommunityRating": 8.295,
+    "FileName": "塔尔萨之王",
+    "ProductionYear": 2022,
+    "RemoteTrailers": [
+      {
+        "Url": "http://www.youtube.com/watch?v=aaQSScwZPbA"
+      },
+      {
+        "Url": "http://www.youtube.com/watch?v=PXd3tO5ITyw"
+      }
+    ],
+    "ProviderIds": {
+      "Tvdb": "413215",
+      "Facebook": "TulsaKingTV",
+      "IMDB": "tt16358384",
+      "Official Website": "https://www.paramountplus.com/shows/tulsa-king/",
+      "Tmdb": "153312",
+      "TV Maze": "59344",
+      "X (Twitter)": "TulsaKing"
+    },
+    "IsFolder": true,
+    "ParentId": "238",
+    "Type": "Series",
+    "People": [
+      {
+        "Name": "西尔维斯特·史泰龙",
+        "Id": "17632",
+        "Role": "Dwight 'The General' Manfredi",
+        "Type": "Actor",
+        "PrimaryImageTag": "3d0e726dea16215866ece9c321b71e38"
+      },
+      {
+        "Name": "馬丁·斯塔爾",
+        "Id": "53438",
+        "Role": "Lawrence 'Bodhi' Geigerman",
+        "Type": "Actor",
+        "PrimaryImageTag": "426e248eb7d23b121bf322c65596439a"
+      },
+      {
+        "Name": "杰伊·威尔",
+        "Id": "91868",
+        "Role": "Tyson Mitchell",
+        "Type": "Actor",
+        "PrimaryImageTag": "7224e03be6ce25e451ead7d821f802a9"
+      },
+      {
+        "Name": "安娜贝拉·西奥拉",
+        "Id": "91869",
+        "Role": "Joanne",
+        "Type": "Actor",
+        "PrimaryImageTag": "645a752c9032f3035d709281362fa0a8"
+      },
+      {
+        "Name": "尼尔·麦克唐纳",
+        "Id": "33165",
+        "Role": "Cal Thresher",
+        "Type": "Actor",
+        "PrimaryImageTag": "4735dff1b70a1afc85b5f9e57976e8c3"
+      },
+      {
+        "Name": "罗伯特·帕特里克",
+        "Id": "33164",
+        "Role": "Jeremiah Dunmire",
+        "Type": "Actor",
+        "PrimaryImageTag": "019cfaa4453c966cbdd671b70a68dff2"
+      },
+      {
+        "Name": "博·纳普",
+        "Id": "91870",
+        "Role": "Cole Dunmire",
+        "Type": "Actor",
+        "PrimaryImageTag": "571bf0d09639f59892542a53110f5bcc"
+      },
+      {
+        "Name": "贝拉·希思科特",
+        "Id": "46956",
+        "Role": "Cleo Montague",
+        "Type": "Actor",
+        "PrimaryImageTag": "a3207cea193c08abbf69c1f691200d32"
+      },
+      {
+        "Name": "凯文·波拉克",
+        "Id": "91871",
+        "Role": "Special Agent Musso",
+        "Type": "Actor",
+        "PrimaryImageTag": "c5db78eac756b77de90c7210a898c3e2"
+      },
+      {
+        "Name": "克里斯·卡尔多维诺",
+        "Id": "26895",
+        "Role": "Goodie Carangi",
+        "Type": "Actor",
+        "PrimaryImageTag": "8fab1ba9b6d712412e41bb33f7de4fb1"
+      },
+      {
+        "Name": "麦肯娜·奎格莉·哈灵顿",
+        "Id": "91872",
+        "Role": "Grace",
+        "Type": "Actor",
+        "PrimaryImageTag": "9233f1acfb53a15ff2f696294c28bfe4"
+      },
+      {
+        "Name": "迈克尔·瓦尔登",
+        "Id": "91873",
+        "Role": "Bigfoot",
+        "Type": "Actor",
+        "PrimaryImageTag": "718ef330ff3552bd14b55456b3a4198a"
+      },
+      {
+        "Name": "加内特·赫德兰",
+        "Id": "43969",
+        "Role": "Mitch Keller",
+        "Type": "Actor",
+        "PrimaryImageTag": "1d02dda3bb06830c4a8dd9f9296841dd"
+      },
+      {
+        "Name": "达娜·德拉尼",
+        "Id": "91874",
+        "Role": "Margaret Devereaux",
+        "Type": "Actor",
+        "PrimaryImageTag": "25e780ddb0ed6184eabe6f5cda013727"
+      }
+    ],
+    "Studios": [
+      {
+        "Name": "Paramount+",
+        "Id": 24300
+      }
+    ],
+    "GenreItems": [
+      {
+        "Name": "犯罪",
+        "Id": 1480
+      },
+      {
+        "Name": "剧情",
+        "Id": 169
+      }
+    ],
+    "TagItems": [],
+    "LocalTrailerCount": 0,
+    "UserData": {
+      "UnplayedItemCount": 33,
+      "PlaybackPositionTicks": 0,
+      "PlayCount": 0,
+      "IsFavorite": false,
+      "Played": false
+    },
+    "RecursiveItemCount": 33,
+    "ChildCount": 4,
+    "DisplayPreferencesId": "f63033ff6886ecc7083a696cbeced1b0",
+    "Status": "Continuing",
+    "AirDays": [],
+    "PrimaryImageAspectRatio": 0.68,
+    "DisplayOrder": "Aired",
+    "ImageTags": {
+      "Thumb": "88bdf4bcb7104ea8215d709cb965726e",
+      "Primary": "b5ab9ad13b0d62af645f755e8e59ec23",
+      "Logo": "9056d97c171bb6e81753280b27707458"
+    },
+    "BackdropImageTags": [
+      "5d551989eb1d21d4c60f2119a0fe036a"
+    ],
+    "LockedFields": [],
+    "LockData": false
+  },
+  "seasons": {
+    "Items": [
+      {
+        "Name": "第 1 季",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79078",
+        "IndexNumber": 1,
+        "IsFolder": true,
+        "Type": "Season",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "UnplayedItemCount": 9,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ChildCount": 9,
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "ImageTags": {
+          "Primary": "e80bebaf20c98bb282152a070fd58062"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e"
+      },
+      {
+        "Name": "第 2 季",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79077",
+        "IndexNumber": 2,
+        "IsFolder": true,
+        "Type": "Season",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "UnplayedItemCount": 10,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ChildCount": 10,
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "ImageTags": {
+          "Primary": "1718e48e6a9402e7625d0adec8dd03e5"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e"
+      },
+      {
+        "Name": "第 3 季",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79079",
+        "IndexNumber": 3,
+        "IsFolder": true,
+        "Type": "Season",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "UnplayedItemCount": 10,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ChildCount": 10,
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "ImageTags": {
+          "Primary": "937ca1ab31b915a55782c25c12cb1b7a"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e"
+      },
+      {
+        "Name": "第 4 季",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224207",
+        "IndexNumber": 4,
+        "IsFolder": true,
+        "Type": "Season",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "UnplayedItemCount": 4,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ChildCount": 4,
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "ImageTags": {
+          "Primary": "504196eec561e12bfd21d57d75ed7825"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e"
+      }
+    ],
+    "TotalRecordCount": 4
+  },
+  "episodes": {
+    "Items": [
+      {
+        "Name": "重回战场",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79086",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79086",
+            "Name": "塔尔萨之王 - S02E01",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 25520000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "当德怀特和他的团队准备开设他们的赌场和新的大麻店时，执法机构的压力随之而来。",
+        "RunTimeTicks": 25520000000,
+        "Size": 0,
+        "IndexNumber": 1,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlayedPercentage": 62.91210815047022,
+          "PlaybackPositionTicks": 16055170000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "cd5b969c53227e79ab4e36209b37ce8c"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "堪萨斯蓝调",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79080",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79080",
+            "Name": "塔尔萨之王 - S02E02",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 26410000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特的家人突然现身塔尔萨，与此同时，他的新成功也引起了堪萨斯黑帮的注意。",
+        "RunTimeTicks": 26410000000,
+        "Size": 0,
+        "IndexNumber": 2,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "56b710b7b485b55f09bffcb5954d7e95"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "俄克拉荷马与曼弗雷迪",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79089",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79089",
+            "Name": "塔尔萨之王 - S02E03",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 25700000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特与比尔·贝维拉卡开了一场充满冲突的会议，随后在法庭上得知了自己接下来的命运。",
+        "RunTimeTicks": 25700000000,
+        "Size": 0,
+        "IndexNumber": 3,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "6a5ca898b24e386e208887223625f644"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "英雄与恶棍",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79083",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79083",
+            "Name": "塔尔萨之王 - S02E04",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 26820000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特和菩提正探索一个新的投资机会。与此同时，瑟瑞舍发现自己究竟能对他人施加多大的压力。",
+        "RunTimeTicks": 26820000000,
+        "Size": 0,
+        "IndexNumber": 4,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "b539ad50acd090f4540c8343efeffb07"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "螳臂当车",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79084",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79084",
+            "Name": "塔尔萨之王 - S02E05",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 23960000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "瑟瑞舍随着纽约黑帮家族内部的紧张局势加剧，开始对德怀特的团队采取行动。",
+        "RunTimeTicks": 23960000000,
+        "Size": 0,
+        "IndexNumber": 5,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "d1ddf3eeb2a68cf794a07cfdb3030378"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "领航员",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79081",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79081",
+            "Name": "塔尔萨之王 - S02E06",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 22740000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特策划了堪萨斯城和纽约的谈判。泰森努力想让家人感到骄傲，却付出了代价。",
+        "RunTimeTicks": 22740000000,
+        "Size": 0,
+        "IndexNumber": 6,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "f7493376d6f637ad77f41a585b468eef"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "生存支援",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79088",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79088",
+            "Name": "塔尔萨之王 - S02E07",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 24050000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特和他的团队试图找出最近袭击的幕后黑手，纽约黑帮内部的权力动态开始发生变化。",
+        "RunTimeTicks": 24050000000,
+        "Size": 0,
+        "IndexNumber": 7,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlayedPercentage": 71.97571725571726,
+          "PlaybackPositionTicks": 17310160000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "f8e8a8481d4e37a4baa51128377d5267"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "新官上任",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79082",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79082",
+            "Name": "塔尔萨之王 - S02E08",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 25490000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "贝维拉卡准备复仇。瑟瑞舍和明讨论了一项新的安排。",
+        "RunTimeTicks": 25490000000,
+        "Size": 0,
+        "IndexNumber": 8,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "41d3d1f3c91dbcd2f775593cad059e7c"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "三位一体",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79085",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79085",
+            "Name": "塔尔萨之王 - S02E09",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 21950000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "玛格丽特被卷入德怀特的生意中，随着局势进一步恶化，芬纳里奥牧场开始出现麻烦。",
+        "RunTimeTicks": 21950000000,
+        "Size": 0,
+        "IndexNumber": 9,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "dd0383db9a93b14ec49c8ffba0b9f147"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "重建",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79087",
+        "Container": "hls",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79087",
+            "Name": "塔尔萨之王 - S02E10",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 21090000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特和他的团队在帝国扩张的同时，开始着手将未完成的事一一解决。",
+        "RunTimeTicks": 21090000000,
+        "Size": 0,
+        "IndexNumber": 10,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "fe739e72172aefc82529c160dc285bb1"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 10
+  },
+  "series_resume": {
+    "Items": [
+      {
+        "Name": "生存支援",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79088",
+        "RunTimeTicks": 24050000000,
+        "IndexNumber": 7,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlayedPercentage": 71.97571725571726,
+          "PlaybackPositionTicks": 17310160000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "f8e8a8481d4e37a4baa51128377d5267"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "新官上任",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79082",
+        "RunTimeTicks": 25490000000,
+        "IndexNumber": 8,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "41d3d1f3c91dbcd2f775593cad059e7c"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "三位一体",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79085",
+        "RunTimeTicks": 21950000000,
+        "IndexNumber": 9,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "dd0383db9a93b14ec49c8ffba0b9f147"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "重建",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79087",
+        "RunTimeTicks": 21090000000,
+        "IndexNumber": 10,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "fe739e72172aefc82529c160dc285bb1"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "血与波本",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79106",
+        "RunTimeTicks": 28740000000,
+        "IndexNumber": 1,
+        "ParentIndexNumber": 3,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79079",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 3 季",
+        "ImageTags": {
+          "Primary": "310a51f26b562a0a8be74517fb919c5f"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 18
+  },
+  "next_up": {
+    "Items": [
+      {
+        "Name": "生存支援",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79088",
+        "Container": "hls",
+        "PremiereDate": "2024-10-27T00:00:00.0000000Z",
+        "MediaSources": [
+          {
+            "Id": "mediasource_79088",
+            "Name": "塔尔萨之王 - S02E07",
+            "Container": "hls",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 24050000000,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "德怀特和他的团队试图找出最近袭击的幕后黑手，纽约黑帮内部的权力动态开始发生变化。",
+        "RunTimeTicks": 24050000000,
+        "Size": 0,
+        "IndexNumber": 7,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlayedPercentage": 71.97571725571726,
+          "PlaybackPositionTicks": 17310160000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "f8e8a8481d4e37a4baa51128377d5267"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 18
+  },
+  "series_similar": {
+    "Items": [
+      {
+        "Name": "嗜血法医：杀魔复生",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77341",
+        "OfficialRating": "TV-MA",
+        "Overview": "德克斯特·摩根从昏迷中醒来，发现哈里森不知所踪。意识到自己对儿子造成的伤害，德克斯特启程前往纽约，决心找到哈里森，弥补过失。但最终的结局并非易事。迈阿密地铁的安吉尔·巴蒂斯塔带着疑问前来，德克斯特意识到自己的过去正迅速地追上自己。父子俩在这座不夜城里摸索着各自的黑暗，很快发现自己陷入了比想象中更深的困境——而唯一的出路就是携手共进。",
+        "CommunityRating": 8.5,
+        "ProductionYear": 2025,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 12,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "b3cef4893aa0fb4134a09a82a4bf1970",
+          "Thumb": "e50eb63e3e59f9c716d4ce0a277485fb",
+          "Primary": "23fbe9c6aa17b4e64841c4d5250ebd19"
+        },
+        "BackdropImageTags": [
+          "bbd6597914f13db46b1c54a3c334fc2d"
+        ]
+      },
+      {
+        "Name": "黑帮领地",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77399",
+        "OfficialRating": "TV-MA",
+        "Overview": "两个敌对的伦敦黑帮家族，哈里根家族与史蒂文森家族争夺大权，展开你死我活的战争，恐怕将推翻帝国并摧毁许多人的人生。危险又英俊的平事人哈利被卷入战局，他很清楚对立势力交锋时人们的忠诚何在。两强交锋时，一定会跨越界线，唯一的可取之处就是不变的信条：家人最重要。",
+        "CommunityRating": 8.3,
+        "RunTimeTicks": 72000000000,
+        "ProductionYear": 2025,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 10,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "0a8cc8cf80a6424b7cf54a9b9e5a03c2",
+          "Thumb": "451575692929d2709050ad63335ab047",
+          "Primary": "0c5714b51ffedf993d5c72bd5404aa7b"
+        },
+        "BackdropImageTags": [
+          "fc69b9228d4ae22d6b5a37c47a2357c0"
+        ]
+      },
+      {
+        "Name": "金斯敦市长",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77400",
+        "OfficialRating": "TV-MA",
+        "Overview": "故事发生在密歇根州的一个小镇上，这镇唯一主要行业就是联邦监狱、州监狱及私人监狱。聚焦小镇的McClusky家庭身上，他们在这取决于监狱及囚犯的镇上拥有无比权力，不管警察、罪犯、囚犯、狱警及政客都得看他们脸色。",
+        "CommunityRating": 7.949,
+        "ProductionYear": 2021,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 39,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "fe664e5c532832b1197fdcc9b9debd09",
+          "Thumb": "c069b2164386e59b23c39aa59e61c0fd",
+          "Primary": "511fe800860d13d4c0dc6c0333856e13"
+        },
+        "BackdropImageTags": [
+          "40510caac8768288688953edf1293634"
+        ]
+      },
+      {
+        "Name": "1923",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77371",
+        "OfficialRating": "TV-MA",
+        "Overview": "本剧讲述 Dutton 家族的另一个世代，他们经历了包括西进运动、禁酒令和大萧条在内的各种困难时期，为了克服当时的种种艰辛而奋斗的故事。",
+        "CommunityRating": 8.255,
+        "ProductionYear": 2022,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 15,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Ended",
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "24ae70d9d4c4214736311001babd9d0e",
+          "Primary": "dd371cfdceb65c7ac059efab5305a8b3",
+          "Logo": "baa34ada47b135742c72667fee240054"
+        },
+        "BackdropImageTags": [
+          "89534130ea0388adf4c36f982d23ea11"
+        ],
+        "EndDate": "2025-04-06T00:00:00.0000000Z"
+      },
+      {
+        "Name": "麦迪逊河谷",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "83974",
+        "OfficialRating": "TV-MA",
+        "Overview": "该剧是《黄石》宇宙的第一部现代背景衍生剧，故事聚焦一个纽约家庭在蒙大拿州中部麦迪逊河谷地的生活，将对悲伤和人际关系进行真诚的研究和审视。",
+        "CommunityRating": 8.044,
+        "ProductionYear": 2026,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 3,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "ff91174ff6da9d1657de934f2d45c867",
+          "Logo": "21093551d66f4ce76ffd9763ac9843a5"
+        },
+        "BackdropImageTags": [
+          "a2d87271b888cff9b486cbfdfb2fbfbd"
+        ]
+      },
+      {
+        "Name": "1883",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77389",
+        "OfficialRating": "TV-MA",
+        "Overview": "故事聚焦Dutton一家在多年前西进的旅程，他们穿越大平原前往美国最后一站蛮荒之地，在应许之地蒙大拿寻求更美好的未来。艾里奥特饰演强硬的牛仔Shea Brennan，有着非常悲伤的过去，他承担着带领一群人从德克萨斯前往蒙大拿的艰巨任务，绝不容忍蠢人。",
+        "CommunityRating": 8.28,
+        "ProductionYear": 2021,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 10,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Ended",
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "c0d86ead08732bfa803dbca2b6c929d2",
+          "Primary": "e5c117ca672cf4fa61405be17477d262",
+          "Logo": "c1fcd10488c5dfb74dfce5ad4e5a8263"
+        },
+        "BackdropImageTags": [
+          "fd86c6a990db6707f228052c7e037002"
+        ],
+        "EndDate": "2022-02-27T00:00:00.0000000Z"
+      },
+      {
+        "Name": "达顿牧场",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "83980",
+        "OfficialRating": "TV-MA",
+        "Overview": "抛开《黄石》时期经历的阴影，Beth和Rip努力共筑未来，但他们遭遇了残酷的新现实，以及一家不择手段、只为保住自己帝国的无情敌对牧场。在南得克萨斯州，血脉之深远胜于一切，宽恕转瞬即逝，而生存的代价，或许正是你的灵魂。",
+        "CommunityRating": 9.244,
+        "ProductionYear": 2026,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 1,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "c6cf7fa1897052fc567afcba1f59b8f6",
+          "Logo": "a763fbe8a2d6f3f0b1bed8dfadb282fb",
+          "Thumb": "1172a9d44e999a679d57399db2b82bac"
+        },
+        "BackdropImageTags": [
+          "5b8b40c715315712c3fa25174e509a88"
+        ]
+      },
+      {
+        "Name": "静水城",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81904",
+        "OfficialRating": "R",
+        "Overview": "影片围绕一个来自俄克拉荷马州的美国石油钻井平台钻工比尔(达蒙饰)展开。他不得不前往马赛，拜访他久未谋面却锒铛入狱的女儿(布雷斯林饰)，他的女儿坚称并没有犯下谋杀罪。面对语言的障碍、文化的差异，以及复杂的法律制度，比尔决意孤注一掷拯救他的女儿。而在这个过程中，他与一位当地的女性和她的小女儿建立了友谊，也开始了个人的探索之旅，并获得了更大的归属感。",
+        "CommunityRating": 6.632,
+        "RunTimeTicks": 83630000000,
+        "ProductionYear": 2021,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "788b626ec7302aa3010a79db5bb486db",
+          "Thumb": "73bff0c7d996c9bce82d900f6dedfb9a",
+          "Primary": "17009e3134c41400f26dc3a2b51d89de"
+        },
+        "BackdropImageTags": [
+          "02d891718ed4c75621ad6f82cd993877"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "忠奸人",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82588",
+        "OfficialRating": "R",
+        "Overview": "　　为打击黑手党势力，美国联邦调查局委派探员乔皮斯通化名道尼布拉斯科打入黑帮卧底。通过一次珠宝生意，乔结识了黑帮头目本尼罗杰洛，并得到他的赏识。为取得罗杰洛的信任，乔不得不无恶不做，参与了一系列犯罪活动。但随着与罗杰洛接触的越久，乔竟对罗杰洛产生了友谊，为人处事的态度也发生了变化。由于工作的过度投入，更忽视了家人的感受，令妻子与其产生了隔阂。在心意彷徨的这段时间里，他没有按时间向联邦调查局发出情报，而罗杰洛已按奈不住抢班夺权的野心与道尼谋划干掉老大的计划。不料，联邦调查局由于长时间与乔失去联系，另派人进行跟踪监视，致使罗杰洛的计划败露。形势发生急转直下的变化……",
+        "CommunityRating": 7.535,
+        "RunTimeTicks": 88270000000,
+        "ProductionYear": 1997,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Thumb": "cbf622d42ee67c69efa121e2c8f17323",
+          "Primary": "1a2e09157019f241819321a833462140",
+          "Logo": "7160f71f8ca6ef6583256bda7407a4d5"
+        },
+        "BackdropImageTags": [
+          "9054dc73fe63e37e14f630e2021d86be"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "人之怒",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82063",
+        "OfficialRating": "R",
+        "Overview": "在一次全副武装的运钞车劫案中，梅斯先生的儿子作为案发目击者被劫匪杀害。怒火中烧的梅斯为报丧子之仇，化身卧底成为运钞车安保，试图找出杀害他儿子的劫匪以及与劫匪暗中勾结的安保公司内鬼。",
+        "CommunityRating": 7.572,
+        "RunTimeTicks": 71360000000,
+        "ProductionYear": 2021,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Thumb": "e5cb10234445f54823af8bd3725037c2",
+          "Primary": "6dbfc49c76565146a8f3961429ba0f46",
+          "Logo": "eab74991a6bf35dc88cf747848c64709"
+        },
+        "BackdropImageTags": [
+          "17d46d11de1b20ea7538035781cc25cd"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "无间道风云",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82461",
+        "OfficialRating": "R",
+        "Overview": "这部由马丁·斯科塞斯执导的硬派犯罪剧情片，将我们带入两名警察的人生：科林·沙利文（马特·达蒙 饰）精明而野心勃勃，看似在麻省州警精英特别调查组中拥有快速晋升通道，该部门的首要目标是势力庞大的爱尔兰黑帮头目弗兰克·卡斯特罗（杰克·尼科尔森 饰）。比利·科斯蒂根（莱昂纳多·迪卡普里奥 饰）熟知街头法则且强悍坚韧，却因被指暴力倾向而失去警徽，最终重回南波士顿的混乱街头，并被招募加入卡斯特罗的团伙。然而两人皆隐藏着真实身份，当他们在对立阵营中展开行动时，被迫卷入一场生死攸关的致命猫鼠游戏。[华纳兄弟]",
+        "CommunityRating": 8.159,
+        "RunTimeTicks": 90800000000,
+        "ProductionYear": 2006,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "4e34586103b2347e647d49aacf42976b",
+          "Thumb": "b67d35114acba7a88065c0c37f0ffa5c",
+          "Primary": "d233a7a14d8b70f3f281b40c03d71ea1"
+        },
+        "BackdropImageTags": [
+          "f291265a60c61e4a050e519cf0e6fbe5"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "惊世狂花",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82628",
+        "OfficialRating": "R",
+        "Overview": "薇拉（珍妮佛•提莉 Jennifer Tilly 饰）是黑道中人的老婆，阴暗的生活令她非常厌倦。这天，她家隔壁新搬来了一个颇有男子气质的女邻居高琪（吉娜•吉舍恩 Gina Gershon 饰），她会亲自动手修下水管，打扮总是非常脏乱。一种莫名的情愫在薇拉心中涌动，她主动接近高琪，风情万种的引诱她，二人终于堕入断臂之爱。薇拉一心想和高琪远走高飞，逃离现在的生活。于是，高琪和她展开了一场危险游戏。",
+        "CommunityRating": 7.2,
+        "RunTimeTicks": 65160000000,
+        "ProductionYear": 1996,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "23b7bfe6beea0bf8fb3287d7cb50bec0",
+          "Thumb": "5f75ce36b0539ae0f8b96ad7248f930c",
+          "Primary": "cdc901196f603b159b28b54ac8f81e09"
+        },
+        "BackdropImageTags": [
+          "326d926e925331faf76ad9776bacd423"
+        ],
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 12
+  }
+}

@@ -177,7 +177,10 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
                 emptyList()
             }
             resumeItem = try {
-                withContext(Dispatchers.IO) { repository.getResumeItems(seriesId).firstOrNull() }
+                withContext(Dispatchers.IO) {
+                    repository.getShowsNextUp(seriesId).firstOrNull()
+                        ?: repository.getResumeItems(seriesId).firstOrNull()
+                }
             } catch (_: Exception) {
                 null
             }
