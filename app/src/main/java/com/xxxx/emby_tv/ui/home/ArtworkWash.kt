@@ -1,0 +1,108 @@
+package com.xxxx.emby_tv.ui.home
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.toBitmap
+import com.xxxx.emby_tv.ui.motion.Motion
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.max
+import kotlin.math.min
+
+/**
+ * Picks a muted swatch for the page wash. Null means "keep the dark background".
+ */
+object ArtworkWash {
+    fun argb(darkMuted: Int?, muted: Int?, darkVibrant: Int?): Int? {
+        return darkMuted ?: muted ?: darkVibrant
+    }
+
+    /**
+     * Average of mid-tone, slightly saturated pixels. Skips near-black and
+     * near-white so a poster does not flood the page.
+     */
+    fun sampleMuted(pixels: IntArray): Int? {
+        if (pixels.isEmpty()) return null
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0
+        for (color in pixels) {
+            val rr = (color shr 16) and 0xFF
+            val gg = (color shr 8) and 0xFF
+            val bb = color and 0xFF
+            val hi = max(rr, max(gg, bb))
+            val lo = min(rr, min(gg, bb))
+            val light = (hi + lo) / 2
+            if (light < 28 || light > 170) continue
+            if (hi == 0 || (hi - lo) * 255 / hi < 18) continue
+            r += rr
+            g += gg
+            b += bb
+            n++
+        }
+        if (n == 0) return null
+        return (0xFF shl 24) or ((r / n).toInt() shl 16) or ((g / n).toInt() shl 8) or (b / n).toInt()
+    }
+}
+
+/**
+ * A low, directional tint. [strength] is 0 on the hero and 1 once that
+ * backdrop has slid away. A missing bitmap leaves the color transparent.
+ */
+@Composable
+fun AmbientWash(
+    url: String?,
+    strength: Float,
+    modifier: Modifier = Modifier,
+    maxAlpha: Float = 0.42f,
+) {
+    val context = LocalContext.current
+    var swatch by remember { mutableStateOf<Color?>(null) }
+    LaunchedEffect(url) {
+        if (url.isNullOrBlank()) {
+            swatch = null
+            return@LaunchedEffect
+        }
+        val next = withContext(Dispatchers.IO) {
+            runCatching {
+                val result = SingletonImageLoader.get(context).execute(
+                    ImageRequest.Builder(context).data(url).size(48, 72).build(),
+                )
+                val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@runCatching null
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                ArtworkWash.sampleMuted(pixels)?.let { Color(it) }
+            }.getOrNull()
+        }
+        swatch = next
+    }
+    val target = swatch?.copy(alpha = maxAlpha) ?: Color.Transparent
+    val color by animateColorAsState(target, Motion.fade(), label = "ambient-wash")
+    val shown = color.copy(alpha = color.alpha * strength.coerceIn(0f, 1f))
+    if (shown.alpha <= 0.01f) return
+    Canvas(modifier.fillMaxSize()) {
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(shown, shown.copy(alpha = shown.alpha * 0.35f), Color.Transparent),
+                start = Offset(size.width * 0.05f, size.height * 0.15f),
+                end = Offset(size.width * 0.92f, size.height * 0.95f),
+            ),
+        )
+    }
+}

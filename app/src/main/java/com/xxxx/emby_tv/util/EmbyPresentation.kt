@@ -15,6 +15,19 @@ object EmbyPresentation {
 
     fun displayName(item: BaseItemDto): String = item.name.orEmpty()
 
+    /** Homepage hero line: genres · year · ★ rating. Missing pieces are dropped. */
+    fun heroMetaLine(genres: List<String>?, year: Int?, rating: Double?): String {
+        val parts = ArrayList<String>()
+        val names = genres.orEmpty().filter { it.isNotBlank() }.take(2)
+        if (names.isNotEmpty()) parts += names.joinToString(" · ")
+        if (year != null && year > 0) parts += year.toString()
+        if (rating != null && rating > 0.0) {
+            val tenths = kotlin.math.round(rating * 10.0).toInt()
+            parts += "★ ${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
+        }
+        return parts.joinToString(" · ")
+    }
+
     fun hasLogo(item: BaseItemDto): Boolean = !item.imageTags?.get("Logo").isNullOrBlank()
 
     fun logoUrl(serverUrl: String, item: BaseItemDto, maxWidth: Int = 800): String {

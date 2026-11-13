@@ -38,6 +38,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.home.ArtRole
@@ -62,6 +63,7 @@ fun TvLeadingRow(
     onActivate: (BaseItemDto) -> Unit,
     onMenu: () -> Unit,
     onFocused: (() -> Unit)? = null,
+    onFocusedIndex: ((Int) -> Unit)? = null,
     onExitDown: (() -> Unit)? = null,
     onExitUp: (() -> Unit)? = null,
     initialWindowStart: Int = 0,
@@ -110,13 +112,27 @@ fun TvLeadingRow(
             if (slot > 0) slot-- else if (windowStart > 0) windowStart--
         }
 
+        val density = LocalDensity.current
+        val insetPx = with(density) { HomeStyle.gutter.roundToPx() }
+        val stridePx = with(density) { stride.roundToPx() }
         val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<Dp> =
             if (repeating) Motion.repeatStep() else Motion.row()
-        val slide by animateDpAsState(-(stride * windowStart), slideSpec, label = "leading-slot-slide")
-        val ringX by animateDpAsState(stride * slot, slideSpec, label = "leading-slot-ring")
+        val slide by animateDpAsState(
+            with(density) { LeadingPeek.slide(windowStart, insetPx, stridePx).toDp() },
+            slideSpec,
+            label = "leading-slot-slide",
+        )
+        val ringX by animateDpAsState(
+            with(density) { LeadingPeek.focusedX(insetPx, slot, stridePx).toDp() },
+            slideSpec,
+            label = "leading-slot-ring",
+        )
         val shape = RoundedCornerShape(corner)
         val focusedIndex = (windowStart + slot).coerceIn(0, items.lastIndex)
         val prefetchContext = LocalContext.current
+        LaunchedEffect(focusedIndex, rowFocused) {
+            if (rowFocused || forceFocused) onFocusedIndex?.invoke(focusedIndex)
+        }
         LaunchedEffect(windowStart, focusedIndex, imageUrls, backdropUrls) {
             if (imageUrls.isNotEmpty()) {
                 val end = (windowStart + fullSlots + 4).coerceAtMost(imageUrls.size)
@@ -160,7 +176,6 @@ fun TvLeadingRow(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = HomeStyle.gutter)
                     .clipToBounds(),
             ) {
                 Row(
@@ -187,7 +202,6 @@ fun TvLeadingRow(
             if (rowFocused || forceFocused) {
                 TvFocusHighlight(
                     modifier = Modifier
-                        .padding(start = HomeStyle.gutter)
                         .offset(x = ringX)
                         .width(cardWidth)
                         .height(cardHeight),

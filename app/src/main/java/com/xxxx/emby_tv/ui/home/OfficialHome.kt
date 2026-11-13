@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -101,6 +102,7 @@ import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.motion.FadeInImage
+import com.xxxx.emby_tv.ui.motion.FocusPill
 import com.xxxx.emby_tv.ui.motion.Motion
 import com.xxxx.emby_tv.ui.motion.StageDock
 import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
@@ -109,6 +111,7 @@ import com.xxxx.emby_tv.ui.motion.rememberStageScroll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -134,7 +137,9 @@ fun OfficialHome(
     val searchFocus = remember { FocusRequester() }
     val homeTabFocus = remember { FocusRequester() }
     val favoritesFocus = remember { FocusRequester() }
-    val settingsFocus = remember { FocusRequester() }
+    var menuSlot by remember {
+        mutableIntStateOf(when (restoreRowKey) { "search" -> 0; "favorites" -> 2; else -> 1 })
+    }
     val continueFocus = remember { FocusRequester() }
     val libraryFocus = remember { FocusRequester() }
     val posterRows = libraries.filter { library ->
@@ -184,8 +189,7 @@ fun OfficialHome(
         repeat(2) { withFrameNanos { } }
         val rowIndex = restoredIndex()
         val target = when (restoreRowKey) {
-            "search" -> searchFocus
-            "favorites" -> favoritesFocus
+            "search", "favorites" -> homeTabFocus
             "resume" -> continueFocus
             "libraries" -> libraryFocus
             "hero" -> heroFocus
@@ -225,6 +229,13 @@ fun OfficialHome(
             }
             val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
             var columnRoot by remember { mutableIntStateOf(0) }
+            var washUrl by remember { mutableStateOf<String?>(null) }
+            val washFadePx = with(density) { 140.dp.roundToPx() }.coerceAtLeast(1)
+            AmbientWash(
+                url = washUrl,
+                strength = (scroll.value / washFadePx.toFloat()).coerceIn(0f, 1f),
+                modifier = Modifier.fillMaxSize(),
+            )
             fun Modifier.stageAnchor(index: Int): Modifier = onGloballyPositioned { coords ->
                 val y = (coords.positionInRoot().y - columnRoot + scroll.value).toInt()
                 stage.record(index, y)
@@ -236,18 +247,16 @@ fun OfficialHome(
                     .verticalScroll(scroll),
             ) {
                 if (heroItem != null) {
-                    HomeHero(
+                        HomeHero(
                         item = heroItem,
                         serverUrl = serverUrl,
-                        searchFocus = searchFocus,
-                        homeTabFocus = homeTabFocus,
-                        favoritesFocus = favoritesFocus,
-                        settingsFocus = settingsFocus,
+                        menuFocus = homeTabFocus,
+                        menuSlot = menuSlot,
+                        onMenuSlot = { menuSlot = it },
                         heroFocus = heroFocus,
                         downRow = contentFocus,
                         onSearch = onSearch,
                         onFavorites = onFavorites,
-                        onSettings = onSettings,
                         onOpen = {
                             heroItem.id?.let { onRememberFocus("hero", it) }
                             if (heroItem.type == "Episode") onResume(heroItem) else onOpenItem(heroItem)
@@ -261,14 +270,12 @@ fun OfficialHome(
                     )
                 } else {
                     HomeTopBar(
-                        searchFocus = searchFocus,
-                        homeTabFocus = homeTabFocus,
-                        favoritesFocus = favoritesFocus,
-                        settingsFocus = settingsFocus,
+                        menuFocus = homeTabFocus,
+                        menuSlot = menuSlot,
+                        onMenuSlot = { menuSlot = it },
                         down = menuDown,
                         onSearch = onSearch,
                         onFavorites = onFavorites,
-                        onSettings = onSettings,
                         modifier = Modifier.stageAnchor(0),
                     )
                 }
@@ -295,6 +302,7 @@ fun OfficialHome(
                             },
                             onMenu = onSettings,
                             onFocused = { stage.dock(continueIndex) },
+                            onFocusedIndex = { washUrl = thumbUrl(serverUrl, resumeItems[it]) },
                             onExitUp = {
                                 if (heroItem != null) focusRow(heroFocus, 0, pin = true)
                                 else focusRow(homeTabFocus, 0, pin = true)
@@ -333,6 +341,7 @@ fun OfficialHome(
                             },
                             onMenu = onSettings,
                             onFocused = { stage.dock(libraryIndex) },
+                            onFocusedIndex = { washUrl = primaryUrl(serverUrl, libraries[it]) },
                             onExitUp = {
                                 if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
                                 else if (heroItem != null) focusRow(heroFocus, 0, pin = true)
@@ -376,6 +385,9 @@ fun OfficialHome(
                             },
                             onMenu = onSettings,
                             onFocused = { stage.dock(posterIndex[index]) },
+                            onFocusedIndex = { itemIndex ->
+                                library.latestItems.orEmpty().getOrNull(itemIndex)?.let { washUrl = primaryUrl(serverUrl, it) }
+                            },
                             onExitUp = {
                                 if (index == 0) {
                                     if (libraryIndex >= 0) focusRow(libraryFocus, libraryIndex, pin = false)
@@ -461,15 +473,13 @@ private fun StageTitle(
 private fun HomeHero(
     item: BaseItemDto,
     serverUrl: String,
-    searchFocus: FocusRequester,
-    homeTabFocus: FocusRequester,
-    favoritesFocus: FocusRequester,
-    settingsFocus: FocusRequester,
+    menuFocus: FocusRequester,
+    menuSlot: Int,
+    onMenuSlot: (Int) -> Unit,
     heroFocus: FocusRequester,
     downRow: FocusRequester,
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
-    onSettings: () -> Unit,
     onOpen: () -> Unit,
     onDown: () -> Unit,
     onUp: () -> Unit,
@@ -508,14 +518,12 @@ private fun HomeHero(
                 ),
         )
         HomeTopBar(
-            searchFocus = searchFocus,
-            homeTabFocus = homeTabFocus,
-            favoritesFocus = favoritesFocus,
-            settingsFocus = settingsFocus,
+            menuFocus = menuFocus,
+            menuSlot = menuSlot,
+            onMenuSlot = onMenuSlot,
             down = heroFocus,
             onSearch = onSearch,
             onFavorites = onFavorites,
-            onSettings = onSettings,
             modifier = Modifier.align(Alignment.TopStart),
         )
         Column(
@@ -525,7 +533,7 @@ private fun HomeHero(
                 .fillMaxWidth(0.46f)
                 .focusRequester(heroFocus)
                 .focusProperties {
-                    this.up = homeTabFocus
+                    this.up = menuFocus
                     this.down = downRow
                 }
                 .onKeyEvent { event ->
@@ -558,7 +566,7 @@ private fun HomeHero(
                     contentDescription = item.name,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.CenterStart,
-                    modifier = Modifier.height(46.dp).fillMaxWidth(),
+                    modifier = Modifier.height(68.dp).fillMaxWidth(),
                 )
             } else {
                 HomeText(
@@ -569,7 +577,7 @@ private fun HomeHero(
                     maxLines = 2,
                 )
             }
-            val meta = heroMeta(item)
+            val meta = EmbyPresentation.heroMetaLine(item.genres, item.productionYear, item.communityRating)
             if (meta.isNotBlank()) {
                 HomeText(
                     text = meta,
@@ -585,7 +593,7 @@ private fun HomeHero(
                     text = overview,
                     fontSize = 15.sp,
                     color = Color(0xFFE4E4E4),
-                    maxLines = 2,
+                    maxLines = 3,
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
@@ -593,90 +601,123 @@ private fun HomeHero(
     }
 }
 
-private fun heroMeta(item: BaseItemDto): String {
-    val parts = ArrayList<String>()
-    val genres = item.genres?.filter { it.isNotBlank() }?.take(2)?.joinToString(" / ").orEmpty()
-    if (genres.isNotBlank()) parts += genres
-    item.productionYear?.let { parts += it.toString() }
-    item.communityRating?.takeIf { it > 0.0 }?.let { rating ->
-        val tenths = kotlin.math.round(rating * 10.0).toInt()
-        parts += "${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
-    }
-    return parts.joinToString("  ·  ")
-}
-
 @Composable
 private fun HomeTopBar(
-    searchFocus: FocusRequester,
-    homeTabFocus: FocusRequester,
-    favoritesFocus: FocusRequester,
-    settingsFocus: FocusRequester,
+    menuFocus: FocusRequester,
+    menuSlot: Int,
+    onMenuSlot: (Int) -> Unit,
     down: FocusRequester,
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
-    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val labels = listOf(
+        stringResource(R.string.search),
+        stringResource(R.string.home_tab),
+        stringResource(R.string.favorite),
+    )
+    var rowFocused by remember { mutableStateOf(false) }
+    var slot by remember(menuSlot) { mutableIntStateOf(menuSlot.coerceIn(0, labels.lastIndex)) }
+    val chipLeft = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
+    val chipWidth = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
+    var rowLeft by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val targetLeft = chipLeft[slot] ?: 0
+    val targetWidth = chipWidth[slot] ?: 0
+    val pillX by animateDpAsState(
+        with(density) { targetLeft.toDp() },
+        Motion.focus(),
+        label = "menu-pill-x",
+    )
+    val pillW by animateDpAsState(
+        with(density) { targetWidth.toDp() },
+        Motion.focus(),
+        label = "menu-pill-w",
+    )
     Row(
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = HomeStyle.gutter, vertical = 12.dp),
+        modifier.padding(start = HomeStyle.gutter, top = 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         EmbyMark()
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xCC2A2A2A))
+                .focusRequester(menuFocus)
+                .focusProperties { this.down = down }
+                .onFocusChanged { rowFocused = it.isFocused }
+                .focusable()
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            if (slot < labels.lastIndex) {
+                                slot++
+                                onMenuSlot(slot)
+                            }
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            if (slot == 0) false else {
+                                slot--
+                                onMenuSlot(slot)
+                                true
+                            }
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            when (slot) {
+                                0 -> onSearch()
+                                2 -> onFavorites()
+                            }
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+                .onGloballyPositioned { rowLeft = it.positionInWindow().x.roundToInt() },
         ) {
-            NavIconButton(
-                focusRequester = searchFocus,
-                left = null,
-                right = homeTabFocus,
-                down = down,
-                onClick = onSearch,
-                contentDescription = stringResource(R.string.search),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp),
+            if (rowFocused && targetWidth > 0) {
+                Box(
+                    Modifier
+                        .offset(x = pillX)
+                        .width(pillW)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White),
                 )
             }
-            NavPill(
-                text = stringResource(R.string.home_tab),
-                selected = true,
-                focusRequester = homeTabFocus,
-                left = searchFocus,
-                right = favoritesFocus,
-                down = down,
-                onClick = {},
-            )
-            NavPill(
-                text = stringResource(R.string.favorite),
-                selected = false,
-                focusRequester = favoritesFocus,
-                left = homeTabFocus,
-                right = settingsFocus,
-                down = down,
-                onClick = onFavorites,
-            )
-            NavIconButton(
-            focusRequester = settingsFocus,
-            left = favoritesFocus,
-            right = null,
-            down = down,
-            onClick = onSettings,
-            contentDescription = stringResource(R.string.settings),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
-        }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                labels.forEachIndexed { index, label ->
+                    val focused = FocusPill.menuFace(rowFocused, slot, index) == FocusPill.Face.Focused
+                    Box(
+                        Modifier
+                            .onGloballyPositioned { coords ->
+                                chipLeft[index] = coords.positionInWindow().x.roundToInt() - rowLeft
+                                chipWidth[index] = coords.size.width
+                            }
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (index == 0) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = label,
+                                tint = if (focused) Color(0xFF161616) else Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        } else {
+                            HomeText(
+                                text = label,
+                                fontSize = HomeStyle.navSize,
+                                color = if (focused) Color(0xFF161616) else Color.White,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

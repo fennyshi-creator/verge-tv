@@ -213,6 +213,12 @@ fun MovieDetailPage(
             if (dim > 0.01f) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
             }
+            com.xxxx.emby_tv.ui.home.AmbientWash(
+                url = backdrop,
+                strength = 0.28f,
+                maxAlpha = 0.2f,
+                modifier = Modifier.fillMaxSize(),
+            )
             Box(
                 Modifier
                     .fillMaxSize()
@@ -766,9 +772,24 @@ internal fun DetailSlotRow(
         if (windowStart > maxStart) windowStart = maxStart
         val lastSlot = (min(fullSlots, count - windowStart) - 1).coerceAtLeast(0)
         if (slot > lastSlot) slot = lastSlot
-        val peek = if (peekPrevious && windowStart > 0) 36.dp else 0.dp
-        val slide by animateDpAsState(-(stride * windowStart) + peek, tween(220), label = "detail-slide")
-        val ringX by animateDpAsState(stride * slot, tween(220), label = "detail-ring")
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val insetPx = with(density) { 48.dp.roundToPx() }
+        val stridePx = with(density) { stride.roundToPx() }
+        val slidePx = if (peekPrevious) {
+            com.xxxx.emby_tv.ui.motion.LeadingPeek.slide(windowStart, insetPx, stridePx)
+        } else {
+            -windowStart * stridePx
+        }
+        val slide by animateDpAsState(
+            with(density) { slidePx.toDp() },
+            com.xxxx.emby_tv.ui.motion.Motion.row(),
+            label = "detail-slide",
+        )
+        val ringX by animateDpAsState(
+            with(density) { com.xxxx.emby_tv.ui.motion.LeadingPeek.focusedX(0, slot, stridePx).toDp() },
+            com.xxxx.emby_tv.ui.motion.Motion.row(),
+            label = "detail-ring",
+        )
         val focusIndex = (windowStart + slot).coerceIn(0, count - 1)
         Box(
             Modifier
@@ -807,7 +828,7 @@ internal fun DetailSlotRow(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 48.dp - peek)
+                    .padding(start = if (peekPrevious) 0.dp else 48.dp)
                     .clipToBounds(),
             ) {
                 Row(

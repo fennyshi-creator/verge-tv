@@ -69,6 +69,7 @@ import androidx.tv.material3.Text
 import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.ui.home.AmbientWash
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeText
@@ -233,6 +234,12 @@ fun SeriesDetailPage(
                 )
             }
             if (dim > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
+            AmbientWash(
+                url = backdrop,
+                strength = 0.28f,
+                maxAlpha = 0.2f,
+                modifier = Modifier.fillMaxSize(),
+            )
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.horizontalGradient(
@@ -569,9 +576,17 @@ private fun SeasonTabs(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val targetLeft = chipLeft[slot] ?: 0
     val targetWidth = chipWidth[slot] ?: 0
-    val pillX by animateDpAsState(with(density) { targetLeft.toDp() }, tween(220), label = "season-pill-x")
-    val pillW by animateDpAsState(with(density) { targetWidth.toDp() }, tween(220), label = "season-pill-w")
-    val showFill = rowFocused || forceFocused
+    val pillX by animateDpAsState(
+        with(density) { targetLeft.toDp() },
+        com.xxxx.emby_tv.ui.motion.Motion.focus(),
+        label = "season-pill-x",
+    )
+    val pillW by animateDpAsState(
+        with(density) { targetWidth.toDp() },
+        com.xxxx.emby_tv.ui.motion.Motion.focus(),
+        label = "season-pill-w",
+    )
+    val pillOnTabs = rowFocused || forceFocused
     Box(
         modifier
             .padding(start = 48.dp, top = 22.dp, bottom = 8.dp)
@@ -607,14 +622,14 @@ private fun SeasonTabs(
                 }
             },
     ) {
-        if (showFill && targetWidth > 0) {
+        if (targetWidth > 0) {
             Box(
                 Modifier
                     .offset(x = pillX)
                     .width(pillW)
                     .height(32.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(Color.White),
+                    .background(if (pillOnTabs) Color.White else Color(0xFF4A4A4A)),
             )
         }
         Row(
@@ -622,7 +637,8 @@ private fun SeasonTabs(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             seasons.forEachIndexed { index, season ->
-                val on = showFill && index == slot
+                val face = com.xxxx.emby_tv.ui.motion.FocusPill.face(pillOnTabs, index == slot)
+                val on = face == com.xxxx.emby_tv.ui.motion.FocusPill.Face.Focused
                 Box(
                     Modifier
                         .onGloballyPositioned { coords ->

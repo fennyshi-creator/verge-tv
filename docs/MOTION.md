@@ -44,7 +44,9 @@ No scale and no zoom. Focus on a poster is a white stroke with a slow breathing 
 - `StageDock.bottomSpacer` is the empty space under the last row. Without it the last row stops at the bottom of the screen and the Up that leaves it travels a different distance.
 - `StageDock.titleScale` is 1 on the stage and `0.68` a row away. Apply it with `graphicsLayer` on the title only. Do not scale posters.
 - `StageScroll.dock` animates with `Motion.page`. Keys closer than 160 ms use `Motion.repeatStep` and cancel the previous scroll.
-- The homepage hero is the first screen: left-aligned 搜索 / 首页 / 收藏 and the existing settings control, a recommended backdrop, logo or title, genre / year / rating, and a two-line synopsis. The first content row peeks along the bottom. One Down docks that row. Up from that row returns the hero. Up from the hero reaches the menus.
+- The homepage hero is the first screen. 搜索, 首页, and 收藏 sit in one dark rounded capsule on the left of the backdrop. The white pill appears only while focus is inside that capsule, and it eases onto the focused item. A selected season that does not have focus stays a gray pill (`FocusPill`). One Down still docks the first row. Up from that row returns the hero.
+- `LeadingPeek` keeps the focused card at a fixed inset. When the row has moved, the previous card is clipped by the screen edge so a sliver remains. The first card has no previous item, so there is no peek.
+- `AmbientWash` is a low directional tint from the focused artwork. `ArtworkWash.sampleMuted` keeps mid-tone, slightly saturated pixels (a darkMuted-style swatch, not a full-screen recolor). It crossfades with `Motion.fade`. On the hero its strength is 0 so the backdrop stays in charge. If the bitmap or the swatch is missing, the wash stays transparent and the dark background shows through.
 
 ## A new page
 
