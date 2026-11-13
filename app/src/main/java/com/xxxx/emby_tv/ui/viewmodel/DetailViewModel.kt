@@ -9,6 +9,9 @@ import androidx.lifecycle.viewModelScope
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -40,6 +43,8 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var collections by mutableStateOf<List<Pair<BaseItemDto, List<BaseItemDto>>>>(emptyList())
         private set
+    private var extrasFor: String? = null
+    private var extrasJob: Job? = null
 
     // === 加载状态 ===
     var isLoading by mutableStateOf(false)
@@ -200,25 +205,43 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadMovieExtras(itemId: String) {
-        viewModelScope.launch {
+        extrasJob?.cancel()
+        if (extrasFor != itemId) {
+            similarItems = emptyList()
+            collections = emptyList()
+            extrasFor = itemId
+        }
+        extrasJob = viewModelScope.launch {
+            val similarDeferred = async(Dispatchers.IO) {
+                try {
+                    repository.getSimilarItems(itemId)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+            val collectionsDeferred = async(Dispatchers.IO) {
+                try {
+                    repository.getItemCollections(itemId) { rows ->
+                        withContext(Dispatchers.Main) {
+                            if (isActive && extrasFor == itemId) collections = rows
+                        }
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
             val detail = try {
                 withContext(Dispatchers.IO) { repository.getMovieItem(itemId) }
             } catch (_: Exception) {
                 null
             }
-            if (detail != null && mediaInfo?.id == itemId) {
+            if (detail != null && isActive && mediaInfo?.id == itemId) {
                 mediaInfo = detail
             }
-            similarItems = try {
-                withContext(Dispatchers.IO) { repository.getSimilarItems(itemId) }
-            } catch (_: Exception) {
-                emptyList()
-            }
-            collections = try {
-                withContext(Dispatchers.IO) { repository.getItemCollections(itemId) }
-            } catch (_: Exception) {
-                emptyList()
-            }
+            val similar = similarDeferred.await()
+            if (isActive && extrasFor == itemId) similarItems = similar
+            val found = collectionsDeferred.await()
+            if (isActive && extrasFor == itemId && collections.isEmpty()) collections = found
         }
     }
 

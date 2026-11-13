@@ -616,7 +616,10 @@ class EmbyRepository private constructor(private val context: Context) {
         )
     }
 
-    suspend fun getItemCollections(itemId: String): List<Pair<BaseItemDto, List<BaseItemDto>>> {
+    suspend fun getItemCollections(
+        itemId: String,
+        onPartial: suspend (List<Pair<BaseItemDto, List<BaseItemDto>>>) -> Unit = {},
+    ): List<Pair<BaseItemDto, List<BaseItemDto>>> {
         requireLoggedIn()
         return EmbyApi.getItemCollections(
             context,
@@ -625,6 +628,7 @@ class EmbyRepository private constructor(private val context: Context) {
             session.deviceId,
             session.userId!!,
             itemId,
+            onPartial,
         )
     }
 

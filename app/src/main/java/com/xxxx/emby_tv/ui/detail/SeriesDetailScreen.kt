@@ -172,7 +172,8 @@ fun SeriesDetailPage(
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
     val boundCollections = EmbyPresentation.visibleCollectionRows(collections)
-    val collectionFocus = remember(boundCollections.size) { List(boundCollections.size) { FocusRequester() } }
+    val boxFocus = remember { mutableMapOf<String, FocusRequester>() }
+    fun focusFor(id: String): FocusRequester = boxFocus.getOrPut(id) { FocusRequester() }
     val people = series.people.orEmpty().filter { it.name?.isNotBlank() == true }
     val season = seasons.getOrNull(selectedSeason)
     val resumeIndex = episodes.indexOfFirst { it.id != null && it.id == resume?.id }
@@ -183,11 +184,32 @@ fun SeriesDetailPage(
     val scrollState = rememberScrollState()
     val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
     var artWash by remember(series.id) { mutableStateOf<String?>(null) }
+    var focusKey by remember(series.id) { mutableStateOf("hero") }
+    val focusIndex = when {
+        focusKey == "hero" -> 0
+        focusKey == "episodes" || focusKey == "seasons" -> 1
+        focusKey == "cast" -> 2
+        focusKey == "similar" -> 3 + boundCollections.size
+        focusKey.startsWith("box:") -> {
+            val at = boundCollections.indexOfFirst { it.first.id == focusKey.removePrefix("box:") }
+            if (at < 0) -1 else 3 + at
+        }
+        else -> -1
+    }
+    com.xxxx.emby_tv.ui.motion.HoldStageWhenRowsArrive(
+        scroll = scrollState,
+        stage = stage,
+        token = boundCollections.joinToString { it.first.id.orEmpty() },
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+    )
     fun revealHero() {
+        focusKey = "hero"
         blurBackdrop = false
         stage.dock(0)
     }
     fun showEpisodes() {
+        focusKey = "episodes"
         blurBackdrop = true
         stage.dock(1)
     }
@@ -313,7 +335,10 @@ fun SeriesDetailPage(
                         up = heroFocus,
                         down = episodeFocus,
                         onSelect = onSelectSeason,
-                        onFocused = { dockRow(1) },
+                        onFocused = {
+                            focusKey = "seasons"
+                            dockRow(1)
+                        },
                         forceFocused = forceFocus == SeriesFocus.Seasons,
                         modifier = Modifier.onGloballyPositioned { coords ->
                             val y = (coords.positionInRoot().y - columnRoot + scrollState.value).toInt()
@@ -353,7 +378,7 @@ fun SeriesDetailPage(
                         serverUrl = serverUrl,
                         focusRequester = episodeFocus,
                         up = if (seasons.isNotEmpty()) seasonFocus else heroFocus,
-                        down = if (people.isNotEmpty()) castFocus else collectionFocus.firstOrNull()
+                        down = if (people.isNotEmpty()) castFocus else boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
                             ?: if (similar.isNotEmpty()) similarFocus else null,
                         initialWindowStart = resumeIndex,
                         forceFocused = forceFocus == SeriesFocus.Episodes,
@@ -377,11 +402,15 @@ fun SeriesDetailPage(
                         cornerIsCircle = true,
                         focusRequester = castFocus,
                         up = episodeFocus,
-                        down = collectionFocus.firstOrNull() ?: if (similar.isNotEmpty()) similarFocus else null,
+                        down = boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
+                            ?: if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == SeriesFocus.Cast,
                         peekPrevious = true,
                         onActivate = {},
-                        onFocused = { dockRow(2) },
+                        onFocused = {
+                            focusKey = "cast"
+                            dockRow(2)
+                        },
                         caption = { index ->
                             val person = people[index]
                             Column(Modifier.width(108.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -420,6 +449,8 @@ fun SeriesDetailPage(
                     }
                 }
                 boundCollections.forEachIndexed { index, (box, works) ->
+                    val boxId = box.id.orEmpty()
+                    androidx.compose.runtime.key(boxId) {
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
                         stage.record(3 + index, y)
@@ -431,18 +462,21 @@ fun SeriesDetailPage(
                         cardHeight = 124.dp,
                         gap = 16.dp,
                         cornerIsCircle = false,
-                        focusRequester = collectionFocus[index],
+                        focusRequester = focusFor(boxId),
                         up = when {
-                            index > 0 -> collectionFocus[index - 1]
+                            index > 0 -> focusFor(boundCollections[index - 1].first.id.orEmpty())
                             people.isNotEmpty() -> castFocus
                             else -> episodeFocus
                         },
-                        down = collectionFocus.getOrNull(index + 1)
+                        down = boundCollections.getOrNull(index + 1)?.first?.id?.let { focusFor(it) }
                             ?: if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = false,
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(works[it]) },
-                        onFocused = { dockRow(3 + index) },
+                        onFocused = {
+                            focusKey = "box:$boxId"
+                            dockRow(3 + index)
+                        },
                         onIndex = { i ->
                             artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, works[i])
                         },
@@ -460,6 +494,7 @@ fun SeriesDetailPage(
                         )
                     }
                     }
+                    }
                 }
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
@@ -474,12 +509,16 @@ fun SeriesDetailPage(
                         gap = 16.dp,
                         cornerIsCircle = false,
                         focusRequester = similarFocus,
-                        up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else episodeFocus,
+                        up = boundCollections.lastOrNull()?.first?.id?.let { focusFor(it) }
+                            ?: if (people.isNotEmpty()) castFocus else episodeFocus,
                         down = null,
                         forceFocused = forceFocus == SeriesFocus.Similar,
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(similar[it]) },
-                        onFocused = { dockRow(3 + boundCollections.size) },
+                        onFocused = {
+                            focusKey = "similar"
+                            dockRow(3 + boundCollections.size)
+                        },
                         onIndex = { i ->
                             artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, similar[i])
                         },

@@ -23,10 +23,13 @@ import com.xxxx.emby_tv.data.model.RecommendationDto
 import com.xxxx.emby_tv.data.model.SessionDto
 import com.xxxx.emby_tv.data.model.VirtualFolderInfoDto
 import com.xxxx.emby_tv.util.ErrorHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -897,61 +900,104 @@ object EmbyApi {
         deviceId: String,
         userId: String,
         itemId: String,
+        onPartial: suspend (List<Pair<BaseItemDto, List<BaseItemDto>>>) -> Unit = {},
     ): List<Pair<BaseItemDto, List<BaseItemDto>>> = withContext(Dispatchers.IO) {
-        suspend fun load(path: String): List<BaseItemDto> = try {
+        suspend fun loadOrNull(path: String): List<BaseItemDto>? = try {
             httpAsItemListFlexible(context, serverUrl, apiKey, deviceId, path)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
-            emptyList()
+            null
         }
         suspend fun one(path: String): BaseItemDto? = try {
             httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, path)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             null
         }
 
-        val boxes = linkedMapOf<String, BaseItemDto>()
+        val index = com.xxxx.emby_tv.util.CollectionMemory.index(serverUrl, userId)
+        val gate = Semaphore(4)
+        val direct = linkedMapOf<String, BaseItemDto>()
         fun addBox(box: BaseItemDto?) {
             if (box == null || !com.xxxx.emby_tv.util.EmbyPresentation.isBoxSet(box)) return
             val id = box.id ?: return
-            boxes.putIfAbsent(id, box)
-        }
-        load(ancestorsPath(userId, itemId, apiKey)).forEach { addBox(it) }
-        load(itemAncestorsPath(itemId, userId, apiKey)).forEach { addBox(it) }
-        val self = one("/Users/$userId/Items/$itemId?Fields=CollectionIds,ParentId&X-Emby-Token=$apiKey")
-        self?.collectionIds.orEmpty().forEach { id ->
-            if (id.isBlank() || boxes.containsKey(id)) return@forEach
-            addBox(one("/Users/$userId/Items/$id?Fields=ChildCount,ImageTags,BackdropImageTags,PrimaryImageAspectRatio&X-Emby-Token=$apiKey"))
-        }
-        val parentId = self?.parentId
-        if (!parentId.isNullOrBlank() && !boxes.containsKey(parentId)) {
-            addBox(one("/Users/$userId/Items/$parentId?Fields=ChildCount,ImageTags,BackdropImageTags&X-Emby-Token=$apiKey"))
-        }
-        var start = 0
-        var pages = 0
-        while (pages < 3) {
-            val page = load(boxSetCatalogPath(userId, apiKey, startIndex = start, limit = 40))
-            if (page.isEmpty()) break
-            page.forEach { addBox(it) }
-            start += page.size
-            pages++
-            if (page.size < 40) break
+            direct.putIfAbsent(id, box)
         }
         coroutineScope {
-            boxes.values.map { box ->
+            val ancestors = async { loadOrNull(ancestorsPath(userId, itemId, apiKey)) }
+            val itemAncestors = async { loadOrNull(itemAncestorsPath(itemId, userId, apiKey)) }
+            val self = async {
+                one("/Users/$userId/Items/$itemId?Fields=CollectionIds,ParentId&X-Emby-Token=$apiKey")
+            }
+            ancestors.await()?.forEach { addBox(it) }
+            itemAncestors.await()?.forEach { addBox(it) }
+            val item = self.await()
+            val parentId = item?.parentId
+            val extraIds = item?.collectionIds.orEmpty().filter { it.isNotBlank() } +
+                listOfNotNull(parentId?.takeIf { it.isNotBlank() && !direct.containsKey(it) })
+            extraIds.map { id ->
                 async {
-                    val id = box.id ?: return@async null
-                    val memberIds = load(boxSetMemberIdsPath(userId, id, apiKey))
-                    val inBox = com.xxxx.emby_tv.util.EmbyPresentation.boxContainsTitle(
-                        memberIds.map { it.id },
-                        itemId,
-                    )
-                    if (!inBox) return@async null
-                    val shown = load(boxSetItemsPath(userId, id, apiKey))
-                    val others = com.xxxx.emby_tv.util.EmbyPresentation.collectionWorks(shown, itemId)
-                    if (others.isEmpty()) null else box to others
+                    if (direct.containsKey(id)) return@async
+                    addBox(one("/Users/$userId/Items/$id?Fields=ChildCount,ImageTags,BackdropImageTags,PrimaryImageAspectRatio&X-Emby-Token=$apiKey"))
                 }
-            }.awaitAll().filterNotNull()
+            }.awaitAll()
         }
+
+        suspend fun ensureWorks(boxId: String) {
+            if (index.works(boxId) != null) return
+            val shown = loadOrNull(boxSetItemsPath(userId, boxId, apiKey)) ?: return
+            index.rememberWorks(boxId, shown)
+        }
+        direct.keys.forEach { ensureWorks(it) }
+        val early = index.rowsFor(itemId, direct.values.toList())
+        if (early.isNotEmpty()) onPartial(early)
+
+        val catalog = index.catalog() ?: run {
+            val all = mutableListOf<BaseItemDto>()
+            var start = 0
+            var pages = 0
+            var complete = false
+            while (pages < 3) {
+                val page = loadOrNull(boxSetCatalogPath(userId, apiKey, startIndex = start, limit = 40))
+                    ?: break
+                all += page
+                pages++
+                start += page.size
+                if (page.size < 40) {
+                    complete = true
+                    break
+                }
+            }
+            if (complete || (pages == 3 && all.isNotEmpty())) index.rememberCatalog(all)
+            all
+        }
+        val toScan = index.boxesToScan(catalog)
+        coroutineScope {
+            toScan.map { box ->
+                async {
+                    val id = box.id ?: return@async
+                    gate.withPermit {
+                        if (index.children(id) != null) return@withPermit
+                        val members = loadOrNull(boxSetMemberIdsPath(userId, id, apiKey)) ?: return@withPermit
+                        index.rememberChildren(id, members.mapNotNull { it.id })
+                    }
+                }
+            }.awaitAll()
+        }
+        val members = index.memberBoxes(itemId, direct.values.toList())
+        coroutineScope {
+            members.map { box ->
+                async {
+                    val id = box.id ?: return@async
+                    gate.withPermit { ensureWorks(id) }
+                }
+            }.awaitAll()
+        }
+        val ready = index.rowsFor(itemId, direct.values.toList())
+        onPartial(ready)
+        ready
     }
 
     suspend fun getSimilarItems(

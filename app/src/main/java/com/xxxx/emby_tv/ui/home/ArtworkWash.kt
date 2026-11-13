@@ -55,7 +55,13 @@ object ArtworkWash {
      * backdrop is the picture. The dark page fill stays underneath this wash.
      */
     fun strength(onHero: Boolean, hasArtwork: Boolean): Float =
-        if (onHero || !hasArtwork) 0f else 1f
+        blend(if (onHero) 1f else 0f, hasArtwork)
+
+    /** 1 keeps the hero picture. 0 is the focused-art wash. Values between crossfade. */
+    fun blend(heroVisible: Float, hasArtwork: Boolean): Float {
+        if (!hasArtwork) return 0f
+        return (1f - heroVisible.coerceIn(0f, 1f))
+    }
 
     fun argb(darkMuted: Int?, muted: Int?, darkVibrant: Int?): Int? {
         return darkMuted ?: muted ?: darkVibrant

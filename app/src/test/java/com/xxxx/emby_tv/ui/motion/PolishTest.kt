@@ -19,6 +19,7 @@ import com.xxxx.emby_tv.ui.motion.StageDock
 import com.xxxx.emby_tv.ui.home.PageLayers
 import com.xxxx.emby_tv.ui.home.PosterRowFit
 import com.xxxx.emby_tv.ui.SettingsCatalog
+import com.xxxx.emby_tv.util.CollectionIndex
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.util.LibraryFocus
 import com.xxxx.emby_tv.util.VersionControl
@@ -263,6 +264,33 @@ class PolishTest {
         assertTrue(EmbyPresentation.showsViewAllTile(movies))
         assertEquals("查看全部", EmbyPresentation.viewAllLabel())
         assertTrue(!EmbyPresentation.showsViewAllTile(BaseItemDto(type = "CollectionFolder", collectionType = "music")))
+    }
+
+    @Test
+    fun lateCollectionsKeepTheFocusedRowStill() {
+        assertTrue(!StageDock.shiftsWhenCollectionsArrive("hero"))
+        assertTrue(!StageDock.shiftsWhenCollectionsArrive("cast"))
+        assertTrue(!StageDock.shiftsWhenCollectionsArrive("episodes"))
+        assertTrue(StageDock.shiftsWhenCollectionsArrive("similar"))
+        assertTrue(StageDock.shiftsWhenCollectionsArrive("box:set"))
+        assertEquals(1800, StageDock.keptScroll(scroll = 1400, oldTop = 2000, newTop = 2400))
+        assertEquals(1400, StageDock.keptScroll(scroll = 1400, oldTop = 2000, newTop = 2000))
+        assertEquals(1400, StageDock.keptScroll(scroll = 1400, oldTop = -1, newTop = 2400))
+        val index = CollectionIndex()
+        val box = BaseItemDto(id = "box", name = "合集", type = "BoxSet")
+        val other = BaseItemDto(id = "other", name = "另一部", type = "Movie")
+        assertTrue(index.rowsFor("self", listOf(box)).isEmpty())
+        index.rememberWorks("box", listOf(BaseItemDto(id = "self"), other))
+        index.rememberChildren("box", listOf("self", "other"))
+        assertEquals(listOf("other"), index.rowsFor("self", listOf(box)).single().second.map { it.id })
+        val stranger = BaseItemDto(id = "stranger", name = "无关", type = "BoxSet")
+        index.rememberCatalog(listOf(box, stranger))
+        index.rememberChildren("stranger", listOf("nope"))
+        assertEquals(1, index.rowsFor("self", emptyList()).size)
+        assertTrue(index.boxesToScan(listOf(box, stranger)).isEmpty())
+        val fresh = BaseItemDto(id = "fresh", type = "BoxSet")
+        assertEquals(listOf("fresh"), index.boxesToScan(listOf(fresh)).map { it.id })
+        assertTrue(!EmbyPresentation.showContinueRow(emptyList()))
     }
 
     @Test

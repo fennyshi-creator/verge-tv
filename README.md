@@ -33,7 +33,7 @@
 
 ## 📥 下载 / Download
 
-> 最新版本 / Newest release: v2.0.43
+> 最新版本 / Newest release: v2.0.44
 
 | 最低 Android 版本 | 下载地址 |
 |:------------------:|:--------:|

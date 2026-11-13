@@ -7,11 +7,13 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
@@ -44,6 +46,16 @@ object StageDock {
      * StageDock tried to dock the same column.
      */
     fun bringIntoViewDistance(): Float = 0f
+
+    /** Collections insert above 更多类似的. Hero and cast stay put; that row and below move. */
+    fun shiftsWhenCollectionsArrive(focusKey: String): Boolean =
+        focusKey == "similar" || focusKey.startsWith("box:")
+
+    /** Keep the focused row at the same screen Y after content above it grows. */
+    fun keptScroll(scroll: Int, oldTop: Int, newTop: Int, maxScroll: Int = Int.MAX_VALUE): Int {
+        if (oldTop < 0 || newTop < 0) return scroll.coerceAtLeast(0)
+        return (scroll + (newTop - oldTop)).coerceIn(0, maxScroll.coerceAtLeast(0))
+    }
 
     fun offset(rowTop: Int, index: Int, stagePx: Int, maxScroll: Int): Int {
         if (index <= 0) return 0
@@ -136,4 +148,45 @@ fun ProvideStageScroll(content: @Composable () -> Unit) {
         }
     }
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
+}
+
+private class InsertHold {
+    var token: String = ""
+    var index: Int = 0
+    var key: String = "hero"
+    var frozenTop: Int = -1
+}
+
+/**
+ * When collection rows appear above the focused row, add the same delta to the
+ * scroll so that row stays at the same screen Y.
+ */
+@Composable
+fun HoldStageWhenRowsArrive(
+    scroll: ScrollState,
+    stage: StageScroll,
+    token: String,
+    focusKey: String,
+    focusIndex: Int,
+) {
+    val hold = remember { InsertHold() }
+    if (token != hold.token) {
+        hold.frozenTop = if (StageDock.shiftsWhenCollectionsArrive(hold.key)) {
+            stage.tops.getOrElse(hold.index) { -1 }
+        } else {
+            -1
+        }
+        hold.token = token
+    }
+    hold.index = focusIndex
+    hold.key = focusKey
+    LaunchedEffect(token) {
+        val oldTop = hold.frozenTop
+        if (oldTop < 0 || focusIndex < 0) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        val newTop = stage.tops.getOrElse(focusIndex) { -1 }
+        if (newTop < 0) return@LaunchedEffect
+        scroll.scrollTo(StageDock.keptScroll(scroll.value, oldTop, newTop, scroll.maxValue))
+    }
 }

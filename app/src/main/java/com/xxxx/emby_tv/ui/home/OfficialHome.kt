@@ -58,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -254,10 +253,35 @@ fun OfficialHome(
                 (cardPx / density.density).dp
             }
             val posterCardHeight = posterCard * 3f / 2f
-            val onHero = scroll.value <= with(density) { 24.dp.roundToPx() }
+            val seamPx = with(density) { 280.dp.roundToPx() }.coerceAtLeast(1)
+            val heroVisible = 1f - (scroll.value / seamPx.toFloat()).coerceIn(0f, 1f)
+            val pinnedBackdrop = if (heroItem == null || serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, heroItem, 1280)
+            if (pinnedBackdrop.isNotBlank()) {
+                FadeInImage(
+                    url = pinnedBackdrop,
+                    widthPx = 1280,
+                    heightPx = 720,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = heroVisible },
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.62f)
+                        .align(Alignment.BottomCenter)
+                        .graphicsLayer { alpha = heroVisible }
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.42f to Color.Black.copy(0.12f),
+                                1f to Color.Black.copy(0.34f),
+                            ),
+                        ),
+                )
+            }
             AmbientWash(
                 url = washUrl,
-                strength = ArtworkWash.strength(onHero = onHero, hasArtwork = !washUrl.isNullOrBlank()),
+                strength = ArtworkWash.blend(heroVisible, !washUrl.isNullOrBlank()),
                 modifier = Modifier.fillMaxSize(),
             )
             fun Modifier.stageAnchor(index: Int): Modifier = onGloballyPositioned { coords ->
@@ -288,6 +312,7 @@ fun OfficialHome(
                         },
                         onDown = { focusRow(contentFocus, if (continueIndex >= 0) continueIndex else libraryIndex, pin = false) },
                         onUp = { focusRow(homeTabFocus, 0, pin = true) },
+                        showPicture = false,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(heroHeight)
@@ -531,31 +556,21 @@ private fun HomeHero(
     onOpen: () -> Unit,
     onDown: () -> Unit,
     onUp: () -> Unit,
+    showPicture: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1280)
+    val backdrop = if (!showPicture || serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1280)
     val logo = EmbyPresentation.logoUrl(serverUrl, item, maxWidth = 640)
     Box(modifier) {
-        FadeInImage(
-            url = backdrop,
-            widthPx = 1280,
-            heightPx = 720,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.Black,
-                            0.84f to Color.Black,
-                            1f to Color.Transparent,
-                        ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-                    )
-                },
-        )
+        if (backdrop.isNotBlank()) {
+            FadeInImage(
+                url = backdrop,
+                widthPx = 1280,
+                heightPx = 720,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Box(
             Modifier
                 .fillMaxSize()

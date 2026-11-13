@@ -164,7 +164,8 @@ fun MovieDetailPage(
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
     val boundCollections = EmbyPresentation.visibleCollectionRows(collections)
-    val collectionFocus = remember(boundCollections.size) { List(boundCollections.size) { FocusRequester() } }
+    val boxFocus = remember { mutableMapOf<String, FocusRequester>() }
+    fun focusFor(id: String): FocusRequester = boxFocus.getOrPut(id) { FocusRequester() }
     val people = item.people.orEmpty().filter { it.name?.isNotBlank() == true }
     LaunchedEffect(requestInitialFocus, item.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -184,7 +185,26 @@ fun MovieDetailPage(
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
     val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
+    var focusKey by remember(item.id) { mutableStateOf("hero") }
+    val focusIndex = when {
+        focusKey == "hero" -> 0
+        focusKey == "cast" -> 1
+        focusKey == "similar" -> 2 + boundCollections.size
+        focusKey.startsWith("box:") -> {
+            val at = boundCollections.indexOfFirst { it.first.id == focusKey.removePrefix("box:") }
+            if (at < 0) -1 else 2 + at
+        }
+        else -> -1
+    }
+    com.xxxx.emby_tv.ui.motion.HoldStageWhenRowsArrive(
+        scroll = scrollState,
+        stage = stage,
+        token = boundCollections.joinToString { it.first.id.orEmpty() },
+        focusKey = focusKey,
+        focusIndex = focusIndex,
+    )
     fun revealHero() {
+        focusKey = "hero"
         blurBackdrop = false
         stage.dock(0)
     }
@@ -297,7 +317,7 @@ fun MovieDetailPage(
                 ActionRow(
                     item = item,
                     focusRequester = playFocus,
-                    down = if (people.isNotEmpty()) castFocus else collectionFocus.firstOrNull()
+                    down = if (people.isNotEmpty()) castFocus else boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
                         ?: if (similar.isNotEmpty()) similarFocus else null,
                     forceFocused = forceFocus == DetailFocus.Play || forceFocus == DetailFocus.Version,
                     initialSlot = if (forceFocus == DetailFocus.Version) 1 else 0,
@@ -332,14 +352,20 @@ fun MovieDetailPage(
                         apiKey = apiKey,
                         focusRequester = castFocus,
                         up = playFocus,
-                        down = collectionFocus.firstOrNull() ?: if (similar.isNotEmpty()) similarFocus else null,
+                        down = boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
+                            ?: if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == DetailFocus.Cast,
-                        onFocused = { dockRow(1) },
+                        onFocused = {
+                            focusKey = "cast"
+                            dockRow(1)
+                        },
                     )
                     }
                 }
                 boundCollections.forEachIndexed { index, (box, works) ->
                     val row = 2 + index
+                    val boxId = box.id.orEmpty()
+                    androidx.compose.runtime.key(boxId) {
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
                         stage.record(row, y)
@@ -351,13 +377,17 @@ fun MovieDetailPage(
                             cardHeight = 124.dp,
                             gap = 16.dp,
                             cornerIsCircle = false,
-                            focusRequester = collectionFocus[index],
-                            up = if (index == 0) castFocus else collectionFocus[index - 1],
-                            down = collectionFocus.getOrNull(index + 1) ?: if (similar.isNotEmpty()) similarFocus else null,
+                            focusRequester = focusFor(boxId),
+                            up = if (index == 0) castFocus else focusFor(boundCollections[index - 1].first.id.orEmpty()),
+                            down = boundCollections.getOrNull(index + 1)?.first?.id?.let { focusFor(it) }
+                                ?: if (similar.isNotEmpty()) similarFocus else null,
                             forceFocused = false,
                             peekPrevious = true,
                             onActivate = { onOpenSimilar(works[it]) },
-                            onFocused = { dockRow(row) },
+                            onFocused = {
+                                focusKey = "box:$boxId"
+                                dockRow(row)
+                            },
                             onIndex = { i ->
                                 artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, works[i])
                             },
@@ -375,6 +405,7 @@ fun MovieDetailPage(
                             )
                         }
                     }
+                    }
                 }
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
@@ -386,9 +417,13 @@ fun MovieDetailPage(
                         items = similar,
                         serverUrl = serverUrl,
                         focusRequester = similarFocus,
-                        up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else playFocus,
+                        up = boundCollections.lastOrNull()?.first?.id?.let { focusFor(it) }
+                            ?: if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
-                        onFocused = { dockRow(2 + boundCollections.size) },
+                        onFocused = {
+                            focusKey = "similar"
+                            dockRow(2 + boundCollections.size)
+                        },
                         onIndex = { i ->
                             artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, similar[i])
                         },
