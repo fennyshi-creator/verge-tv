@@ -147,6 +147,17 @@ internal fun seasonEpisodesPath(
             "&X-Emby-Token=$apiKey"
 }
 
+internal fun ancestorsPath(userId: String, itemId: String, apiKey: String): String {
+    return "/Users/$userId/Items/$itemId/Ancestors?X-Emby-Token=$apiKey"
+}
+
+internal fun boxSetItemsPath(userId: String, boxId: String, apiKey: String): String {
+    return "/Users/$userId/Items?ParentId=$boxId&IncludeItemTypes=Movie,Series&Recursive=true&Limit=24" +
+            "&Fields=ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,PrimaryImageAspectRatio" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
 internal fun latestItemsPath(
     userId: String,
     parentId: String,
@@ -835,6 +846,29 @@ object EmbyApi {
     /**
      * Similar items for one title. Used when /Movies/Recommendations is unavailable.
      */
+    suspend fun getItemCollections(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        itemId: String,
+    ): List<Pair<BaseItemDto, List<BaseItemDto>>> = withContext(Dispatchers.IO) {
+        val ancestors = httpAsBaseItemDtoListDirect(
+            context, serverUrl, apiKey, deviceId, ancestorsPath(userId, itemId, apiKey),
+        )
+        ancestors.mapNotNull { box ->
+            val boxId = box.id ?: return@mapNotNull null
+            val isBox = box.type.equals("BoxSet", true) || box.collectionType.equals("boxsets", true)
+            if (!isBox) return@mapNotNull null
+            val members = httpAsBaseItemDtoList(
+                context, serverUrl, apiKey, deviceId, boxSetItemsPath(userId, boxId, apiKey),
+            )
+            val others = com.xxxx.emby_tv.util.EmbyPresentation.collectionWorks(members, itemId)
+            if (others.isEmpty()) null else box to others
+        }
+    }
+
     suspend fun getSimilarItems(
         context: Context,
         serverUrl: String,

@@ -616,6 +616,18 @@ class EmbyRepository private constructor(private val context: Context) {
         )
     }
 
+    suspend fun getItemCollections(itemId: String): List<Pair<BaseItemDto, List<BaseItemDto>>> {
+        requireLoggedIn()
+        return EmbyApi.getItemCollections(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+        )
+    }
+
     suspend fun getSimilarItems(itemId: String, limit: Int = 16): List<BaseItemDto> {
         requireLoggedIn()
         return EmbyApi.getSimilarItems(

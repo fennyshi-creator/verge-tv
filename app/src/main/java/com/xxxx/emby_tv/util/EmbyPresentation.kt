@@ -224,6 +224,17 @@ object EmbyPresentation {
 
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION
 
+    fun showVersionButton(sourceCount: Int): Boolean = sourceCount > 1
+
+    /** The label is visible only while the control is focused. Focus itself does not open the menu. */
+    fun versionShowsLabel(focused: Boolean): Boolean = focused
+
+    fun collectionRowTitle(name: String): String = "${name}中的其他作品"
+
+    fun collectionWorks(members: List<BaseItemDto>, currentId: String?): List<BaseItemDto> {
+        return members.filter { !it.id.isNullOrBlank() && it.id != currentId }
+    }
+
     /**
      * Secondary line under a version. Bitrate is omitted when it is missing or too small
      * to be a real rate (a strm probe of 192 bps otherwise prints as "0 kbps").

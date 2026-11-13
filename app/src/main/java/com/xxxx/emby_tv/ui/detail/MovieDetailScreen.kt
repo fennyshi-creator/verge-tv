@@ -1,5 +1,6 @@
 package com.xxxx.emby_tv.ui.detail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -67,6 +68,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -119,6 +122,7 @@ fun MovieDetailConnected(
     MovieDetailPage(
         item = item,
         similar = detailViewModel.similarItems,
+        collections = detailViewModel.collections,
         serverUrl = serverUrl,
         apiKey = apiKey,
         onPlay = { onPlay(item, null) },
@@ -139,6 +143,7 @@ fun MovieDetailConnected(
 fun MovieDetailPage(
     item: BaseItemDto,
     similar: List<BaseItemDto>,
+    collections: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList(),
     serverUrl: String,
     apiKey: String = "",
     onPlay: () -> Unit,
@@ -155,6 +160,7 @@ fun MovieDetailPage(
     val playFocus = remember { FocusRequester() }
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
+    val collectionFocus = remember(collections.size) { List(collections.size) { FocusRequester() } }
     val people = item.people.orEmpty().filter { it.name?.isNotBlank() == true }
     LaunchedEffect(requestInitialFocus, item.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -173,21 +179,21 @@ fun MovieDetailPage(
     val blurForLower = forceFocus == DetailFocus.Cast || forceFocus == DetailFocus.Similar
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
+    val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
     val bringIntoView = remember { TvBringIntoView() }
     fun revealHero() {
         blurBackdrop = false
-        bringIntoView.pinToStart = true
-        scope.launch {
-            scrollState.animateScrollTo(0, com.xxxx.emby_tv.ui.motion.Motion.page())
-            withFrameNanos { }
-            scrollState.scrollTo(0)
-        }
+        stage.dock(0)
+    }
+    fun dockRow(index: Int) {
+        blurBackdrop = index > 0
+        stage.dock(index)
     }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, com.xxxx.emby_tv.ui.motion.Motion.fade(), label = "backdrop-dim")
     val sources = item.mediaSources.orEmpty()
-    var versionFocused by remember(item.id) { mutableStateOf(forceFocus == DetailFocus.Version) }
+    var versionMenu by remember(item.id) { mutableStateOf(false) }
     var versionIndex by remember(item.id) { mutableIntStateOf(0) }
+    BackHandler(enabled = versionMenu) { versionMenu = false }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         ProvideTvBringIntoView(
             controller = bringIntoView,
@@ -242,6 +248,13 @@ fun MovieDetailPage(
                     ),
             )
             val viewport = maxHeight
+            stage.stagePx = (constraints.maxHeight * 0.18f).toInt().coerceIn(
+                with(LocalDensity.current) { 72.dp.roundToPx() },
+                with(LocalDensity.current) { 180.dp.roundToPx() },
+            )
+            val stageSpacer = with(LocalDensity.current) {
+                com.xxxx.emby_tv.ui.motion.StageDock.bottomSpacer(constraints.maxHeight, stage.stagePx).toDp()
+            }
             val titleStart = viewport * 0.35f
             val buttonBottom = viewport * 0.79f
             val actionHeight = 52.dp
@@ -267,22 +280,28 @@ fun MovieDetailPage(
                 ActionRow(
                     item = item,
                     focusRequester = playFocus,
-                    down = if (people.isNotEmpty()) castFocus else if (similar.isNotEmpty()) similarFocus else null,
+                    down = if (people.isNotEmpty()) castFocus else collectionFocus.firstOrNull()
+                        ?: if (similar.isNotEmpty()) similarFocus else null,
                     forceFocused = forceFocus == DetailFocus.Play || forceFocus == DetailFocus.Version,
                     initialSlot = if (forceFocus == DetailFocus.Version) 1 else 0,
                     versionIndex = versionIndex,
                     onVersionIndex = { versionIndex = it },
                     onFocused = { revealHero() },
-                    onAction = { action -> versionFocused = action == "version" },
                     onPlay = onPlay,
                     onPickVersion = {
-                        onPickSource(sources.getOrNull(versionIndex)?.id)
+                        if (!versionMenu) versionMenu = true
+                        else onPickSource(sources.getOrNull(versionIndex)?.id)
                     },
+                    versionMenuOpen = versionMenu,
+                    showVersions = sources.size > 1,
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
                 if (people.isNotEmpty()) {
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(1, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
                     SectionLabel(stringResource(R.string.detail_cast))
                     PersonRow(
                         people = people,
@@ -290,31 +309,65 @@ fun MovieDetailPage(
                         apiKey = apiKey,
                         focusRequester = castFocus,
                         up = playFocus,
-                        down = if (similar.isNotEmpty()) similarFocus else null,
+                        down = collectionFocus.firstOrNull() ?: if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == DetailFocus.Cast,
-                        onFocused = {
-                        bringIntoView.pinToStart = false
-                        blurBackdrop = true
-                    },
+                        onFocused = { dockRow(1) },
                     )
+                    }
+                }
+                collections.forEachIndexed { index, (box, works) ->
+                    val row = 2 + index
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(row, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
+                        SectionLabel(EmbyPresentation.collectionRowTitle(box.name.orEmpty()))
+                        DetailSlotRow(
+                            count = works.size,
+                            cardWidth = 220.dp,
+                            cardHeight = 124.dp,
+                            gap = 16.dp,
+                            cornerIsCircle = false,
+                            focusRequester = collectionFocus[index],
+                            up = if (index == 0) castFocus else collectionFocus[index - 1],
+                            down = collectionFocus.getOrNull(index + 1) ?: if (similar.isNotEmpty()) similarFocus else null,
+                            forceFocused = false,
+                            peekPrevious = true,
+                            onActivate = { onOpenSimilar(works[it]) },
+                            onFocused = { dockRow(row) },
+                            caption = { i ->
+                                HomeText(works[i].name.orEmpty(), 14.sp, Color.White, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.width(220.dp).padding(top = 8.dp))
+                            },
+                        ) { i ->
+                            HomeImage(
+                                itemId = works[i].id,
+                                fallbackArtId = null,
+                                url = if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, works[i], true),
+                                role = ArtRole.Thumb,
+                                contentDescription = works[i].name,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
                 }
                 if (similar.isNotEmpty()) {
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(2 + collections.size, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     SimilarRow(
                         items = similar,
                         serverUrl = serverUrl,
                         focusRequester = similarFocus,
-                        up = if (people.isNotEmpty()) castFocus else playFocus,
+                        up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
-                        onFocused = {
-                        bringIntoView.pinToStart = false
-                        blurBackdrop = true
-                    },
+                        onFocused = { dockRow(2 + collections.size) },
                         onOpen = onOpenSimilar,
                     )
+                    }
                 }
+                Spacer(Modifier.height(stageSpacer))
             }
-            if (versionFocused && sources.isNotEmpty()) {
+            if (versionMenu && sources.size > 1) {
                 VersionPanel(
                     sources = sources,
                     selected = versionIndex.coerceIn(0, sources.lastIndex),
@@ -435,15 +488,20 @@ internal fun ActionRow(
     versionIndex: Int = 0,
     onVersionIndex: (Int) -> Unit = {},
     onAction: (String) -> Unit = {},
+    versionMenuOpen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val actions = if (showVersions) listOf("play", "version", "favorite", "played") else listOf("play", "favorite", "played")
+    val sources = item.mediaSources.orEmpty()
+    val actions = if (showVersions && EmbyPresentation.showVersionButton(sources.size)) {
+        listOf("play", "version", "favorite", "played")
+    } else {
+        listOf("play", "favorite", "played")
+    }
     var slot by remember { mutableIntStateOf(initialSlot.coerceIn(0, actions.lastIndex)) }
     var rowFocused by remember { mutableStateOf(forceFocused) }
     val label = EmbyPresentation.playActionLabel(playbackItem)
     val favorite = item.userData?.isFavorite == true
     val played = item.userData?.played == true
-    val sources = item.mediaSources.orEmpty()
     val versionLabel = sources.getOrNull(versionIndex)?.let { EmbyPresentation.versionLabel(it) }.orEmpty()
     val highlighted = rowFocused || forceFocused
     LaunchedEffect(slot, highlighted) {
@@ -472,7 +530,7 @@ internal fun ActionRow(
                         }
                     }
                     Key.DirectionDown -> {
-                        if (actions[slot] == "version" && versionIndex < sources.lastIndex) {
+                        if (versionMenuOpen && actions[slot] == "version" && versionIndex < sources.lastIndex) {
                             onVersionIndex(versionIndex + 1)
                             true
                         } else {
@@ -480,7 +538,7 @@ internal fun ActionRow(
                         }
                     }
                     Key.DirectionUp -> {
-                        if (actions[slot] == "version" && versionIndex > 0) {
+                        if (versionMenuOpen && actions[slot] == "version" && versionIndex > 0) {
                             onVersionIndex(versionIndex - 1)
                             true
                         } else {
@@ -564,7 +622,7 @@ private fun VersionPill(label: String, focused: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DiamondIcon(Modifier.size(16.dp), color = fg)
-        if (label.isNotBlank()) {
+        if (focused && EmbyPresentation.versionShowsLabel(true) && label.isNotBlank()) {
             Spacer(Modifier.width(6.dp))
             HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
         }

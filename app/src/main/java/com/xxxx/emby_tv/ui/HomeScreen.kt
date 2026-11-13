@@ -160,7 +160,7 @@ fun HomeScreen(
                         "library/$id?libraryName=$title&type=${libraryType(library)}&filter=IsFavorite"
                     )
                 },
-                onSettings = { showMenu = true },
+                onSettings = { navController.navigate("settings") },
             )
         }
         DoubleBackExitHandler(doubleBackToExit)

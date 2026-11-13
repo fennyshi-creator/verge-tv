@@ -257,6 +257,7 @@ fun OfficialHome(
                         downRow = contentFocus,
                         onSearch = onSearch,
                         onFavorites = onFavorites,
+                        onSettings = onSettings,
                         onOpen = {
                             heroItem.id?.let { onRememberFocus("hero", it) }
                             if (heroItem.type == "Episode") onResume(heroItem) else onOpenItem(heroItem)
@@ -276,6 +277,7 @@ fun OfficialHome(
                         down = menuDown,
                         onSearch = onSearch,
                         onFavorites = onFavorites,
+                        onSettings = onSettings,
                         modifier = Modifier.stageAnchor(0),
                     )
                 }
@@ -480,6 +482,7 @@ private fun HomeHero(
     downRow: FocusRequester,
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
+    onSettings: () -> Unit,
     onOpen: () -> Unit,
     onDown: () -> Unit,
     onUp: () -> Unit,
@@ -524,6 +527,7 @@ private fun HomeHero(
             down = heroFocus,
             onSearch = onSearch,
             onFavorites = onFavorites,
+            onSettings = onSettings,
             modifier = Modifier.align(Alignment.TopStart),
         )
         Column(
@@ -609,12 +613,14 @@ private fun HomeTopBar(
     down: FocusRequester,
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val labels = listOf(
         stringResource(R.string.search),
         stringResource(R.string.home_tab),
         stringResource(R.string.favorite),
+        stringResource(R.string.settings),
     )
     var rowFocused by remember { mutableStateOf(false) }
     var slot by remember(menuSlot) { mutableIntStateOf(menuSlot.coerceIn(0, labels.lastIndex)) }
@@ -669,6 +675,7 @@ private fun HomeTopBar(
                             when (slot) {
                                 0 -> onSearch()
                                 2 -> onFavorites()
+                                3 -> onSettings()
                             }
                             true
                         }
@@ -700,9 +707,9 @@ private fun HomeTopBar(
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (index == 0) {
+                        if (index == 0 || index == 3) {
                             Icon(
-                                imageVector = Icons.Outlined.Search,
+                                imageVector = if (index == 0) Icons.Outlined.Search else Icons.Outlined.Settings,
                                 contentDescription = label,
                                 tint = if (focused) Color(0xFF161616) else Color.White,
                                 modifier = Modifier.size(20.dp),

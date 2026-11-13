@@ -133,7 +133,7 @@ fun LibraryGridPage(
         val washFade = with(density) { 120.dp.roundToPx() }.coerceAtLeast(1)
         AmbientWash(
             url = washUrl,
-            strength = (scroll.value / washFade.toFloat()).coerceIn(0f, 1f),
+            strength = if (washUrl.isNullOrBlank()) 0f else 1f,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -154,7 +154,7 @@ fun LibraryGridPage(
             ) {
                 HomeText(
                     text = libraryName,
-                    fontSize = 32.sp,
+                    fontSize = 22.sp,
                     color = Color.White,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -438,11 +438,19 @@ private fun FilterPanel(
             } else {
                 when (page) {
                     "状态" -> {
-                        OptionRow("未观看", viewModel.playedFilter == "IsUnplayed", focus) { viewModel.setPlayed("IsUnplayed") }
-                        OptionRow("已观看", viewModel.playedFilter == "IsPlayed") { viewModel.setPlayed("IsPlayed") }
+                        OptionRow("未观看", viewModel.playedFilter == "IsUnplayed", focus) {
+                            viewModel.setPlayed(if (viewModel.playedFilter == "IsUnplayed") null else "IsUnplayed")
+                        }
+                        OptionRow("已观看", viewModel.playedFilter == "IsPlayed") {
+                            viewModel.setPlayed(if (viewModel.playedFilter == "IsPlayed") null else "IsPlayed")
+                        }
                         if (itemType.equals("Series", true)) {
-                            OptionRow("连载中", viewModel.seriesStatus == "Continuing") { viewModel.chooseSeriesStatus("Continuing") }
-                            OptionRow("已完结", viewModel.seriesStatus == "Ended") { viewModel.chooseSeriesStatus("Ended") }
+                            OptionRow("连载中", viewModel.seriesStatus == "Continuing") {
+                                viewModel.chooseSeriesStatus(if (viewModel.seriesStatus == "Continuing") null else "Continuing")
+                            }
+                            OptionRow("已完结", viewModel.seriesStatus == "Ended") {
+                                viewModel.chooseSeriesStatus(if (viewModel.seriesStatus == "Ended") null else "Ended")
+                            }
                         }
                     }
                     "类型" -> {
@@ -469,7 +477,7 @@ private fun FilterPanel(
                     "年份" -> yearBands.forEachIndexed { index, band ->
                         val on = viewModel.yearMin == band.min && viewModel.yearMax == band.max
                         OptionRow(band.label, on, if (index == 0) focus else null) {
-                            viewModel.setYears(band.min, band.max)
+                            if (on) viewModel.setYears(null, null) else viewModel.setYears(band.min, band.max)
                         }
                     }
                 }

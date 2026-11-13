@@ -6,6 +6,7 @@ import com.xxxx.emby_tv.data.remote.libraryItemsPath
 import com.xxxx.emby_tv.data.remote.seriesAddedPath
 import com.xxxx.emby_tv.ui.home.ArtworkWash
 import com.xxxx.emby_tv.ui.home.PosterRowFit
+import com.xxxx.emby_tv.ui.SettingsCatalog
 import com.xxxx.emby_tv.util.EmbyPresentation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -111,5 +112,40 @@ class PolishTest {
         assertEquals(0, StageDock.libraryRowOffset(400, gridRow = 0, stagePx = 160, maxScroll = 3000))
         assertEquals(740, StageDock.libraryRowOffset(900, gridRow = 2, stagePx = 160, maxScroll = 3000))
         assertEquals(6, (0 until 36).chunked(6).first().size)
+    }
+
+    @Test
+    fun versionButtonHidesForOneSourceAndLabelFollowsFocus() {
+        assertTrue(!EmbyPresentation.showVersionButton(0))
+        assertTrue(!EmbyPresentation.showVersionButton(1))
+        assertTrue(EmbyPresentation.showVersionButton(2))
+        assertTrue(!EmbyPresentation.versionShowsLabel(false))
+        assertTrue(EmbyPresentation.versionShowsLabel(true))
+    }
+
+    @Test
+    fun collectionRowDropsTheCurrentTitle() {
+        val members = listOf(
+            BaseItemDto(id = "self", name = "奥德赛"),
+            BaseItemDto(id = "other", name = "另一部"),
+        )
+        assertEquals("合集中的其他作品", EmbyPresentation.collectionRowTitle("合集"))
+        assertEquals(listOf("other"), EmbyPresentation.collectionWorks(members, "self").map { it.id })
+        assertTrue(EmbyPresentation.collectionWorks(listOf(BaseItemDto(id = "self")), "self").isEmpty())
+    }
+
+    @Test
+    fun settingsCategoriesStayInsideExistingFeatures() {
+        assertTrue(SettingsCatalog.categories.none { it.contains("弹幕") })
+        assertTrue(SettingsCatalog.allows("播放"))
+        assertTrue(SettingsCatalog.allows("字幕"))
+        assertTrue(!SettingsCatalog.allows("弹幕设置"))
+    }
+
+    @Test
+    fun filterToggleClearsASelectedValue() {
+        fun toggle(current: String?, value: String): String? = if (current == value) null else value
+        assertEquals(null, toggle("IsPlayed", "IsPlayed"))
+        assertEquals("IsUnplayed", toggle(null, "IsUnplayed"))
     }
 }

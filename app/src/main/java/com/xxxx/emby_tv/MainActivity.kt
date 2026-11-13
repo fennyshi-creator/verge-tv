@@ -198,6 +198,10 @@ fun EmbyTvApp() {
                     }
 
                     // 播放设置页面
+                    composable("settings") {
+                        com.xxxx.emby_tv.ui.SettingsScreen(onBack = { navController.popBackStack() })
+                    }
+
                     composable("playback_settings") {
                         PlaybackSettingsScreen(
                             onBack = { navController.popBackStack() }

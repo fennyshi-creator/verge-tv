@@ -116,6 +116,7 @@ fun SeriesDetailConnected(
         episodes = episodes,
         resume = detailViewModel.resumeItem,
         similar = detailViewModel.similarItems,
+        collections = detailViewModel.collections,
         selectedSeason = seasonIndex,
         serverUrl = serverUrl,
         apiKey = apiKey,
@@ -147,6 +148,7 @@ fun SeriesDetailPage(
     episodes: List<BaseItemDto>,
     resume: BaseItemDto?,
     similar: List<BaseItemDto>,
+    collections: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList(),
     selectedSeason: Int,
     serverUrl: String,
     apiKey: String = "",
@@ -168,6 +170,7 @@ fun SeriesDetailPage(
     val episodeFocus = remember { FocusRequester() }
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
+    val collectionFocus = remember(collections.size) { List(collections.size) { FocusRequester() } }
     val people = series.people.orEmpty().filter { it.name?.isNotBlank() == true }
     val season = seasons.getOrNull(selectedSeason)
     val resumeIndex = episodes.indexOfFirst { it.id != null && it.id == resume?.id }
@@ -176,28 +179,20 @@ fun SeriesDetailPage(
     val blurForLower = forceFocus != null && forceFocus != SeriesFocus.Hero
     var blurBackdrop by remember(series.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
+    val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
     val bringIntoView = remember { TvBringIntoView() }
     var tabsOffset by remember(series.id) { mutableIntStateOf(0) }
-    val tabInset = with(LocalDensity.current) { 72.dp.roundToPx() }
     fun revealHero() {
         blurBackdrop = false
-        bringIntoView.pinToStart = true
-        scope.launch {
-            scrollState.animateScrollTo(0, com.xxxx.emby_tv.ui.motion.Motion.page())
-            withFrameNanos { }
-            scrollState.scrollTo(0)
-        }
+        stage.dock(0)
     }
     fun showEpisodes() {
         blurBackdrop = true
-        bringIntoView.pinToStart = false
-        scope.launch {
-            val target = (tabsOffset - tabInset).coerceAtLeast(0)
-            scrollState.animateScrollTo(target, com.xxxx.emby_tv.ui.motion.Motion.page())
-            withFrameNanos { }
-            if (scrollState.value < 8 && tabsOffset > 80) scrollState.scrollTo(target)
-        }
+        stage.dock(1)
+    }
+    fun dockRow(index: Int) {
+        blurBackdrop = true
+        stage.dock(index)
     }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, com.xxxx.emby_tv.ui.motion.Motion.fade(), label = "series-dim")
     LaunchedEffect(requestInitialFocus, series.id) {
@@ -248,6 +243,13 @@ fun SeriesDetailPage(
                     )
                 )
             )
+            stage.stagePx = (constraints.maxHeight * 0.18f).toInt().coerceIn(
+                with(LocalDensity.current) { 72.dp.roundToPx() },
+                with(LocalDensity.current) { 180.dp.roundToPx() },
+            )
+            val stageSpacer = with(LocalDensity.current) {
+                com.xxxx.emby_tv.ui.motion.StageDock.bottomSpacer(constraints.maxHeight, stage.stagePx).toDp()
+            }
             val titleStart = viewport * 0.35f
             val buttonBottom = viewport * 0.79f
             val actionHeight = 52.dp
@@ -297,10 +299,11 @@ fun SeriesDetailPage(
                         up = heroFocus,
                         down = episodeFocus,
                         onSelect = onSelectSeason,
-                        onFocused = { blurBackdrop = true },
+                        onFocused = { dockRow(1) },
                         forceFocused = forceFocus == SeriesFocus.Seasons,
                         modifier = Modifier.onGloballyPositioned { coords ->
                             tabsOffset = coords.positionInParent().y.roundToInt()
+                            stage.record(1, coords.positionInParent().y.toInt() + scrollState.value)
                         },
                     )
                 }
@@ -327,7 +330,8 @@ fun SeriesDetailPage(
                         serverUrl = serverUrl,
                         focusRequester = episodeFocus,
                         up = if (seasons.isNotEmpty()) seasonFocus else heroFocus,
-                        down = if (people.isNotEmpty()) castFocus else if (similar.isNotEmpty()) similarFocus else null,
+                        down = if (people.isNotEmpty()) castFocus else collectionFocus.firstOrNull()
+                            ?: if (similar.isNotEmpty()) similarFocus else null,
                         initialWindowStart = resumeIndex,
                         forceFocused = forceFocus == SeriesFocus.Episodes,
                         onFocused = { showEpisodes() },
@@ -337,6 +341,9 @@ fun SeriesDetailPage(
                 }
                 }
                 if (people.isNotEmpty()) {
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(2, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
                     SectionLabel(stringResource(R.string.detail_cast))
                     DetailSlotRow(
                         count = people.size,
@@ -346,11 +353,11 @@ fun SeriesDetailPage(
                         cornerIsCircle = true,
                         focusRequester = castFocus,
                         up = episodeFocus,
-                        down = if (similar.isNotEmpty()) similarFocus else null,
+                        down = collectionFocus.firstOrNull() ?: if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == SeriesFocus.Cast,
                         peekPrevious = true,
                         onActivate = {},
-                        onFocused = { blurBackdrop = true },
+                        onFocused = { dockRow(2) },
                         caption = { index ->
                             val person = people[index]
                             Column(Modifier.width(108.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -386,8 +393,50 @@ fun SeriesDetailPage(
                             .fillMaxWidth()
                             .padding(horizontal = 48.dp, vertical = 2.dp),
                     )
+                    }
+                }
+                collections.forEachIndexed { index, (box, works) ->
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(3 + index, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
+                    SectionLabel(EmbyPresentation.collectionRowTitle(box.name.orEmpty()))
+                    DetailSlotRow(
+                        count = works.size,
+                        cardWidth = 220.dp,
+                        cardHeight = 124.dp,
+                        gap = 16.dp,
+                        cornerIsCircle = false,
+                        focusRequester = collectionFocus[index],
+                        up = when {
+                            index > 0 -> collectionFocus[index - 1]
+                            people.isNotEmpty() -> castFocus
+                            else -> episodeFocus
+                        },
+                        down = collectionFocus.getOrNull(index + 1)
+                            ?: if (similar.isNotEmpty()) similarFocus else null,
+                        forceFocused = false,
+                        peekPrevious = true,
+                        onActivate = { onOpenSimilar(works[it]) },
+                        onFocused = { dockRow(3 + index) },
+                        caption = { i ->
+                            HomeText(works[i].name.orEmpty(), 14.sp, Color.White, maxLines = 1, modifier = Modifier.width(220.dp).padding(top = 8.dp))
+                        },
+                    ) { i ->
+                        HomeImage(
+                            itemId = works[i].id,
+                            fallbackArtId = null,
+                            url = if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, works[i], true),
+                            role = ArtRole.Thumb,
+                            contentDescription = works[i].name,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    }
                 }
                 if (similar.isNotEmpty()) {
+                    Column(Modifier.onGloballyPositioned {
+                        stage.record(3 + collections.size, it.positionInParent().y.toInt() + scrollState.value)
+                    }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     DetailSlotRow(
                         count = similar.size,
@@ -396,12 +445,12 @@ fun SeriesDetailPage(
                         gap = 16.dp,
                         cornerIsCircle = false,
                         focusRequester = similarFocus,
-                        up = if (people.isNotEmpty()) castFocus else episodeFocus,
+                        up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else episodeFocus,
                         down = null,
                         forceFocused = forceFocus == SeriesFocus.Similar,
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(similar[it]) },
-                        onFocused = { blurBackdrop = true },
+                        onFocused = { dockRow(3 + collections.size) },
                         caption = { index ->
                             val show = similar[index]
                             Column(Modifier.width(220.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -423,7 +472,9 @@ fun SeriesDetailPage(
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
+                    }
                 }
+                Spacer(Modifier.height(stageSpacer))
             }
             if (expandBelowHero && scrollOffset == 0.dp && !blurBackdrop && episodes.isNotEmpty()) {
                 EpisodePeek(

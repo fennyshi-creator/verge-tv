@@ -68,7 +68,7 @@ fun Emby_tvTheme(
         onTertiary = Color(0xFF1C1B1F),
 
         // 全局背景设为透明，以显示底层的 themeColor 渐变
-        background = Color.Transparent,
+        background = Color(0xFF0E0E0E),
         onBackground = Color.White,
 
         surface = Color.Black.copy(alpha = 0.4f),

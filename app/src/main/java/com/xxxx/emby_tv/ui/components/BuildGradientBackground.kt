@@ -22,14 +22,7 @@ fun BuildGradientBackground(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.linearGradient(
-                    0.0f to themeColor.primaryDark,
-                    1.0f to themeColor.secondaryLight,
-                    start = Offset.Zero,
-                    end = Offset.Infinite
-                )
-            )
+            .background(Color(0xFF0E0E0E))
     ) {
         content()
     }

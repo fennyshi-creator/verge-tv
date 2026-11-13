@@ -38,6 +38,8 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
         private set
     var similarItems by mutableStateOf<List<BaseItemDto>>(emptyList())
         private set
+    var collections by mutableStateOf<List<Pair<BaseItemDto, List<BaseItemDto>>>>(emptyList())
+        private set
 
     // === 加载状态 ===
     var isLoading by mutableStateOf(false)
@@ -209,6 +211,11 @@ class DetailViewModel(application: Application) : AndroidViewModel(application) 
             }
             similarItems = try {
                 withContext(Dispatchers.IO) { repository.getSimilarItems(itemId) }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            collections = try {
+                withContext(Dispatchers.IO) { repository.getItemCollections(itemId) }
             } catch (_: Exception) {
                 emptyList()
             }
