@@ -26,6 +26,12 @@ object StageDock {
     /** How much of the next details block may show under the hero. A sliver, not a row. */
     const val FIRST_PEEK_DP = 40
 
+    /**
+     * Movie first screen. The cast label is about 60dp, then the circles.
+     * This reaches the tops of those circles and stops before a whole head.
+     */
+    const val CAST_HEAD_PEEK_DP = 78
+
     fun heroBlockPx(viewportPx: Int, peekPx: Int): Int = (viewportPx - peekPx).coerceAtLeast(0)
 
     /** The first screen fails if the peek is already a large part of the next block. */

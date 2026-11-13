@@ -234,6 +234,13 @@ class PolishTest {
         assertEquals(0f, ArtworkWash.strength(onHero = false, hasArtwork = false))
         val darkRed = ArtworkWash.sampleMuted(intArrayOf(0xFF401810.toInt(), 0xFF502018.toInt()))
         assertTrue(darkRed != null)
+        assertTrue(ArtworkWash.needsSoftwareCopy("HARDWARE"))
+        assertTrue(!ArtworkWash.needsSoftwareCopy("ARGB_8888"))
+        val warm = ArtworkWash.sampleMuted(intArrayOf(0xFF8A3030.toInt(), 0xFF703028.toInt()))
+        val cool = ArtworkWash.sampleMuted(intArrayOf(0xFF204080.toInt(), 0xFF183868.toInt()))
+        assertTrue(warm != null && cool != null && warm != cool)
+        assertEquals("poster-b", ArtworkWash.artUrlForFocus(true, "poster-b"))
+        assertNull(ArtworkWash.artUrlForFocus(false, "poster-b"))
     }
 
     @Test
@@ -242,6 +249,10 @@ class PolishTest {
         assertEquals(1f, FocusLift.AVATAR_SCALE)
         assertTrue(FocusLift.SCALE in 1.03f..1.05f)
         assertEquals(180, FocusLift.focusedSlotPx(180))
+        assertTrue(FocusLift.liftFits(16, cardPx = 260, risePx = 6, strokePx = 3, scale = FocusLift.SCALE))
+        assertTrue(StageDock.CAST_HEAD_PEEK_DP > StageDock.FIRST_PEEK_DP)
+        assertTrue(StageDock.CAST_HEAD_PEEK_DP > 60)
+        assertTrue(StageDock.CAST_HEAD_PEEK_DP < 60 + 100)
         val width = PosterRowFit.cardWidthPx(viewportPx = 1920, insetPx = 64, gapPx = 40)
         val visible = PosterRowFit.visibleCount(1920, 64, width, 40)
         assertTrue(visible >= 4.6f)

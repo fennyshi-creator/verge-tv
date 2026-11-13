@@ -118,6 +118,15 @@ fun TvLeadingRow(
         }
 
         val density = LocalDensity.current
+        val headroom = with(density) {
+            val needed = FocusLift.topOverflowPx(
+                cardHeight.roundToPx(),
+                FocusLift.rise.roundToPx(),
+                HomeStyle.focusStroke.roundToPx(),
+            )
+            val reserved = (FocusLift.rise + 10.dp).roundToPx()
+            kotlin.math.max(needed, reserved).toDp()
+        }
         val insetPx = with(density) { HomeStyle.gutter.roundToPx() }
         val stridePx = with(density) { stride.roundToPx() }
         val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<Dp> =
@@ -179,8 +188,8 @@ fun TvLeadingRow(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = FocusLift.rise + 10.dp)
-                    .clipToBounds(),
+                    .clipToBounds()
+                    .padding(top = headroom),
             ) {
                 Row(
                     modifier = Modifier

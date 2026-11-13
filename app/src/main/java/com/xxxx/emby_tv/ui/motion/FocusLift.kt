@@ -31,6 +31,20 @@ object FocusLift {
     fun visualScale(avatars: Boolean): Float = if (avatars) AVATAR_SCALE else SCALE
 
     fun focusedSlotPx(slotPx: Int): Int = slotPx
+
+    /**
+     * Space that must sit inside the same clip as the card. Scale grows from
+     * the center and the card also rises, so the top overflow is
+     * rise + height * (scale - 1) / 2, plus the stroke.
+     */
+    fun topOverflowPx(cardPx: Int, risePx: Int, strokePx: Int, scale: Float = SCALE): Int {
+        val grow = (cardPx * (scale - 1f) / 2f).toInt()
+        return (risePx + grow + strokePx).coerceAtLeast(0)
+    }
+
+    fun liftFits(headroomPx: Int, cardPx: Int, risePx: Int, strokePx: Int, scale: Float = SCALE): Boolean {
+        return headroomPx >= topOverflowPx(cardPx, risePx, strokePx, scale)
+    }
 }
 
 @Composable

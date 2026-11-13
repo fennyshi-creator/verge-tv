@@ -246,7 +246,7 @@ fun MovieDetailPage(
                 with(LocalDensity.current) { 36.dp.roundToPx() },
                 with(LocalDensity.current) { 84.dp.roundToPx() },
             )
-            val peekPx = with(LocalDensity.current) { com.xxxx.emby_tv.ui.motion.StageDock.FIRST_PEEK_DP.dp.roundToPx() }
+            val peekPx = with(LocalDensity.current) { com.xxxx.emby_tv.ui.motion.StageDock.CAST_HEAD_PEEK_DP.dp.roundToPx() }
             val heroHeight = with(LocalDensity.current) {
                 com.xxxx.emby_tv.ui.motion.StageDock.heroBlockPx(constraints.maxHeight, peekPx).toDp()
             }
@@ -951,8 +951,8 @@ internal fun DetailSlotRow(
                 Modifier
                     .fillMaxWidth()
                     .padding(start = if (peekPrevious) 0.dp else 48.dp)
-                    .padding(top = if (liftCards) com.xxxx.emby_tv.ui.motion.FocusLift.rise + 8.dp else 0.dp)
-                    .clipToBounds(),
+                    .clipToBounds()
+                    .padding(top = if (liftCards) com.xxxx.emby_tv.ui.motion.FocusLift.rise + 10.dp else 0.dp),
             ) {
                 Row(
                     Modifier

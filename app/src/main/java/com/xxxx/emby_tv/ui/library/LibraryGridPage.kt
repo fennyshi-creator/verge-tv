@@ -318,11 +318,16 @@ private fun GridRow(
     onWash: (String) -> Unit,
 ) {
     val col = selectedCol.coerceIn(0, cells.lastIndex)
+    LaunchedEffect(focused, col, cells) {
+        if (!focused || serverUrl.isBlank()) return@LaunchedEffect
+        val item = cells.getOrNull(col) ?: return@LaunchedEffect
+        onWash(Utils.getImageUrl(serverUrl, item, false))
+    }
     Row(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 28.dp, vertical = 8.dp)
-            .padding(top = FocusLift.rise)
+            .padding(top = FocusLift.rise + 10.dp)
             .focusRequester(focusRequester)
             .onFocusChanged {
                 if (it.isFocused) {

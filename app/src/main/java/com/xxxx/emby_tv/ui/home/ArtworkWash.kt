@@ -19,8 +19,11 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.toBitmap
 import com.xxxx.emby_tv.ui.motion.Motion
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import kotlin.math.max
 import kotlin.math.min
 
@@ -62,6 +65,14 @@ object ArtworkWash {
      * Average of mid-tone, slightly saturated pixels. Skips near-black and
      * near-white so a poster does not flood the page.
      */
+    /** Coil on a TV often hands back a HARDWARE bitmap. getPixels throws on those. */
+    fun needsSoftwareCopy(configName: String?): Boolean =
+        configName.equals("HARDWARE", ignoreCase = true)
+
+    /** Column changes must retarget the wash. Row-focus alone keeps the first poster. */
+    fun artUrlForFocus(focused: Boolean, url: String?): String? =
+        if (focused && !url.isNullOrBlank()) url else null
+
     fun sampleMuted(pixels: IntArray): Int? {
         if (pixels.isEmpty()) return null
         var r = 0L
@@ -106,17 +117,31 @@ fun AmbientWash(
             return@LaunchedEffect
         }
         val next = withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val result = SingletonImageLoader.get(context).execute(
-                    ImageRequest.Builder(context).data(url).size(48, 72).build(),
+                    ImageRequest.Builder(context)
+                        .data(url)
+                        .memoryCacheKey("wash:$url")
+                        .size(64, 96)
+                        .build(),
                 )
-                val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@runCatching null
+                val image = (result as? SuccessResult)?.image ?: return@withContext null
+                val raw = image.toBitmap()
+                val bitmap = if (ArtworkWash.needsSoftwareCopy(raw.config?.name)) {
+                    raw.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: return@withContext null
+                } else {
+                    raw
+                }
                 val pixels = IntArray(bitmap.width * bitmap.height)
                 bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
                 ArtworkWash.sampleMuted(pixels)?.let { Color(it) }
-            }.getOrNull()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         }
-        swatch = next
+        if (coroutineContext.isActive) swatch = next
     }
     val target = swatch?.copy(alpha = maxAlpha) ?: Color.Transparent
     val color by animateColorAsState(target, Motion.fade(), label = "ambient-wash")
