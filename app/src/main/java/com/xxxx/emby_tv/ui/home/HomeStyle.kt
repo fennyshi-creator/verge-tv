@@ -27,8 +27,9 @@ object PosterRowFit {
      * 4.85 rendered as two-and-a-half huge cards on the projector, so the slot
      * is smaller and then capped so it cannot exceed a fifth of the screen.
      */
-    const val TARGET_VISIBLE = 5.35f
-    const val MAX_SLOT_FRACTION = 0.20f
+    /** About six and a quarter posters across, counting the side peeks. */
+    const val TARGET_VISIBLE = 6.35f
+    const val MAX_SLOT_FRACTION = 0.17f
 
     fun cardWidthPx(viewportPx: Int, insetPx: Int, gapPx: Int, visible: Float = TARGET_VISIBLE): Int {
         if (visible <= 0.1f) return 1

@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -152,10 +153,11 @@ fun OfficialHome(
         row.latestItems?.firstOrNull { !it.id.isNullOrBlank() }
     } ?: resumeItems.firstOrNull { !it.id.isNullOrBlank() }
         ?: libraries.firstNotNullOfOrNull { it.latestItems?.firstOrNull { item -> !item.id.isNullOrBlank() } }
-    val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
+    val showContinue = EmbyPresentation.showContinueRow(resumeItems)
+    val contentFocus = if (showContinue) continueFocus else libraryFocus
     val menuDown = if (heroItem != null) heroFocus else contentFocus
     var cursor = 1
-    val continueIndex = if (resumeItems.isNotEmpty()) cursor++ else -1
+    val continueIndex = if (showContinue) cursor++ else -1
     val libraryIndex = if (libraries.isNotEmpty()) cursor++ else -1
     val posterIndex = posterFocus.indices.map { cursor++ }
     fun indexOfId(items: List<BaseItemDto>): Int = items.indexOfFirst { it.id == restoreItemId }.coerceAtLeast(0)
@@ -208,7 +210,7 @@ fun OfficialHome(
             "hero" -> heroFocus
             else -> posterFocus.getOrNull(posterRestore)
                 ?: if (heroItem != null && restoreRowKey == null) heroFocus else when {
-                    resumeItems.isNotEmpty() -> continueFocus
+                    showContinue -> continueFocus
                     libraries.isNotEmpty() -> libraryFocus
                     else -> homeTabFocus
                 }
@@ -303,7 +305,7 @@ fun OfficialHome(
                         modifier = Modifier.stageAnchor(0),
                     )
                 }
-                if (resumeItems.isNotEmpty()) {
+                if (showContinue) {
                     Column(Modifier.fillMaxWidth().stageAnchor(continueIndex)) {
                         StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
                         TvLeadingRow(
@@ -354,7 +356,7 @@ fun OfficialHome(
                             cardHeight = HomeStyle.libraryHeight,
                             corner = HomeStyle.libraryCorner,
                             focusRequester = libraryFocus,
-                            up = if (resumeItems.isNotEmpty()) continueFocus else heroFocus,
+                            up = if (showContinue) continueFocus else heroFocus,
                             down = posterFocus.firstOrNull(),
                             initialIndex = if (restoreRowKey == "libraries") indexOfId(libraries) else -1,
                             imageUrls = libraries.map { primaryUrl(serverUrl, it) },
@@ -539,7 +541,20 @@ private fun HomeHero(
             widthPx = 1280,
             heightPx = 720,
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black,
+                            0.84f to Color.Black,
+                            1f to Color.Transparent,
+                        ),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
         )
         Box(
             Modifier
@@ -549,17 +564,6 @@ private fun HomeHero(
                         0f to Color.Black.copy(0.72f),
                         0.46f to Color.Black.copy(0.28f),
                         1f to Color.Transparent,
-                    ),
-                ),
-        )
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, HomeStyle.background),
                     ),
                 ),
         )

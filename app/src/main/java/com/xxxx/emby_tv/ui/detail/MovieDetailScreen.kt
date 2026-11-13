@@ -359,7 +359,7 @@ fun MovieDetailPage(
                             onActivate = { onOpenSimilar(works[it]) },
                             onFocused = { dockRow(row) },
                             onIndex = { i ->
-                                artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, works[i], true)
+                                artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, works[i])
                             },
                             caption = { i ->
                                 HomeText(works[i].name.orEmpty(), 14.sp, Color.White, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.width(220.dp).padding(top = 8.dp))
@@ -368,7 +368,7 @@ fun MovieDetailPage(
                             HomeImage(
                                 itemId = works[i].id,
                                 fallbackArtId = null,
-                                url = if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, works[i], true),
+                                url = if (serverUrl.isBlank()) "" else EmbyPresentation.landscapeImageUrl(serverUrl, works[i]),
                                 role = ArtRole.Thumb,
                                 contentDescription = works[i].name,
                                 modifier = Modifier.fillMaxSize(),
@@ -390,7 +390,7 @@ fun MovieDetailPage(
                         forceFocused = forceFocus == DetailFocus.Similar,
                         onFocused = { dockRow(2 + boundCollections.size) },
                         onIndex = { i ->
-                            artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, similar[i], true)
+                            artWash = if (serverUrl.isBlank()) null else EmbyPresentation.landscapeImageUrl(serverUrl, similar[i])
                         },
                         onOpen = onOpenSimilar,
                     )
@@ -854,7 +854,7 @@ private fun SimilarRow(
         HomeImage(
             itemId = item.id,
             fallbackArtId = null,
-            url = if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, item, true),
+            url = if (serverUrl.isBlank()) "" else EmbyPresentation.landscapeImageUrl(serverUrl, item),
             role = ArtRole.Thumb,
             contentDescription = item.name,
             modifier = Modifier.fillMaxSize(),

@@ -150,9 +150,15 @@ fun AmbientWash(
     Canvas(modifier.fillMaxSize()) {
         drawRect(
             brush = Brush.linearGradient(
-                colors = listOf(shown, shown.copy(alpha = shown.alpha * 0.35f), Color.Transparent),
-                start = Offset(size.width * 0.05f, size.height * 0.15f),
-                end = Offset(size.width * 0.92f, size.height * 0.95f),
+                colors = listOf(
+                    Color.Transparent,
+                    shown.copy(alpha = shown.alpha * 0.55f),
+                    shown,
+                    shown.copy(alpha = shown.alpha * 0.28f),
+                    Color.Transparent,
+                ),
+                start = Offset(size.width * 0.08f, 0f),
+                end = Offset(size.width * 0.9f, size.height),
             ),
         )
     }

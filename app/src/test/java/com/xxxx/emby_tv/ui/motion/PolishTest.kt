@@ -11,6 +11,7 @@ import com.xxxx.emby_tv.data.remote.libraryItemsPath
 import com.xxxx.emby_tv.data.remote.parseItemListJson
 import com.xxxx.emby_tv.data.remote.seriesAddedPath
 import com.xxxx.emby_tv.ui.home.ArtworkWash
+import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.motion.FocusLift
 import com.xxxx.emby_tv.ui.motion.FocusRestore
 import com.xxxx.emby_tv.ui.motion.Motion
@@ -255,8 +256,9 @@ class PolishTest {
         assertTrue(StageDock.CAST_HEAD_PEEK_DP < 60 + 100)
         val width = PosterRowFit.cardWidthPx(viewportPx = 1920, insetPx = 64, gapPx = 40)
         val visible = PosterRowFit.visibleCount(1920, 64, width, 40)
-        assertTrue(visible >= 4.6f)
+        assertTrue(visible in 6.2f..6.5f)
         assertTrue(width <= (1920 * PosterRowFit.MAX_SLOT_FRACTION).toInt())
+        assertEquals(186f, HomeStyle.continueWidth.value)
         val movies = BaseItemDto(id = "lib", name = "电影Movies", type = "CollectionFolder", collectionType = "movies")
         assertTrue(EmbyPresentation.showsViewAllTile(movies))
         assertEquals("查看全部", EmbyPresentation.viewAllLabel())

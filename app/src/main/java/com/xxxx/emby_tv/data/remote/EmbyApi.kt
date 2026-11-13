@@ -520,7 +520,7 @@ object EmbyApi {
     ): List<BaseItemDto> {
         val limit = if (seriesId.isEmpty()) 15 else 1
         val url = "/Users/$userId/Items/Resume?Limit=$limit&MediaTypes=Video&ParentId=$seriesId" +
-                "&Fields=UserData,RunTimeTicks,ImageTags,SeriesName,IndexNumber,ParentIndexNumber," +
+                "&Fields=UserData,RunTimeTicks,ImageTags,BackdropImageTags,ParentBackdropImageTags,SeriesName,IndexNumber,ParentIndexNumber," +
                 "PrimaryImageAspectRatio,ProductionYear,ParentBackdropItemId,ParentThumbItemId,ParentThumbImageTag" +
                 "&EnableImageTypes=Primary,Backdrop,Thumb,Logo&ImageTypeLimit=1" +
                 "&X-Emby-Token=$apiKey"

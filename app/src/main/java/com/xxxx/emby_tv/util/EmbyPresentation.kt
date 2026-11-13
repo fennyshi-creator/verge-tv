@@ -48,21 +48,35 @@ object EmbyPresentation {
     }
 
     fun resumeImageUrl(serverUrl: String, item: BaseItemDto): String {
-        if (serverUrl.isBlank()) return ""
-        val id = item.id
-        val tags = item.imageTags
-        val thumb = tags?.get("Thumb")
-        if (!id.isNullOrBlank() && !thumb.isNullOrBlank()) {
-            return "$serverUrl/emby/Items/$id/Images/Thumb?maxWidth=800&tag=$thumb&quality=80"
+        if (item.type.equals("Episode", true)) {
+            return episodeStillUrl(serverUrl, item, maxWidth = 800)
         }
-        if (item.type == "Episode") {
-            val primary = tags?.get("Primary")
-            if (!id.isNullOrBlank() && !primary.isNullOrBlank()) {
-                return "$serverUrl/emby/Items/$id/Images/Primary?maxWidth=800&tag=$primary&quality=80"
-            }
-        }
-        return com.xxxx.emby_tv.Utils.getImageUrl(serverUrl, item, true)
+        return landscapeImageUrl(serverUrl, item, maxWidth = 800)
     }
+
+    /**
+     * Wide card art. Backdrop, then thumb, then a parent backdrop or thumb.
+     * The portrait primary is only used when none of those tags exist, so a
+     * poster is not stretched across a landscape slot. A missing tag yields
+     * no URL rather than a request for an empty tag.
+     */
+    fun landscapeImageUrl(serverUrl: String, item: BaseItemDto, maxWidth: Int = 800): String {
+        if (serverUrl.isBlank()) return ""
+        fun image(id: String?, kind: String, tag: String?): String? {
+            if (id.isNullOrBlank() || tag.isNullOrBlank()) return null
+            return "$serverUrl/emby/Items/$id/Images/$kind?maxWidth=$maxWidth&tag=$tag&quality=80"
+        }
+        image(item.id, "Backdrop", item.backdropImageTags?.firstOrNull())?.let { return it }
+        image(item.id, "Thumb", item.imageTags?.get("Thumb"))?.let { return it }
+        image(item.parentBackdropItemId, "Backdrop", item.parentBackdropImageTags?.firstOrNull())?.let { return it }
+        image(item.parentThumbItemId, "Thumb", item.parentThumbImageTag)?.let { return it }
+        image(item.id, "Primary", item.imageTags?.get("Primary"))?.let { return it }
+        return ""
+    }
+
+    /** A continue row exists only when the server returned at least one real item. */
+    fun showContinueRow(items: List<BaseItemDto>?): Boolean =
+        items.orEmpty().any { !it.id.isNullOrBlank() }
 
     fun personImageUrl(
         serverUrl: String,
