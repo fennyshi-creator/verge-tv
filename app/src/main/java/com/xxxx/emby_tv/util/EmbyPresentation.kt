@@ -234,6 +234,25 @@ object EmbyPresentation {
 
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION
 
+    /** Pill text. Quality only. A probe bitrate of 0 must never be shown. */
+    fun versionButtonLabel(source: MediaSourceInfoDto): String {
+        val quality = identifiableQuality(source).orEmpty()
+        val cleaned = quality
+            .substringBefore("kbps")
+            .substringBefore("·")
+            .trim()
+        return cleaned.ifBlank { OTHER_VERSION }
+    }
+
+    /** Collapsed control is a 42dp circle. Focus grows it to the right by the label. */
+    fun versionPillWidth(expanded: Boolean, labelChars: Int, circle: Int = 42): Int {
+        if (!expanded) return circle
+        val extra = 16 + labelChars.coerceAtLeast(1) * 9
+        return circle + extra
+    }
+
+    fun versionNeighborShift(collapsed: Int, expanded: Int): Int = (expanded - collapsed).coerceAtLeast(0)
+
     fun showVersionButton(sourceCount: Int): Boolean = sourceCount > 1
 
     /** The label is visible only while the control is focused. Focus itself does not open the menu. */
@@ -267,7 +286,18 @@ object EmbyPresentation {
         "collection-ids",
         "parent-boxset",
         "boxset-catalog-membership",
+        "boxset-child-scan",
     )
+
+    fun boxContainsTitle(memberIds: List<String?>, currentId: String?): Boolean {
+        if (currentId.isNullOrBlank()) return false
+        return memberIds.any { it == currentId }
+    }
+
+    /** A row is bound only when it has other titles. An empty list leaves no slot. */
+    fun visibleCollectionRows(
+        rows: List<Pair<BaseItemDto, List<BaseItemDto>>>,
+    ): List<Pair<BaseItemDto, List<BaseItemDto>>> = rows.filter { it.second.isNotEmpty() }
 
     fun mergeCollectionRows(
         ancestorBoxes: List<BaseItemDto>,

@@ -3,6 +3,7 @@ package com.xxxx.emby_tv.ui.detail
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -162,7 +163,8 @@ fun MovieDetailPage(
     val playFocus = remember { FocusRequester() }
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
-    val collectionFocus = remember(collections.size) { List(collections.size) { FocusRequester() } }
+    val boundCollections = EmbyPresentation.visibleCollectionRows(collections)
+    val collectionFocus = remember(boundCollections.size) { List(boundCollections.size) { FocusRequester() } }
     val people = item.people.orEmpty().filter { it.name?.isNotBlank() == true }
     LaunchedEffect(requestInitialFocus, item.id) {
         if (!requestInitialFocus) return@LaunchedEffect
@@ -336,7 +338,7 @@ fun MovieDetailPage(
                     )
                     }
                 }
-                collections.forEachIndexed { index, (box, works) ->
+                boundCollections.forEachIndexed { index, (box, works) ->
                     val row = 2 + index
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
@@ -377,7 +379,7 @@ fun MovieDetailPage(
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
-                        stage.record(2 + collections.size, y)
+                        stage.record(2 + boundCollections.size, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     SimilarRow(
@@ -386,7 +388,7 @@ fun MovieDetailPage(
                         focusRequester = similarFocus,
                         up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
-                        onFocused = { dockRow(2 + collections.size) },
+                        onFocused = { dockRow(2 + boundCollections.size) },
                         onIndex = { i ->
                             artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, similar[i], true)
                         },
@@ -531,7 +533,7 @@ internal fun ActionRow(
     val label = EmbyPresentation.playActionLabel(playbackItem)
     val favorite = item.userData?.isFavorite == true
     val played = item.userData?.played == true
-    val versionLabel = sources.getOrNull(versionIndex)?.let { EmbyPresentation.versionLabel(it) }.orEmpty()
+    val versionLabel = sources.getOrNull(versionIndex)?.let { EmbyPresentation.versionButtonLabel(it) }.orEmpty()
     val highlighted = rowFocused || forceFocused
     LaunchedEffect(slot, highlighted) {
         if (highlighted) onAction(actions[slot])
@@ -641,34 +643,50 @@ private fun PlayPill(label: String, focused: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun VersionPill(label: String, focused: Boolean, onClick: () -> Unit) {
-    val expanded = focused && EmbyPresentation.versionShowsLabel(focused) && label.isNotBlank()
+    val showLabel = focused && EmbyPresentation.versionShowsLabel(focused) && label.isNotBlank()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelPx = measurer.measure(
+        text = label,
+        style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium),
+    ).size.width
+    val labelDp = with(density) { labelPx.toDp() }
+    val target = if (showLabel) 36.dp + labelDp + 16.dp else 42.dp
+    val width by animateDpAsState(target, com.xxxx.emby_tv.ui.motion.Motion.row(), label = "version-width")
+    val labelAlpha by animateFloatAsState(if (showLabel) 1f else 0f, com.xxxx.emby_tv.ui.motion.Motion.row(), label = "version-label")
+    val background by animateColorAsState(
+        if (focused) Color.White else Color.White.copy(0.16f),
+        com.xxxx.emby_tv.ui.motion.Motion.focus(),
+        label = "version-fill",
+    )
     val fg = if (focused) Color(0xFF161616) else Color.White
-    val background = if (focused) Color.White else Color.White.copy(0.16f)
-    if (!expanded) {
-        Box(
-            Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(background)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            DiamondIcon(Modifier.size(18.dp), color = fg)
-        }
-        return
-    }
-    Row(
+    Box(
         Modifier
             .height(42.dp)
+            .width(width)
             .clip(RoundedCornerShape(50))
             .background(background)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onClick),
     ) {
-        DiamondIcon(Modifier.size(18.dp), color = fg)
-        Spacer(Modifier.width(6.dp))
-        HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
+        DiamondIcon(
+            Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 12.dp)
+                .size(18.dp),
+            color = fg,
+        )
+        if (labelAlpha > 0.02f && label.isNotBlank()) {
+            HomeText(
+                label,
+                15.sp,
+                fg.copy(alpha = labelAlpha),
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 36.dp),
+            )
+        }
     }
 }
 
@@ -700,14 +718,18 @@ private fun IconBubble(
 @Composable
 private fun DiamondIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
     Canvas(modifier) {
-        val path = Path().apply {
-            moveTo(size.width / 2f, size.height * 0.08f)
-            lineTo(size.width * 0.92f, size.height / 2f)
-            lineTo(size.width / 2f, size.height * 0.92f)
-            lineTo(size.width * 0.08f, size.height / 2f)
+        fun gem(cx: Float, cy: Float, rx: Float, ry: Float) = Path().apply {
+            moveTo(cx, cy - ry)
+            lineTo(cx + rx, cy)
+            lineTo(cx, cy + ry)
+            lineTo(cx - rx, cy)
             close()
         }
-        drawPath(path, color)
+        val cx = size.width / 2f
+        val rx = size.width * 0.34f
+        val ry = size.height * 0.24f
+        drawPath(gem(cx, size.height * 0.34f, rx, ry), color)
+        drawPath(gem(cx, size.height * 0.68f, rx, ry), color)
     }
 }
 
@@ -886,14 +908,8 @@ internal fun DetailSlotRow(
             com.xxxx.emby_tv.ui.motion.Motion.row(),
             label = "detail-slide",
         )
-        val ringX by animateDpAsState(
-            with(density) { com.xxxx.emby_tv.ui.motion.LeadingPeek.focusedX(0, slot, stridePx).toDp() },
-            com.xxxx.emby_tv.ui.motion.Motion.row(),
-            label = "detail-ring",
-        )
         val focusIndex = (windowStart + slot).coerceIn(0, count - 1)
-        val liftScale = if (cornerIsCircle) com.xxxx.emby_tv.ui.motion.FocusLift.AVATAR_SCALE else com.xxxx.emby_tv.ui.motion.FocusLift.SCALE
-        val liftRise = if (cornerIsCircle) com.xxxx.emby_tv.ui.motion.FocusLift.avatarRise else com.xxxx.emby_tv.ui.motion.FocusLift.rise
+        val liftCards = !cornerIsCircle
         LaunchedEffect(focusIndex, rowFocused, forceFocused) {
             if (rowFocused || forceFocused) onIndex(focusIndex)
         }
@@ -935,7 +951,7 @@ internal fun DetailSlotRow(
                 Modifier
                     .fillMaxWidth()
                     .padding(start = if (peekPrevious) 0.dp else 48.dp)
-                    .padding(top = liftRise)
+                    .padding(top = if (liftCards) com.xxxx.emby_tv.ui.motion.FocusLift.rise + 8.dp else 0.dp)
                     .clipToBounds(),
             ) {
                 Row(
@@ -947,12 +963,13 @@ internal fun DetailSlotRow(
                     repeat(count) { index ->
                         val active = (rowFocused || forceFocused) && index == focusIndex
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                Modifier
+                            com.xxxx.emby_tv.ui.motion.FocusCard(
+                                modifier = Modifier
                                     .size(cardWidth, cardHeight)
-                                    .tvFocusLift(active, liftScale, liftRise)
-                                    .clip(shape)
                                     .clickable { onActivate(index) },
+                                focused = active,
+                                shape = shape,
+                                lift = liftCards,
                             ) {
                                 art(index)
                             }
@@ -960,18 +977,6 @@ internal fun DetailSlotRow(
                         }
                     }
                 }
-            }
-            if (rowFocused || forceFocused) {
-                TvFocusHighlight(
-                    modifier = Modifier
-                        .padding(start = 48.dp, top = liftRise)
-                        .offset(x = ringX)
-                        .size(cardWidth, cardHeight)
-                        .tvFocusLift(true, liftScale, liftRise),
-                    shape = shape,
-                    solid = forceFocused && !rowFocused,
-                    stroke = HomeStyle.focusStroke,
-                )
             }
         }
     }

@@ -243,12 +243,13 @@ fun OfficialHome(
             val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
             var columnRoot by remember { mutableIntStateOf(0) }
             var washUrl by remember { mutableStateOf<String?>(null) }
-            val posterCard = with(density) {
-                PosterRowFit.cardWidthPx(
+            val posterCard = run {
+                val cardPx = PosterRowFit.cardWidthPx(
                     viewportPx = constraints.maxWidth,
-                    insetPx = HomeStyle.gutter.roundToPx(),
-                    gapPx = HomeStyle.rowGap.roundToPx(),
-                ).toDp()
+                    insetPx = with(density) { HomeStyle.gutter.roundToPx() },
+                    gapPx = with(density) { HomeStyle.rowGap.roundToPx() },
+                )
+                (cardPx / density.density).dp
             }
             val posterCardHeight = posterCard * 3f / 2f
             val onHero = scroll.value <= with(density) { 24.dp.roundToPx() }

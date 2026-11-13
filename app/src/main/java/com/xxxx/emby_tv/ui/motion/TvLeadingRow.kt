@@ -40,6 +40,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.ArtworkPrefetch
@@ -126,11 +127,6 @@ fun TvLeadingRow(
             slideSpec,
             label = "leading-slot-slide",
         )
-        val ringX by animateDpAsState(
-            with(density) { LeadingPeek.focusedX(insetPx, slot, stridePx).toDp() },
-            slideSpec,
-            label = "leading-slot-ring",
-        )
         val shape = RoundedCornerShape(corner)
         val focusedIndex = (windowStart + slot).coerceIn(0, total - 1)
         val prefetchContext = LocalContext.current
@@ -183,7 +179,7 @@ fun TvLeadingRow(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = FocusLift.rise)
+                    .padding(top = FocusLift.rise + 10.dp)
                     .clipToBounds(),
             ) {
                 Row(
@@ -195,43 +191,32 @@ fun TvLeadingRow(
                     items.forEachIndexed { index, item ->
                         val active = (rowFocused || forceFocused) && index == focusedIndex
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                Modifier
+                            FocusCard(
+                                modifier = Modifier
                                     .width(cardWidth)
                                     .height(cardHeight)
-                                    .tvFocusLift(active)
-                                    .clip(shape)
                                     .focusProperties { canFocus = false }
                                     .clickable { onActivate(item) },
+                                focused = active,
+                                shape = shape,
+                                lift = true,
                             ) { art(item) }
                             caption(item)
                         }
                     }
                     if (trailing != null) {
                         val active = (rowFocused || forceFocused) && focusedIndex == items.size
-                        Box(
-                            Modifier
+                        FocusCard(
+                            modifier = Modifier
                                 .width(cardWidth)
                                 .height(cardHeight)
-                                .tvFocusLift(active)
-                                .clip(shape)
                                 .clickable { onTrailing?.invoke() },
+                            focused = active,
+                            shape = shape,
+                            lift = true,
                         ) { trailing() }
                     }
                 }
-            }
-            if (rowFocused || forceFocused) {
-                TvFocusHighlight(
-                    modifier = Modifier
-                        .padding(top = FocusLift.rise)
-                        .offset(x = ringX)
-                        .width(cardWidth)
-                        .height(cardHeight)
-                        .tvFocusLift(true),
-                    shape = shape,
-                    solid = forceFocused && !rowFocused,
-                    stroke = HomeStyle.focusStroke,
-                )
             }
         }
     }

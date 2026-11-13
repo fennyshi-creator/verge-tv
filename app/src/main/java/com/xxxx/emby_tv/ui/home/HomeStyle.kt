@@ -22,11 +22,19 @@ object PosterRowFit {
      * Homepage poster rows: a left peek, about four posters, and a right half-peek.
      * Width is derived from the real viewport so the count survives the focus lift.
      */
-    const val TARGET_VISIBLE = 4.85f
+    /**
+     * Unfocused slots. A left peek, about four posters, and a right half-peek.
+     * 4.85 rendered as two-and-a-half huge cards on the projector, so the slot
+     * is smaller and then capped so it cannot exceed a fifth of the screen.
+     */
+    const val TARGET_VISIBLE = 5.35f
+    const val MAX_SLOT_FRACTION = 0.20f
 
     fun cardWidthPx(viewportPx: Int, insetPx: Int, gapPx: Int, visible: Float = TARGET_VISIBLE): Int {
         if (visible <= 0.1f) return 1
-        return (((viewportPx - insetPx + gapPx) / visible) - gapPx).toInt().coerceAtLeast(1)
+        val raw = (((viewportPx - insetPx + gapPx) / visible) - gapPx).toInt()
+        val cap = (viewportPx * MAX_SLOT_FRACTION).toInt()
+        return raw.coerceAtMost(cap).coerceAtLeast(1)
     }
 }
 

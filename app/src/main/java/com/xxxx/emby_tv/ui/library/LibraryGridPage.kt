@@ -57,12 +57,11 @@ import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.motion.FocusCard
 import com.xxxx.emby_tv.ui.motion.FocusLift
 import com.xxxx.emby_tv.ui.motion.ProvideStageScroll
 import com.xxxx.emby_tv.ui.motion.StageDock
-import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
 import com.xxxx.emby_tv.ui.motion.rememberStageScroll
-import com.xxxx.emby_tv.ui.motion.tvFocusLift
 import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.util.LibraryFocus
@@ -378,12 +377,13 @@ private fun GridRow(
     ) {
         cells.forEachIndexed { index, item ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier
+                FocusCard(
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(2f / 3f)
-                        .tvFocusLift(focused && index == col)
-                        .clip(RoundedCornerShape(14.dp)),
+                        .aspectRatio(2f / 3f),
+                    focused = focused && index == col,
+                    shape = RoundedCornerShape(14.dp),
+                    lift = true,
                 ) {
                     HomeImage(
                         itemId = item.id,
@@ -393,9 +393,6 @@ private fun GridRow(
                         contentDescription = item.name,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    if (focused && index == col) {
-                        TvFocusHighlight(Modifier.matchParentSize(), RoundedCornerShape(14.dp), stroke = HomeStyle.focusStroke)
-                    }
                 }
                 HomeText(
                     item.name.orEmpty(),

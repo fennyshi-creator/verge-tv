@@ -171,7 +171,8 @@ fun SeriesDetailPage(
     val episodeFocus = remember { FocusRequester() }
     val castFocus = remember { FocusRequester() }
     val similarFocus = remember { FocusRequester() }
-    val collectionFocus = remember(collections.size) { List(collections.size) { FocusRequester() } }
+    val boundCollections = EmbyPresentation.visibleCollectionRows(collections)
+    val collectionFocus = remember(boundCollections.size) { List(boundCollections.size) { FocusRequester() } }
     val people = series.people.orEmpty().filter { it.name?.isNotBlank() == true }
     val season = seasons.getOrNull(selectedSeason)
     val resumeIndex = episodes.indexOfFirst { it.id != null && it.id == resume?.id }
@@ -418,7 +419,7 @@ fun SeriesDetailPage(
                     )
                     }
                 }
-                collections.forEachIndexed { index, (box, works) ->
+                boundCollections.forEachIndexed { index, (box, works) ->
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
                         stage.record(3 + index, y)
@@ -463,7 +464,7 @@ fun SeriesDetailPage(
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
                         val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
-                        stage.record(3 + collections.size, y)
+                        stage.record(3 + boundCollections.size, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     DetailSlotRow(
@@ -478,7 +479,7 @@ fun SeriesDetailPage(
                         forceFocused = forceFocus == SeriesFocus.Similar,
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(similar[it]) },
-                        onFocused = { dockRow(3 + collections.size) },
+                        onFocused = { dockRow(3 + boundCollections.size) },
                         onIndex = { i ->
                             artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, similar[i], true)
                         },

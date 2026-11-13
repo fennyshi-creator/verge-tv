@@ -24,6 +24,9 @@ import com.xxxx.emby_tv.data.model.SessionDto
 import com.xxxx.emby_tv.data.model.VirtualFolderInfoDto
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -155,16 +158,26 @@ internal fun itemAncestorsPath(itemId: String, userId: String, apiKey: String): 
     return "/Items/$itemId/Ancestors?UserId=$userId&X-Emby-Token=$apiKey"
 }
 
-internal fun boxSetCatalogPath(userId: String, apiKey: String): String {
-    return "/Users/$userId/Items?IncludeItemTypes=BoxSet&Recursive=true&Limit=60&SortBy=SortName" +
-            "&Fields=ChildCount,PrimaryImageAspectRatio,ImageTags,BackdropImageTags" +
+internal fun boxSetCatalogPath(
+    userId: String,
+    apiKey: String,
+    startIndex: Int = 0,
+    limit: Int = 40,
+): String {
+    return "/Users/$userId/Items?IncludeItemTypes=BoxSet&Recursive=true&StartIndex=$startIndex&Limit=$limit" +
+            "&SortBy=SortName&Fields=ChildCount,PrimaryImageAspectRatio,ImageTags,BackdropImageTags" +
             "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }
 
-internal fun boxSetMembershipPath(userId: String, boxId: String, itemId: String, apiKey: String): String {
-    return "/Users/$userId/Items?ParentId=$boxId&Ids=$itemId&Recursive=true&Limit=1" +
+/** Child ids of one box. ParentId alone — an Ids filter returned nothing on this server. */
+internal fun boxSetMemberIdsPath(userId: String, boxId: String, apiKey: String): String {
+    return "/Users/$userId/Items?ParentId=$boxId&Recursive=true&Limit=200&Fields=Id" +
             "&X-Emby-Token=$apiKey"
+}
+
+internal fun boxSetMembershipPath(userId: String, boxId: String, itemId: String, apiKey: String): String {
+    return boxSetMemberIdsPath(userId, boxId, apiKey)
 }
 
 /** Ancestors is a raw array on some servers and an `{Items:[]}` page on others. */
@@ -896,16 +909,15 @@ object EmbyApi {
             null
         }
 
-        val ancestors = load(ancestorsPath(userId, itemId, apiKey)) +
-            load(itemAncestorsPath(itemId, userId, apiKey))
-        val self = one("/Users/$userId/Items/$itemId?Fields=CollectionIds,ParentId&X-Emby-Token=$apiKey")
         val boxes = linkedMapOf<String, BaseItemDto>()
         fun addBox(box: BaseItemDto?) {
             if (box == null || !com.xxxx.emby_tv.util.EmbyPresentation.isBoxSet(box)) return
             val id = box.id ?: return
             boxes.putIfAbsent(id, box)
         }
-        ancestors.forEach { addBox(it) }
+        load(ancestorsPath(userId, itemId, apiKey)).forEach { addBox(it) }
+        load(itemAncestorsPath(itemId, userId, apiKey)).forEach { addBox(it) }
+        val self = one("/Users/$userId/Items/$itemId?Fields=CollectionIds,ParentId&X-Emby-Token=$apiKey")
         self?.collectionIds.orEmpty().forEach { id ->
             if (id.isBlank() || boxes.containsKey(id)) return@forEach
             addBox(one("/Users/$userId/Items/$id?Fields=ChildCount,ImageTags,BackdropImageTags,PrimaryImageAspectRatio&X-Emby-Token=$apiKey"))
@@ -914,19 +926,32 @@ object EmbyApi {
         if (!parentId.isNullOrBlank() && !boxes.containsKey(parentId)) {
             addBox(one("/Users/$userId/Items/$parentId?Fields=ChildCount,ImageTags,BackdropImageTags&X-Emby-Token=$apiKey"))
         }
-        for (box in load(boxSetCatalogPath(userId, apiKey))) {
-            val id = box.id ?: continue
-            if (!com.xxxx.emby_tv.util.EmbyPresentation.isBoxSet(box) || boxes.containsKey(id)) continue
-            val hit = load(boxSetMembershipPath(userId, id, itemId, apiKey))
-            if (hit.any { it.id == itemId }) addBox(box)
+        var start = 0
+        var pages = 0
+        while (pages < 3) {
+            val page = load(boxSetCatalogPath(userId, apiKey, startIndex = start, limit = 40))
+            if (page.isEmpty()) break
+            page.forEach { addBox(it) }
+            start += page.size
+            pages++
+            if (page.size < 40) break
         }
-        val children = boxes.keys.associateWith { id -> load(boxSetItemsPath(userId, id, apiKey)) }
-        com.xxxx.emby_tv.util.EmbyPresentation.mergeCollectionRows(
-            ancestorBoxes = boxes.values.toList(),
-            membershipBoxes = emptyList(),
-            membersOf = { children[it].orEmpty() },
-            currentId = itemId,
-        )
+        coroutineScope {
+            boxes.values.map { box ->
+                async {
+                    val id = box.id ?: return@async null
+                    val memberIds = load(boxSetMemberIdsPath(userId, id, apiKey))
+                    val inBox = com.xxxx.emby_tv.util.EmbyPresentation.boxContainsTitle(
+                        memberIds.map { it.id },
+                        itemId,
+                    )
+                    if (!inBox) return@async null
+                    val shown = load(boxSetItemsPath(userId, id, apiKey))
+                    val others = com.xxxx.emby_tv.util.EmbyPresentation.collectionWorks(shown, itemId)
+                    if (others.isEmpty()) null else box to others
+                }
+            }.awaitAll().filterNotNull()
+        }
     }
 
     suspend fun getSimilarItems(

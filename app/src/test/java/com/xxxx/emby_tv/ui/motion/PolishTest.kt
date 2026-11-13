@@ -163,6 +163,17 @@ class PolishTest {
         assertEquals(VersionControl.Menu, EmbyPresentation.versionControl(2, focused = true, menuOpen = true))
         assertTrue(EmbyPresentation.versionDiamondFilled())
         assertTrue(!EmbyPresentation.versionShowsLabel(false))
+        val circle = EmbyPresentation.versionPillWidth(expanded = false, labelChars = 2)
+        val pill = EmbyPresentation.versionPillWidth(expanded = true, labelChars = 2)
+        assertTrue(pill > circle)
+        assertEquals(pill - circle, EmbyPresentation.versionNeighborShift(circle, pill))
+        val source = com.xxxx.emby_tv.data.model.MediaSourceInfoDto(
+            name = "4K",
+            bitrate = 192,
+        )
+        val text = EmbyPresentation.versionButtonLabel(source)
+        assertTrue(!text.contains("kbps"))
+        assertTrue(!text.contains("0"))
     }
 
     @Test
@@ -204,7 +215,13 @@ class PolishTest {
         assertTrue(itemAncestorsPath("item", "u", "k").contains("/Items/item/Ancestors"))
         assertTrue(boxSetCatalogPath("u", "k").contains("IncludeItemTypes=BoxSet"))
         assertTrue(boxSetMembershipPath("u", "box", "item", "k").contains("ParentId=box"))
-        assertTrue(boxSetMembershipPath("u", "box", "item", "k").contains("Ids=item"))
+        assertTrue(!boxSetMembershipPath("u", "box", "item", "k").contains("Ids=item"))
+        assertTrue(EmbyPresentation.boxContainsTitle(listOf("self", "other"), "self"))
+        val bound = EmbyPresentation.visibleCollectionRows(
+            listOf(box to listOf(BaseItemDto(id = "other", name = "另一部"))),
+        )
+        assertEquals(1, bound.size)
+        assertTrue(EmbyPresentation.visibleCollectionRows(listOf(box to emptyList())).isEmpty())
     }
 
     @Test
@@ -221,11 +238,14 @@ class PolishTest {
 
     @Test
     fun focusedArtworkLiftsAndLibraryRowsEndWithViewAll() {
-        assertTrue(FocusLift.SCALE in 1.04f..1.10f)
-        assertTrue(FocusLift.AVATAR_SCALE > 1f && FocusLift.AVATAR_SCALE < FocusLift.SCALE)
-        val width = PosterRowFit.cardWidthPx(viewportPx = 960, insetPx = 32, gapPx = 16)
-        val visible = PosterRowFit.visibleCount(960, 32, width, 16)
-        assertTrue(visible in 4.6f..5.1f)
+        assertEquals(1f, FocusLift.LAYOUT_SCALE)
+        assertEquals(1f, FocusLift.AVATAR_SCALE)
+        assertTrue(FocusLift.SCALE in 1.03f..1.05f)
+        assertEquals(180, FocusLift.focusedSlotPx(180))
+        val width = PosterRowFit.cardWidthPx(viewportPx = 1920, insetPx = 64, gapPx = 40)
+        val visible = PosterRowFit.visibleCount(1920, 64, width, 40)
+        assertTrue(visible >= 4.6f)
+        assertTrue(width <= (1920 * PosterRowFit.MAX_SLOT_FRACTION).toInt())
         val movies = BaseItemDto(id = "lib", name = "电影Movies", type = "CollectionFolder", collectionType = "movies")
         assertTrue(EmbyPresentation.showsViewAllTile(movies))
         assertEquals("查看全部", EmbyPresentation.viewAllLabel())
