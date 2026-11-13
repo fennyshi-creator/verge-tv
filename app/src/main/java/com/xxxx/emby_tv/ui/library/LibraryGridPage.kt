@@ -52,15 +52,20 @@ import androidx.compose.ui.unit.sp
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.ui.home.AmbientWash
+import com.xxxx.emby_tv.ui.home.ArtworkWash
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.motion.FocusLift
+import com.xxxx.emby_tv.ui.motion.ProvideStageScroll
 import com.xxxx.emby_tv.ui.motion.StageDock
 import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
 import com.xxxx.emby_tv.ui.motion.rememberStageScroll
+import com.xxxx.emby_tv.ui.motion.tvFocusLift
 import com.xxxx.emby_tv.ui.viewmodel.LibraryBrowseViewModel
 import com.xxxx.emby_tv.util.EmbyPresentation
+import com.xxxx.emby_tv.util.LibraryFocus
 import kotlinx.coroutines.yield
 
 private val sorts = listOf(
@@ -86,6 +91,7 @@ fun LibraryGridPage(
     itemType: String,
     serverUrl: String,
     viewModel: LibraryBrowseViewModel,
+    restoreItemId: String? = null,
     onOpenItem: (BaseItemDto) -> Unit,
 ) {
     val items = viewModel.items.orEmpty()
@@ -103,14 +109,24 @@ fun LibraryGridPage(
     var washUrl by remember { mutableStateOf<String?>(null) }
     val panelFocus = remember { FocusRequester() }
 
-    LaunchedEffect(rows.size) {
-        if (rows.isNotEmpty()) {
-            yield()
-            withFrameNanos { }
-            try {
-                rowFocus.getOrNull(gridRow.coerceAtMost(rows.lastIndex))?.requestFocus()
-            } catch (_: IllegalStateException) {
-            }
+    var placed by remember { mutableStateOf(false) }
+    LaunchedEffect(items.map { it.id }, restoreItemId) {
+        if (rows.isEmpty() || placed) return@LaunchedEffect
+        val restoreIndex = if (restoreItemId == null) -1 else items.indexOfFirst { it.id == restoreItemId }
+        if (restoreItemId != null && restoreIndex < 0) return@LaunchedEffect
+        if (restoreIndex >= 0) {
+            val (row, col) = LibraryFocus.cell(restoreIndex, 6)
+            gridRow = row
+            gridCol = col
+        }
+        placed = true
+        yield()
+        withFrameNanos { }
+        withFrameNanos { }
+        if (restoreIndex >= 0) stage.jump(gridRow)
+        try {
+            rowFocus.getOrNull(gridRow.coerceAtMost(rows.lastIndex))?.requestFocus()
+        } catch (_: IllegalStateException) {
         }
     }
     BackHandler(enabled = showFilter || showSort) {
@@ -121,6 +137,7 @@ fun LibraryGridPage(
         }
     }
 
+    ProvideStageScroll {
     BoxWithConstraints(Modifier.fillMaxSize().background(HomeStyle.background)) {
         val viewport = constraints.maxHeight
         val density = LocalDensity.current
@@ -130,10 +147,9 @@ fun LibraryGridPage(
         )
         val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
         var columnRoot by remember { mutableIntStateOf(0) }
-        val washFade = with(density) { 120.dp.roundToPx() }.coerceAtLeast(1)
         AmbientWash(
             url = washUrl,
-            strength = if (washUrl.isNullOrBlank()) 0f else 1f,
+            strength = ArtworkWash.strength(onHero = false, hasArtwork = !washUrl.isNullOrBlank()),
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -246,6 +262,7 @@ fun LibraryGridPage(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -306,6 +323,7 @@ private fun GridRow(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 28.dp, vertical = 8.dp)
+            .padding(top = FocusLift.rise)
             .focusRequester(focusRequester)
             .onFocusChanged {
                 if (it.isFocused) {
@@ -364,6 +382,7 @@ private fun GridRow(
                     Modifier
                         .fillMaxWidth()
                         .aspectRatio(2f / 3f)
+                        .tvFocusLift(focused && index == col)
                         .clip(RoundedCornerShape(14.dp)),
                 ) {
                     HomeImage(

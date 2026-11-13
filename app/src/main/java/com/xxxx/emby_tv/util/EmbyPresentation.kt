@@ -5,6 +5,16 @@ import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.PersonInfo
 import java.util.Locale
 
+enum class VersionControl { Hidden, Icon, Label, Menu }
+
+/** Library grid cell for a flat item index. Back uses this to return to the same poster. */
+object LibraryFocus {
+    fun cell(index: Int, columns: Int = 6): Pair<Int, Int> {
+        if (index < 0 || columns <= 0) return 0 to 0
+        return index / columns to index % columns
+    }
+}
+
 /**
  * Display mapping from Emby items to the approved home and detail screens.
  * Pure functions so fixture tests can lock the live-library contract.
@@ -229,11 +239,58 @@ object EmbyPresentation {
     /** The label is visible only while the control is focused. Focus itself does not open the menu. */
     fun versionShowsLabel(focused: Boolean): Boolean = focused
 
+    /** Filled diamond. The 2.0.39 control was a hairline stroke and read as a wireframe. */
+    fun versionDiamondFilled(): Boolean = true
+
+    fun versionControl(sourceCount: Int, focused: Boolean, menuOpen: Boolean): VersionControl {
+        if (!showVersionButton(sourceCount)) return VersionControl.Hidden
+        if (menuOpen) return VersionControl.Menu
+        if (focused && versionShowsLabel(focused)) return VersionControl.Label
+        return VersionControl.Icon
+    }
+
     fun collectionRowTitle(name: String): String = "${name}中的其他作品"
 
     fun collectionWorks(members: List<BaseItemDto>, currentId: String?): List<BaseItemDto> {
         return members.filter { !it.id.isNullOrBlank() && it.id != currentId }
     }
+
+    fun isBoxSet(item: BaseItemDto): Boolean = item.type.equals("BoxSet", true)
+
+    /**
+     * Ancestors alone missed box sets on the 2.0.39 projector test. Membership
+     * is the union of every source [collectionLookupSteps] names.
+     */
+    fun collectionLookupSteps(): List<String> = listOf(
+        "users-ancestors",
+        "item-ancestors",
+        "collection-ids",
+        "parent-boxset",
+        "boxset-catalog-membership",
+    )
+
+    fun mergeCollectionRows(
+        ancestorBoxes: List<BaseItemDto>,
+        membershipBoxes: List<BaseItemDto>,
+        membersOf: (String) -> List<BaseItemDto>,
+        currentId: String?,
+    ): List<Pair<BaseItemDto, List<BaseItemDto>>> {
+        val boxes = linkedMapOf<String, BaseItemDto>()
+        for (box in ancestorBoxes + membershipBoxes) {
+            if (!isBoxSet(box)) continue
+            val id = box.id ?: continue
+            boxes.putIfAbsent(id, box)
+        }
+        return boxes.values.mapNotNull { box ->
+            val id = box.id ?: return@mapNotNull null
+            val others = collectionWorks(membersOf(id), currentId)
+            if (others.isEmpty()) null else box to others
+        }
+    }
+
+    fun viewAllLabel(): String = "查看全部"
+
+    fun showsViewAllTile(view: BaseItemDto): Boolean = isPosterRowLibrary(view)
 
     /**
      * Secondary line under a version. Bitrate is omitted when it is missing or too small

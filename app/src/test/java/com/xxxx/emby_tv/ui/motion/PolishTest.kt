@@ -1,13 +1,26 @@
 package com.xxxx.emby_tv.ui.motion
 
+import androidx.compose.runtime.mutableStateOf
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.data.remote.ancestorsPath
+import com.xxxx.emby_tv.data.remote.boxSetCatalogPath
+import com.xxxx.emby_tv.data.remote.boxSetMembershipPath
+import com.xxxx.emby_tv.data.remote.itemAncestorsPath
 import com.xxxx.emby_tv.data.remote.latestItemsPath
 import com.xxxx.emby_tv.data.remote.libraryItemsPath
+import com.xxxx.emby_tv.data.remote.parseItemListJson
 import com.xxxx.emby_tv.data.remote.seriesAddedPath
 import com.xxxx.emby_tv.ui.home.ArtworkWash
+import com.xxxx.emby_tv.ui.motion.FocusLift
+import com.xxxx.emby_tv.ui.motion.FocusRestore
+import com.xxxx.emby_tv.ui.motion.Motion
+import com.xxxx.emby_tv.ui.motion.StageDock
+import com.xxxx.emby_tv.ui.home.PageLayers
 import com.xxxx.emby_tv.ui.home.PosterRowFit
 import com.xxxx.emby_tv.ui.SettingsCatalog
 import com.xxxx.emby_tv.util.EmbyPresentation
+import com.xxxx.emby_tv.util.LibraryFocus
+import com.xxxx.emby_tv.util.VersionControl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -140,6 +153,97 @@ class PolishTest {
         assertTrue(SettingsCatalog.allows("播放"))
         assertTrue(SettingsCatalog.allows("字幕"))
         assertTrue(!SettingsCatalog.allows("弹幕设置"))
+    }
+
+    @Test
+    fun versionControlIsIconThenLabelThenMenu() {
+        assertEquals(VersionControl.Hidden, EmbyPresentation.versionControl(1, focused = true, menuOpen = false))
+        assertEquals(VersionControl.Icon, EmbyPresentation.versionControl(2, focused = false, menuOpen = false))
+        assertEquals(VersionControl.Label, EmbyPresentation.versionControl(2, focused = true, menuOpen = false))
+        assertEquals(VersionControl.Menu, EmbyPresentation.versionControl(2, focused = true, menuOpen = true))
+        assertTrue(EmbyPresentation.versionDiamondFilled())
+        assertTrue(!EmbyPresentation.versionShowsLabel(false))
+    }
+
+    @Test
+    fun detailsHeroPeeksASliverAndUsesTheHomeEase() {
+        val viewport = 1080
+        val peek = StageDock.FIRST_PEEK_DP
+        val hero = StageDock.heroBlockPx(viewport, peek)
+        assertEquals(1040, hero)
+        assertTrue(StageDock.peekIsSliver(peek, nextBlockPx = 220))
+        assertEquals(0f, StageDock.bringIntoViewDistance())
+        assertEquals(0, StageDock.offset(rowTop = 900, index = 0, stagePx = 80, maxScroll = 2000))
+        assertEquals(820, StageDock.offset(rowTop = 900, index = 1, stagePx = 80, maxScroll = 2000))
+        assertEquals(Motion.pageMs, 300)
+    }
+
+    @Test
+    fun collectionLookupIsNotOnlyAncestors() {
+        val steps = EmbyPresentation.collectionLookupSteps()
+        assertTrue(steps.contains("users-ancestors"))
+        assertTrue(steps.contains("boxset-catalog-membership"))
+        assertTrue(steps.contains("collection-ids"))
+        assertTrue(steps.size > 1)
+        val box = BaseItemDto(id = "box", name = "合集", type = "BoxSet")
+        val rows = EmbyPresentation.mergeCollectionRows(
+            ancestorBoxes = emptyList(),
+            membershipBoxes = listOf(box),
+            membersOf = {
+                listOf(BaseItemDto(id = "self"), BaseItemDto(id = "other", name = "另一部"))
+            },
+            currentId = "self",
+        )
+        assertEquals("合集中的其他作品", EmbyPresentation.collectionRowTitle(rows.single().first.name.orEmpty()))
+        assertEquals(listOf("other"), rows.single().second.map { it.id })
+        val wrapped = parseItemListJson("""{"Items":[{"Id":"box","Type":"BoxSet","Name":"合集"}]}""")
+        assertEquals("BoxSet", wrapped.single().type)
+        val raw = parseItemListJson("""[{"Id":"box","Type":"BoxSet"}]""")
+        assertEquals("box", raw.single().id)
+        assertTrue(ancestorsPath("u", "item", "k").contains("/Ancestors"))
+        assertTrue(itemAncestorsPath("item", "u", "k").contains("/Items/item/Ancestors"))
+        assertTrue(boxSetCatalogPath("u", "k").contains("IncludeItemTypes=BoxSet"))
+        assertTrue(boxSetMembershipPath("u", "box", "item", "k").contains("ParentId=box"))
+        assertTrue(boxSetMembershipPath("u", "box", "item", "k").contains("Ids=item"))
+    }
+
+    @Test
+    fun washIsDrawnAfterTheDarkFill() {
+        assertTrue(PageLayers.washAboveFill(PageLayers.home))
+        assertTrue(PageLayers.washAboveFill(PageLayers.library))
+        assertTrue(PageLayers.washAboveFill(PageLayers.details))
+        assertEquals(0f, ArtworkWash.strength(onHero = true, hasArtwork = true))
+        assertEquals(1f, ArtworkWash.strength(onHero = false, hasArtwork = true))
+        assertEquals(0f, ArtworkWash.strength(onHero = false, hasArtwork = false))
+        val darkRed = ArtworkWash.sampleMuted(intArrayOf(0xFF401810.toInt(), 0xFF502018.toInt()))
+        assertTrue(darkRed != null)
+    }
+
+    @Test
+    fun focusedArtworkLiftsAndLibraryRowsEndWithViewAll() {
+        assertTrue(FocusLift.SCALE in 1.04f..1.10f)
+        assertTrue(FocusLift.AVATAR_SCALE > 1f && FocusLift.AVATAR_SCALE < FocusLift.SCALE)
+        val width = PosterRowFit.cardWidthPx(viewportPx = 960, insetPx = 32, gapPx = 16)
+        val visible = PosterRowFit.visibleCount(960, 32, width, 16)
+        assertTrue(visible in 4.6f..5.1f)
+        val movies = BaseItemDto(id = "lib", name = "电影Movies", type = "CollectionFolder", collectionType = "movies")
+        assertTrue(EmbyPresentation.showsViewAllTile(movies))
+        assertEquals("查看全部", EmbyPresentation.viewAllLabel())
+        assertTrue(!EmbyPresentation.showsViewAllTile(BaseItemDto(type = "CollectionFolder", collectionType = "music")))
+    }
+
+    @Test
+    fun backRestoresTheSameLibraryAndHomeItem() {
+        val restore = FocusRestore(mutableStateOf(null), mutableStateOf(null))
+        val items = listOf(BaseItemDto(id = "a"), BaseItemDto(id = "b"), BaseItemDto(id = "c"))
+        assertEquals(-1, restore.indexIn(items))
+        restore.mark("latest-lib", "c")
+        assertEquals("latest-lib", restore.rowKey)
+        assertEquals(2, restore.indexIn(items))
+        assertEquals(1 to 0, LibraryFocus.cell(6, 6))
+        assertEquals(2 to 3, LibraryFocus.cell(15, 6))
+        restore.mark("hero", "a")
+        assertEquals(0, restore.indexIn(items))
     }
 
     @Test

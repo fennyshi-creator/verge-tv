@@ -17,6 +17,17 @@ object PosterRowFit {
         if (card + gap <= 0) return 0f
         return (viewport - inset + gap).toFloat() / (card + gap)
     }
+
+    /**
+     * Homepage poster rows: a left peek, about four posters, and a right half-peek.
+     * Width is derived from the real viewport so the count survives the focus lift.
+     */
+    const val TARGET_VISIBLE = 4.85f
+
+    fun cardWidthPx(viewportPx: Int, insetPx: Int, gapPx: Int, visible: Float = TARGET_VISIBLE): Int {
+        if (visible <= 0.1f) return 1
+        return (((viewportPx - insetPx + gapPx) / visible) - gapPx).toInt().coerceAtLeast(1)
+    }
 }
 
 object HomeStyle {

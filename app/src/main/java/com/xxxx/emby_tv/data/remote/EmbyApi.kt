@@ -151,6 +151,37 @@ internal fun ancestorsPath(userId: String, itemId: String, apiKey: String): Stri
     return "/Users/$userId/Items/$itemId/Ancestors?X-Emby-Token=$apiKey"
 }
 
+internal fun itemAncestorsPath(itemId: String, userId: String, apiKey: String): String {
+    return "/Items/$itemId/Ancestors?UserId=$userId&X-Emby-Token=$apiKey"
+}
+
+internal fun boxSetCatalogPath(userId: String, apiKey: String): String {
+    return "/Users/$userId/Items?IncludeItemTypes=BoxSet&Recursive=true&Limit=60&SortBy=SortName" +
+            "&Fields=ChildCount,PrimaryImageAspectRatio,ImageTags,BackdropImageTags" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
+internal fun boxSetMembershipPath(userId: String, boxId: String, itemId: String, apiKey: String): String {
+    return "/Users/$userId/Items?ParentId=$boxId&Ids=$itemId&Recursive=true&Limit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
+/** Ancestors is a raw array on some servers and an `{Items:[]}` page on others. */
+internal fun parseItemListJson(json: String): List<BaseItemDto> {
+    return parseItemListElement(com.google.gson.JsonParser.parseString(json))
+}
+
+internal fun parseItemListElement(element: com.google.gson.JsonElement): List<BaseItemDto> {
+    val array = when {
+        element.isJsonArray -> element.asJsonArray
+        element.isJsonObject && element.asJsonObject.has("Items") -> element.asJsonObject.getAsJsonArray("Items")
+        else -> return emptyList()
+    }
+    val type = object : com.google.gson.reflect.TypeToken<List<BaseItemDto>>() {}.type
+    return com.google.gson.Gson().fromJson(array, type) ?: emptyList()
+}
+
 internal fun boxSetItemsPath(userId: String, boxId: String, apiKey: String): String {
     return "/Users/$userId/Items?ParentId=$boxId&IncludeItemTypes=Movie,Series&Recursive=true&Limit=24" +
             "&Fields=ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,PrimaryImageAspectRatio" +
@@ -854,19 +885,48 @@ object EmbyApi {
         userId: String,
         itemId: String,
     ): List<Pair<BaseItemDto, List<BaseItemDto>>> = withContext(Dispatchers.IO) {
-        val ancestors = httpAsBaseItemDtoListDirect(
-            context, serverUrl, apiKey, deviceId, ancestorsPath(userId, itemId, apiKey),
-        )
-        ancestors.mapNotNull { box ->
-            val boxId = box.id ?: return@mapNotNull null
-            val isBox = box.type.equals("BoxSet", true) || box.collectionType.equals("boxsets", true)
-            if (!isBox) return@mapNotNull null
-            val members = httpAsBaseItemDtoList(
-                context, serverUrl, apiKey, deviceId, boxSetItemsPath(userId, boxId, apiKey),
-            )
-            val others = com.xxxx.emby_tv.util.EmbyPresentation.collectionWorks(members, itemId)
-            if (others.isEmpty()) null else box to others
+        suspend fun load(path: String): List<BaseItemDto> = try {
+            httpAsItemListFlexible(context, serverUrl, apiKey, deviceId, path)
+        } catch (_: Exception) {
+            emptyList()
         }
+        suspend fun one(path: String): BaseItemDto? = try {
+            httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, path)
+        } catch (_: Exception) {
+            null
+        }
+
+        val ancestors = load(ancestorsPath(userId, itemId, apiKey)) +
+            load(itemAncestorsPath(itemId, userId, apiKey))
+        val self = one("/Users/$userId/Items/$itemId?Fields=CollectionIds,ParentId&X-Emby-Token=$apiKey")
+        val boxes = linkedMapOf<String, BaseItemDto>()
+        fun addBox(box: BaseItemDto?) {
+            if (box == null || !com.xxxx.emby_tv.util.EmbyPresentation.isBoxSet(box)) return
+            val id = box.id ?: return
+            boxes.putIfAbsent(id, box)
+        }
+        ancestors.forEach { addBox(it) }
+        self?.collectionIds.orEmpty().forEach { id ->
+            if (id.isBlank() || boxes.containsKey(id)) return@forEach
+            addBox(one("/Users/$userId/Items/$id?Fields=ChildCount,ImageTags,BackdropImageTags,PrimaryImageAspectRatio&X-Emby-Token=$apiKey"))
+        }
+        val parentId = self?.parentId
+        if (!parentId.isNullOrBlank() && !boxes.containsKey(parentId)) {
+            addBox(one("/Users/$userId/Items/$parentId?Fields=ChildCount,ImageTags,BackdropImageTags&X-Emby-Token=$apiKey"))
+        }
+        for (box in load(boxSetCatalogPath(userId, apiKey))) {
+            val id = box.id ?: continue
+            if (!com.xxxx.emby_tv.util.EmbyPresentation.isBoxSet(box) || boxes.containsKey(id)) continue
+            val hit = load(boxSetMembershipPath(userId, id, itemId, apiKey))
+            if (hit.any { it.id == itemId }) addBox(box)
+        }
+        val children = boxes.keys.associateWith { id -> load(boxSetItemsPath(userId, id, apiKey)) }
+        com.xxxx.emby_tv.util.EmbyPresentation.mergeCollectionRows(
+            ancestorBoxes = boxes.values.toList(),
+            membershipBoxes = emptyList(),
+            membersOf = { children[it].orEmpty() },
+            currentId = itemId,
+        )
     }
 
     suspend fun getSimilarItems(
@@ -895,7 +955,7 @@ object EmbyApi {
     ): BaseItemDto {
         val url = "/Users/$userId/Items/$itemId?Fields=People,Overview,Genres,OfficialRating,CommunityRating," +
                 "ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,RunTimeTicks,UserData," +
-                "Width,Height,MediaSources,MediaStreams" +
+                "Width,Height,MediaSources,MediaStreams,CollectionIds,ParentId" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, url)
     }
@@ -1188,6 +1248,18 @@ object EmbyApi {
             val type = object : TypeToken<EmbyResponseDto<BaseItemDto>>() {}.type
             val response = gson.fromJson<EmbyResponseDto<BaseItemDto>>(reader, type)
             response?.items ?: emptyList()
+        }
+    }
+
+    private suspend fun httpAsItemListFlexible(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        url: String,
+    ): List<BaseItemDto> {
+        return httpStream(context, serverUrl, apiKey, deviceId, url) { reader ->
+            parseItemListElement(com.google.gson.JsonParser.parseReader(reader))
         }
     }
 

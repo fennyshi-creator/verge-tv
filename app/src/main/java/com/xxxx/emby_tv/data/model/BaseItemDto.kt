@@ -87,6 +87,7 @@ data class BaseItemDto(
     @SerializedName("PlayedPercentage") val playedPercentage: Float? = null,
     @SerializedName("LatestItems") val latestItems: List<BaseItemDto>? = null,
     @SerializedName("MediaSources") val mediaSources: List<MediaSourceInfoDto>? = null,
+    @SerializedName("CollectionIds") val collectionIds: List<String>? = null,
 ){
     val playbackProgress: Float
         get() {

@@ -1,8 +1,12 @@
 package com.xxxx.emby_tv.ui.motion
 
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -18,6 +22,22 @@ import kotlinx.coroutines.launch
  */
 object StageDock {
     const val MIN_TITLE_SCALE = 0.68f
+
+    /** How much of the next details block may show under the hero. A sliver, not a row. */
+    const val FIRST_PEEK_DP = 40
+
+    fun heroBlockPx(viewportPx: Int, peekPx: Int): Int = (viewportPx - peekPx).coerceAtLeast(0)
+
+    /** The first screen fails if the peek is already a large part of the next block. */
+    fun peekIsSliver(peekPx: Int, nextBlockPx: Int): Boolean =
+        nextBlockPx > 0 && peekPx * 3 < nextBlockPx
+
+    /**
+     * Details and the library grid must not let the default bring-into-view
+     * scroll. That pivot is what made 2.0.39 creep like a document while
+     * StageDock tried to dock the same column.
+     */
+    fun bringIntoViewDistance(): Float = 0f
 
     fun offset(rowTop: Int, index: Int, stagePx: Int, maxScroll: Int): Int {
         if (index <= 0) return 0
@@ -95,4 +115,19 @@ class StageScroll(
 fun rememberStageScroll(scroll: ScrollState): StageScroll {
     val scope = rememberCoroutineScope()
     return remember(scroll) { StageScroll(scroll, scope) }
+}
+
+/** The page scrolls only through [StageScroll]. Bring-into-view contributes nothing. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ProvideStageScroll(content: @Composable () -> Unit) {
+    val spec = remember {
+        object : BringIntoViewSpec {
+            override val scrollAnimationSpec: AnimationSpec<Float> = Motion.pageFloat
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                return StageDock.bringIntoViewDistance()
+            }
+        }
+    }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
 }

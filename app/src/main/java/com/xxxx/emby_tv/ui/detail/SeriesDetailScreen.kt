@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
@@ -180,8 +181,7 @@ fun SeriesDetailPage(
     var blurBackdrop by remember(series.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
     val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
-    val bringIntoView = remember { TvBringIntoView() }
-    var tabsOffset by remember(series.id) { mutableIntStateOf(0) }
+    var artWash by remember(series.id) { mutableStateOf<String?>(null) }
     fun revealHero() {
         blurBackdrop = false
         stage.dock(0)
@@ -211,11 +211,7 @@ fun SeriesDetailPage(
     }
     val featured = resume ?: episodes.getOrNull(resumeIndex)
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
-        ProvideTvBringIntoView(
-            controller = bringIntoView,
-            viewportScroll = { scrollState.value.toFloat() },
-            scrolledPastStart = { scrollState.value > 0 },
-        ) {
+        com.xxxx.emby_tv.ui.motion.ProvideStageScroll {
         BoxWithConstraints(modifier.fillMaxSize().background(Color(0xFF12110F)).clipToBounds()) {
             val viewport = maxHeight
             CompositionLocalProvider(LocalArtworkSoften provides blurBackdrop) {
@@ -229,12 +225,6 @@ fun SeriesDetailPage(
                 )
             }
             if (dim > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
-            AmbientWash(
-                url = backdrop,
-                strength = 0.28f,
-                maxAlpha = 0.2f,
-                modifier = Modifier.fillMaxSize(),
-            )
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.horizontalGradient(
@@ -243,9 +233,22 @@ fun SeriesDetailPage(
                     )
                 )
             )
-            stage.stagePx = (constraints.maxHeight * 0.18f).toInt().coerceIn(
-                with(LocalDensity.current) { 72.dp.roundToPx() },
-                with(LocalDensity.current) { 180.dp.roundToPx() },
+            stage.stagePx = (constraints.maxHeight * 0.08f).toInt().coerceIn(
+                with(LocalDensity.current) { 36.dp.roundToPx() },
+                with(LocalDensity.current) { 84.dp.roundToPx() },
+            )
+            val peekPx = with(LocalDensity.current) { com.xxxx.emby_tv.ui.motion.StageDock.FIRST_PEEK_DP.dp.roundToPx() }
+            val heroHeight = with(LocalDensity.current) {
+                com.xxxx.emby_tv.ui.motion.StageDock.heroBlockPx(constraints.maxHeight, peekPx).toDp()
+            }
+            var columnRoot by remember { mutableIntStateOf(0) }
+            AmbientWash(
+                url = artWash,
+                strength = com.xxxx.emby_tv.ui.home.ArtworkWash.strength(
+                    onHero = !blurBackdrop,
+                    hasArtwork = !artWash.isNullOrBlank(),
+                ),
+                modifier = Modifier.fillMaxSize(),
             )
             val stageSpacer = with(LocalDensity.current) {
                 com.xxxx.emby_tv.ui.motion.StageDock.bottomSpacer(constraints.maxHeight, stage.stagePx).toDp()
@@ -256,16 +259,24 @@ fun SeriesDetailPage(
             var titleHeight by remember(series.id) { mutableStateOf(180.dp) }
             val density = LocalDensity.current
             val beforeButtons = (buttonBottom - actionHeight - titleStart - titleHeight).coerceAtLeast(8.dp)
-            // Tabs start past the bottom edge so no season glyph can peek under the episode strip.
-            val hideTabs = (viewport - buttonBottom + 28.dp).coerceAtLeast(72.dp)
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { columnRoot = it.positionInRoot().y.toInt() }
                     .verticalScroll(scrollState, enabled = scrollOffset == 0.dp)
                     .offset(y = scrollOffset)
                     .padding(bottom = 24.dp),
             ) {
-                Spacer(Modifier.height(if (expandBelowHero) titleStart else 28.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(if (expandBelowHero && scrollOffset == 0.dp) heroHeight else titleStart + beforeButtons + 160.dp)
+                        .onGloballyPositioned {
+                            val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                            stage.record(0, y)
+                        },
+                ) {
+                Column(Modifier.align(Alignment.BottomStart).padding(bottom = 8.dp)) {
                 SeriesTitleBlock(
                     series,
                     featured,
@@ -274,22 +285,24 @@ fun SeriesDetailPage(
                         .padding(horizontal = 48.dp)
                         .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
                 )
-                Spacer(Modifier.height(if (expandBelowHero) beforeButtons else 14.dp))
+                Spacer(Modifier.height(16.dp))
                 ActionRow(
                     item = series,
                     playbackItem = featured ?: series,
                     focusRequester = heroFocus,
                     down = if (episodes.isNotEmpty()) episodeFocus else if (seasons.isNotEmpty()) seasonFocus else null,
                     forceFocused = forceFocus == SeriesFocus.Hero,
-                    onFocused = { revealHero() },
+                    onFocused = {
+                        artWash = null
+                        revealHero()
+                    },
                     onPlay = onPlay,
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
                     showVersions = false,
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
-                if (expandBelowHero) {
-                    Spacer(Modifier.height(hideTabs))
+                }
                 }
                 if (seasons.isNotEmpty()) {
                     SeasonTabs(
@@ -302,8 +315,8 @@ fun SeriesDetailPage(
                         onFocused = { dockRow(1) },
                         forceFocused = forceFocus == SeriesFocus.Seasons,
                         modifier = Modifier.onGloballyPositioned { coords ->
-                            tabsOffset = coords.positionInParent().y.roundToInt()
-                            stage.record(1, coords.positionInParent().y.toInt() + scrollState.value)
+                            val y = (coords.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                            stage.record(1, y)
                         },
                     )
                 }
@@ -321,7 +334,16 @@ fun SeriesDetailPage(
                 val seasonAlpha by animateFloatAsState(seasonDim, com.xxxx.emby_tv.ui.motion.Motion.focus(), label = "season-alpha")
                 androidx.compose.runtime.key(season?.id ?: "episodes") {
                 if (episodes.isNotEmpty()) {
-                    Box(Modifier.graphicsLayer { alpha = seasonAlpha }) {
+                    Box(
+                        Modifier
+                            .graphicsLayer { alpha = seasonAlpha }
+                            .onGloballyPositioned {
+                                if (seasons.isEmpty()) {
+                                    val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                                    stage.record(1, y)
+                                }
+                            },
+                    ) {
                     EpisodeRow(
                         episodes = episodes,
                         season = season,
@@ -342,7 +364,8 @@ fun SeriesDetailPage(
                 }
                 if (people.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(2, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(2, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_cast))
                     DetailSlotRow(
@@ -397,7 +420,8 @@ fun SeriesDetailPage(
                 }
                 collections.forEachIndexed { index, (box, works) ->
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(3 + index, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(3 + index, y)
                     }) {
                     SectionLabel(EmbyPresentation.collectionRowTitle(box.name.orEmpty()))
                     DetailSlotRow(
@@ -418,6 +442,9 @@ fun SeriesDetailPage(
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(works[it]) },
                         onFocused = { dockRow(3 + index) },
+                        onIndex = { i ->
+                            artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, works[i], true)
+                        },
                         caption = { i ->
                             HomeText(works[i].name.orEmpty(), 14.sp, Color.White, maxLines = 1, modifier = Modifier.width(220.dp).padding(top = 8.dp))
                         },
@@ -435,7 +462,8 @@ fun SeriesDetailPage(
                 }
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(3 + collections.size, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(3 + collections.size, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     DetailSlotRow(
@@ -451,6 +479,9 @@ fun SeriesDetailPage(
                         peekPrevious = true,
                         onActivate = { onOpenSimilar(similar[it]) },
                         onFocused = { dockRow(3 + collections.size) },
+                        onIndex = { i ->
+                            artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, similar[i], true)
+                        },
                         caption = { index ->
                             val show = similar[index]
                             Column(Modifier.width(220.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -476,54 +507,7 @@ fun SeriesDetailPage(
                 }
                 Spacer(Modifier.height(stageSpacer))
             }
-            if (expandBelowHero && scrollOffset == 0.dp && !blurBackdrop && episodes.isNotEmpty()) {
-                EpisodePeek(
-                    episodes = episodes.take(6),
-                    season = season,
-                    series = series,
-                    apiKey = apiKey,
-                    serverUrl = serverUrl,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
-            }
         }
-        }
-    }
-}
-
-@Composable
-private fun EpisodePeek(
-    episodes: List<BaseItemDto>,
-    season: BaseItemDto?,
-    series: BaseItemDto,
-    apiKey: String,
-    serverUrl: String,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .height(34.dp)
-            .clipToBounds()
-            .padding(horizontal = 48.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        episodes.forEach { episode ->
-            Box(
-                Modifier
-                    .width(248.dp)
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(12.dp)),
-            ) {
-                HomeImage(
-                    itemId = episode.id,
-                    fallbackArtId = null,
-                    url = EmbyPresentation.episodeStillUrl(serverUrl, episode, season, series, apiKey),
-                    role = ArtRole.Thumb,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
         }
     }
 }

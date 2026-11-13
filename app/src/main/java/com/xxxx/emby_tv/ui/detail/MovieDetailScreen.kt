@@ -70,6 +70,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -92,6 +93,7 @@ import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.PersonInfo
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
+import com.xxxx.emby_tv.ui.motion.tvFocusLift
 import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
@@ -180,7 +182,6 @@ fun MovieDetailPage(
     var blurBackdrop by remember(item.id) { mutableStateOf(blurForLower) }
     val scrollState = rememberScrollState()
     val stage = com.xxxx.emby_tv.ui.motion.rememberStageScroll(scrollState)
-    val bringIntoView = remember { TvBringIntoView() }
     fun revealHero() {
         blurBackdrop = false
         stage.dock(0)
@@ -193,13 +194,10 @@ fun MovieDetailPage(
     val sources = item.mediaSources.orEmpty()
     var versionMenu by remember(item.id) { mutableStateOf(false) }
     var versionIndex by remember(item.id) { mutableIntStateOf(0) }
+    var artWash by remember(item.id) { mutableStateOf<String?>(null) }
     BackHandler(enabled = versionMenu) { versionMenu = false }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
-        ProvideTvBringIntoView(
-            controller = bringIntoView,
-            viewportScroll = { scrollState.value.toFloat() },
-            scrolledPastStart = { scrollState.value > 0 },
-        ) {
+        com.xxxx.emby_tv.ui.motion.ProvideStageScroll {
         BoxWithConstraints(
             modifier
                 .fillMaxSize()
@@ -219,12 +217,6 @@ fun MovieDetailPage(
             if (dim > 0.01f) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(dim)))
             }
-            com.xxxx.emby_tv.ui.home.AmbientWash(
-                url = backdrop,
-                strength = 0.28f,
-                maxAlpha = 0.2f,
-                modifier = Modifier.fillMaxSize(),
-            )
             Box(
                 Modifier
                     .fillMaxSize()
@@ -248,9 +240,22 @@ fun MovieDetailPage(
                     ),
             )
             val viewport = maxHeight
-            stage.stagePx = (constraints.maxHeight * 0.18f).toInt().coerceIn(
-                with(LocalDensity.current) { 72.dp.roundToPx() },
-                with(LocalDensity.current) { 180.dp.roundToPx() },
+            stage.stagePx = (constraints.maxHeight * 0.08f).toInt().coerceIn(
+                with(LocalDensity.current) { 36.dp.roundToPx() },
+                with(LocalDensity.current) { 84.dp.roundToPx() },
+            )
+            val peekPx = with(LocalDensity.current) { com.xxxx.emby_tv.ui.motion.StageDock.FIRST_PEEK_DP.dp.roundToPx() }
+            val heroHeight = with(LocalDensity.current) {
+                com.xxxx.emby_tv.ui.motion.StageDock.heroBlockPx(constraints.maxHeight, peekPx).toDp()
+            }
+            var columnRoot by remember { mutableIntStateOf(0) }
+            com.xxxx.emby_tv.ui.home.AmbientWash(
+                url = artWash,
+                strength = com.xxxx.emby_tv.ui.home.ArtworkWash.strength(
+                    onHero = !blurBackdrop,
+                    hasArtwork = !artWash.isNullOrBlank(),
+                ),
+                modifier = Modifier.fillMaxSize(),
             )
             val stageSpacer = with(LocalDensity.current) {
                 com.xxxx.emby_tv.ui.motion.StageDock.bottomSpacer(constraints.maxHeight, stage.stagePx).toDp()
@@ -264,11 +269,21 @@ fun MovieDetailPage(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { columnRoot = it.positionInRoot().y.toInt() }
                     .verticalScroll(scrollState, enabled = scrollOffset == 0.dp)
                     .offset(y = scrollOffset)
                     .padding(bottom = 28.dp),
             ) {
-                Spacer(Modifier.height(if (scrollOffset == 0.dp) titleStart else 48.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(if (scrollOffset == 0.dp) heroHeight else titleStart + beforeButtons + 220.dp)
+                        .onGloballyPositioned {
+                            val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                            stage.record(0, y)
+                        },
+                ) {
+                Column(Modifier.align(Alignment.BottomStart).padding(bottom = 12.dp)) {
                 TitleBlockSpaced(
                     item,
                     serverUrl,
@@ -276,7 +291,7 @@ fun MovieDetailPage(
                         .padding(horizontal = 48.dp)
                         .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
                 )
-                Spacer(Modifier.height(if (scrollOffset == 0.dp) beforeButtons else 18.dp))
+                Spacer(Modifier.height(18.dp))
                 ActionRow(
                     item = item,
                     focusRequester = playFocus,
@@ -286,7 +301,10 @@ fun MovieDetailPage(
                     initialSlot = if (forceFocus == DetailFocus.Version) 1 else 0,
                     versionIndex = versionIndex,
                     onVersionIndex = { versionIndex = it },
-                    onFocused = { revealHero() },
+                    onFocused = {
+                        artWash = null
+                        revealHero()
+                    },
                     onPlay = onPlay,
                     onPickVersion = {
                         if (!versionMenu) versionMenu = true
@@ -298,9 +316,12 @@ fun MovieDetailPage(
                     onPlayed = onTogglePlayed,
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
+                }
+                }
                 if (people.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(1, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(1, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_cast))
                     PersonRow(
@@ -318,7 +339,8 @@ fun MovieDetailPage(
                 collections.forEachIndexed { index, (box, works) ->
                     val row = 2 + index
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(row, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(row, y)
                     }) {
                         SectionLabel(EmbyPresentation.collectionRowTitle(box.name.orEmpty()))
                         DetailSlotRow(
@@ -334,6 +356,9 @@ fun MovieDetailPage(
                             peekPrevious = true,
                             onActivate = { onOpenSimilar(works[it]) },
                             onFocused = { dockRow(row) },
+                            onIndex = { i ->
+                                artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, works[i], true)
+                            },
                             caption = { i ->
                                 HomeText(works[i].name.orEmpty(), 14.sp, Color.White, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.width(220.dp).padding(top = 8.dp))
                             },
@@ -351,7 +376,8 @@ fun MovieDetailPage(
                 }
                 if (similar.isNotEmpty()) {
                     Column(Modifier.onGloballyPositioned {
-                        stage.record(2 + collections.size, it.positionInParent().y.toInt() + scrollState.value)
+                        val y = (it.positionInRoot().y - columnRoot + scrollState.value).toInt()
+                        stage.record(2 + collections.size, y)
                     }) {
                     SectionLabel(stringResource(R.string.detail_more_like))
                     SimilarRow(
@@ -361,6 +387,9 @@ fun MovieDetailPage(
                         up = collectionFocus.lastOrNull() ?: if (people.isNotEmpty()) castFocus else playFocus,
                         forceFocused = forceFocus == DetailFocus.Similar,
                         onFocused = { dockRow(2 + collections.size) },
+                        onIndex = { i ->
+                            artWash = if (serverUrl.isBlank()) null else Utils.getImageUrl(serverUrl, similar[i], true)
+                        },
                         onOpen = onOpenSimilar,
                     )
                     }
@@ -612,20 +641,34 @@ private fun PlayPill(label: String, focused: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun VersionPill(label: String, focused: Boolean, onClick: () -> Unit) {
+    val expanded = focused && EmbyPresentation.versionShowsLabel(focused) && label.isNotBlank()
     val fg = if (focused) Color(0xFF161616) else Color.White
+    val background = if (focused) Color.White else Color.White.copy(0.16f)
+    if (!expanded) {
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(background)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            DiamondIcon(Modifier.size(18.dp), color = fg)
+        }
+        return
+    }
     Row(
         Modifier
+            .height(42.dp)
             .clip(RoundedCornerShape(50))
-            .background(if (focused) Color.White else Color.White.copy(0.16f))
+            .background(background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DiamondIcon(Modifier.size(16.dp), color = fg)
-        if (focused && EmbyPresentation.versionShowsLabel(true) && label.isNotBlank()) {
-            Spacer(Modifier.width(6.dp))
-            HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
-        }
+        DiamondIcon(Modifier.size(18.dp), color = fg)
+        Spacer(Modifier.width(6.dp))
+        HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -658,18 +701,13 @@ private fun IconBubble(
 private fun DiamondIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
     Canvas(modifier) {
         val path = Path().apply {
-            moveTo(size.width / 2f, 0f)
-            lineTo(size.width, size.height / 2f)
-            lineTo(size.width / 2f, size.height)
-            lineTo(0f, size.height / 2f)
+            moveTo(size.width / 2f, size.height * 0.08f)
+            lineTo(size.width * 0.92f, size.height / 2f)
+            lineTo(size.width / 2f, size.height * 0.92f)
+            lineTo(size.width * 0.08f, size.height / 2f)
             close()
         }
-        drawPath(path, color.copy(alpha = 0.18f))
-        drawPath(
-            path,
-            color,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
-        )
+        drawPath(path, color)
     }
 }
 
@@ -760,6 +798,7 @@ private fun SimilarRow(
     up: FocusRequester?,
     forceFocused: Boolean,
     onFocused: () -> Unit = {},
+    onIndex: (Int) -> Unit = {},
     onOpen: (BaseItemDto) -> Unit,
 ) {
     DetailSlotRow(
@@ -773,6 +812,7 @@ private fun SimilarRow(
         down = null,
         forceFocused = forceFocused,
         onFocused = onFocused,
+        onIndex = onIndex,
         peekPrevious = true,
         onActivate = { onOpen(items[it]) },
         caption = { index ->
@@ -815,6 +855,7 @@ internal fun DetailSlotRow(
     initialWindowStart: Int = 0,
     peekPrevious: Boolean = false,
     onFocused: () -> Unit = {},
+    onIndex: (Int) -> Unit = {},
     caption: @Composable (Int) -> Unit,
     art: @Composable BoxScope.(Int) -> Unit,
 ) {
@@ -851,6 +892,11 @@ internal fun DetailSlotRow(
             label = "detail-ring",
         )
         val focusIndex = (windowStart + slot).coerceIn(0, count - 1)
+        val liftScale = if (cornerIsCircle) com.xxxx.emby_tv.ui.motion.FocusLift.AVATAR_SCALE else com.xxxx.emby_tv.ui.motion.FocusLift.SCALE
+        val liftRise = if (cornerIsCircle) com.xxxx.emby_tv.ui.motion.FocusLift.avatarRise else com.xxxx.emby_tv.ui.motion.FocusLift.rise
+        LaunchedEffect(focusIndex, rowFocused, forceFocused) {
+            if (rowFocused || forceFocused) onIndex(focusIndex)
+        }
         Box(
             Modifier
                 .fillMaxWidth()
@@ -889,6 +935,7 @@ internal fun DetailSlotRow(
                 Modifier
                     .fillMaxWidth()
                     .padding(start = if (peekPrevious) 0.dp else 48.dp)
+                    .padding(top = liftRise)
                     .clipToBounds(),
             ) {
                 Row(
@@ -898,10 +945,12 @@ internal fun DetailSlotRow(
                     horizontalArrangement = Arrangement.spacedBy(gap),
                 ) {
                     repeat(count) { index ->
+                        val active = (rowFocused || forceFocused) && index == focusIndex
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 Modifier
                                     .size(cardWidth, cardHeight)
+                                    .tvFocusLift(active, liftScale, liftRise)
                                     .clip(shape)
                                     .clickable { onActivate(index) },
                             ) {
@@ -915,9 +964,10 @@ internal fun DetailSlotRow(
             if (rowFocused || forceFocused) {
                 TvFocusHighlight(
                     modifier = Modifier
-                        .padding(start = 48.dp)
+                        .padding(start = 48.dp, top = liftRise)
                         .offset(x = ringX)
-                        .size(cardWidth, cardHeight),
+                        .size(cardWidth, cardHeight)
+                        .tvFocusLift(true, liftScale, liftRise),
                     shape = shape,
                     solid = forceFocused && !rowFocused,
                     stroke = HomeStyle.focusStroke,

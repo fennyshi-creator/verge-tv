@@ -110,6 +110,7 @@ fun LibraryBrowseConnected(
         itemType = itemType,
         serverUrl = serverUrl,
         viewModel = viewModel,
+        restoreItemId = returnId,
         onOpenItem = { item ->
             returnId = item.id
             onOpenItem(item)

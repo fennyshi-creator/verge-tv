@@ -49,7 +49,7 @@ import kotlin.math.min
 /**
  * Horizontal row that keeps the focused card in the leading slot.
  * One press eases. A held key uses a short linear step so the row glides
- * instead of restarting the ease on every repeat. No zoom.
+ * instead of restarting the ease on every repeat. The focused card lifts slightly.
  */
 @Composable
 fun TvLeadingRow(
@@ -73,27 +73,31 @@ fun TvLeadingRow(
     backdropUrls: List<String> = emptyList(),
     prefetchRole: ArtRole = ArtRole.Primary,
     caption: @Composable (BaseItemDto) -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
+    onTrailing: (() -> Unit)? = null,
     art: @Composable BoxScope.(BaseItemDto) -> Unit,
 ) {
-    if (items.isEmpty()) return
+    val extra = if (trailing != null) 1 else 0
+    val total = items.size + extra
+    if (total == 0) return
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stride = cardWidth + HomeStyle.rowGap
         val usable = maxWidth - HomeStyle.gutter
         val fullSlots = ((usable + HomeStyle.rowGap) / stride).toInt().coerceAtLeast(1)
-        val maxStart = (items.size - fullSlots).coerceAtLeast(0)
+        val maxStart = (total - fullSlots).coerceAtLeast(0)
         val startWindow = if (initialIndex >= 0) {
             initialIndex.coerceIn(0, maxStart)
         } else {
             initialWindowStart.coerceIn(0, maxStart)
         }
         val startSlot = if (initialIndex >= 0) (initialIndex - startWindow).coerceAtLeast(0) else 0
-        var windowStart by remember(items.size, fullSlots) { mutableIntStateOf(startWindow) }
-        var slot by remember(items.size) { mutableIntStateOf(startSlot) }
+        var windowStart by remember(total, fullSlots) { mutableIntStateOf(startWindow) }
+        var slot by remember(total) { mutableIntStateOf(startSlot) }
         var rowFocused by remember { mutableStateOf(forceFocused) }
         var repeating by remember { mutableStateOf(false) }
         var lastMove by remember { mutableLongStateOf(0L) }
         if (windowStart > maxStart) windowStart = maxStart
-        val lastSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
+        val lastSlot = (min(fullSlots, total - windowStart) - 1).coerceAtLeast(0)
         if (slot > lastSlot) slot = lastSlot
 
         fun noteRepeat() {
@@ -103,8 +107,8 @@ fun TvLeadingRow(
         }
 
         fun moveRight() {
-            val moreRight = items.size - windowStart - fullSlots
-            val endSlot = (min(fullSlots, items.size - windowStart) - 1).coerceAtLeast(0)
+            val moreRight = total - windowStart - fullSlots
+            val endSlot = (min(fullSlots, total - windowStart) - 1).coerceAtLeast(0)
             if (slot == 0 && moreRight > 0) windowStart++ else if (slot < endSlot) slot++
         }
 
@@ -128,7 +132,7 @@ fun TvLeadingRow(
             label = "leading-slot-ring",
         )
         val shape = RoundedCornerShape(corner)
-        val focusedIndex = (windowStart + slot).coerceIn(0, items.lastIndex)
+        val focusedIndex = (windowStart + slot).coerceIn(0, total - 1)
         val prefetchContext = LocalContext.current
         LaunchedEffect(focusedIndex, rowFocused) {
             if (rowFocused || forceFocused) onFocusedIndex?.invoke(focusedIndex)
@@ -167,7 +171,10 @@ fun TvLeadingRow(
                         Key.DirectionUp -> if (onExitUp != null) { onExitUp(); true } else false
                         Key.DirectionRight -> { noteRepeat(); moveRight(); true }
                         Key.DirectionLeft -> if (slot == 0 && windowStart == 0) false else { noteRepeat(); moveLeft(); true }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { onActivate(items[focusedIndex]); true }
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            if (focusedIndex >= items.size) onTrailing?.invoke() else onActivate(items[focusedIndex])
+                            true
+                        }
                         Key.Menu, Key.Bookmark -> { onMenu(); true }
                         else -> false
                     }
@@ -176,6 +183,7 @@ fun TvLeadingRow(
             Box(
                 Modifier
                     .fillMaxWidth()
+                    .padding(top = FocusLift.rise)
                     .clipToBounds(),
             ) {
                 Row(
@@ -184,12 +192,14 @@ fun TvLeadingRow(
                         .offset(x = slide),
                     horizontalArrangement = Arrangement.spacedBy(HomeStyle.rowGap),
                 ) {
-                    items.forEach { item ->
+                    items.forEachIndexed { index, item ->
+                        val active = (rowFocused || forceFocused) && index == focusedIndex
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 Modifier
                                     .width(cardWidth)
                                     .height(cardHeight)
+                                    .tvFocusLift(active)
                                     .clip(shape)
                                     .focusProperties { canFocus = false }
                                     .clickable { onActivate(item) },
@@ -197,14 +207,27 @@ fun TvLeadingRow(
                             caption(item)
                         }
                     }
+                    if (trailing != null) {
+                        val active = (rowFocused || forceFocused) && focusedIndex == items.size
+                        Box(
+                            Modifier
+                                .width(cardWidth)
+                                .height(cardHeight)
+                                .tvFocusLift(active)
+                                .clip(shape)
+                                .clickable { onTrailing?.invoke() },
+                        ) { trailing() }
+                    }
                 }
             }
             if (rowFocused || forceFocused) {
                 TvFocusHighlight(
                     modifier = Modifier
+                        .padding(top = FocusLift.rise)
                         .offset(x = ringX)
                         .width(cardWidth)
-                        .height(cardHeight),
+                        .height(cardHeight)
+                        .tvFocusLift(true),
                     shape = shape,
                     solid = forceFocused && !rowFocused,
                     stroke = HomeStyle.focusStroke,

@@ -38,6 +38,7 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -183,7 +184,19 @@ fun OfficialHome(
         else -> if (posterRestore >= 0) posterIndex.getOrElse(posterRestore) { 0 } else 0
     }
 
-    LaunchedEffect(requestInitialFocus, restoreRowKey, restoreItemId) {
+    val restoreReady = when (restoreRowKey) {
+        null -> "none"
+        "search", "favorites", "hero" -> restoreRowKey
+        "resume" -> if (resumeItems.any { it.id == restoreItemId }) "resume" else "wait"
+        "libraries" -> if (libraries.any { it.id == restoreItemId }) "libraries" else "wait"
+        else -> if (posterRows.any { row -> row.latestItems.orEmpty().any { it.id == restoreItemId } }) {
+            restoreRowKey
+        } else {
+            "wait"
+        }
+    }
+    LaunchedEffect(requestInitialFocus, restoreRowKey, restoreItemId, restoreReady) {
+        if (restoreReady == "wait") return@LaunchedEffect
         if (!requestInitialFocus && restoreRowKey == null) return@LaunchedEffect
         yield()
         repeat(2) { withFrameNanos { } }
@@ -230,10 +243,18 @@ fun OfficialHome(
             val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
             var columnRoot by remember { mutableIntStateOf(0) }
             var washUrl by remember { mutableStateOf<String?>(null) }
-            val washFadePx = with(density) { 140.dp.roundToPx() }.coerceAtLeast(1)
+            val posterCard = with(density) {
+                PosterRowFit.cardWidthPx(
+                    viewportPx = constraints.maxWidth,
+                    insetPx = HomeStyle.gutter.roundToPx(),
+                    gapPx = HomeStyle.rowGap.roundToPx(),
+                ).toDp()
+            }
+            val posterCardHeight = posterCard * 3f / 2f
+            val onHero = scroll.value <= with(density) { 24.dp.roundToPx() }
             AmbientWash(
                 url = washUrl,
-                strength = (scroll.value / washFadePx.toFloat()).coerceIn(0f, 1f),
+                strength = ArtworkWash.strength(onHero = onHero, hasArtwork = !washUrl.isNullOrBlank()),
                 modifier = Modifier.fillMaxSize(),
             )
             fun Modifier.stageAnchor(index: Int): Modifier = onGloballyPositioned { coords ->
@@ -365,8 +386,8 @@ fun OfficialHome(
                         StageTitle(library.name.orEmpty(), posterIndex[index], stage, scroll)
                         TvLeadingRow(
                             items = library.latestItems.orEmpty(),
-                            cardWidth = HomeStyle.posterWidth,
-                            cardHeight = HomeStyle.posterHeight,
+                            cardWidth = posterCard,
+                            cardHeight = posterCardHeight,
                             corner = HomeStyle.cardCorner,
                             focusRequester = posterFocus[index],
                             up = if (index == 0) {
@@ -409,9 +430,15 @@ fun OfficialHome(
                                 CardCaption(
                                     item.name.orEmpty(),
                                     item.productionYear?.toString().orEmpty(),
-                                    HomeStyle.posterWidth,
+                                    posterCard,
                                 )
                             },
+                            trailing = if (EmbyPresentation.showsViewAllTile(library)) {
+                                { ViewAllCard(library.name.orEmpty(), Modifier.fillMaxSize()) }
+                            } else {
+                                null
+                            },
+                            onTrailing = { onOpenLibrary(library) },
                         ) { item ->
                             HomeImage(
                                 itemId = item.id,
@@ -442,6 +469,21 @@ fun OfficialHome(
                 }
                 Spacer(Modifier.height(spacer))
             }
+        }
+    }
+}
+
+@Composable
+private fun ViewAllCard(subtitle: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.background(Color(0xFF2A2A2A)),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+        HomeText(EmbyPresentation.viewAllLabel(), 16.sp, Color.White, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp))
+        if (subtitle.isNotBlank()) {
+            HomeText(subtitle, 13.sp, HomeStyle.meta, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

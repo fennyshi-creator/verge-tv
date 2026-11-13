@@ -27,7 +27,33 @@ import kotlin.math.min
 /**
  * Picks a muted swatch for the page wash. Null means "keep the dark background".
  */
+/**
+ * Draw order for the page tint. The wash has to sit after the near-black fill
+ * and after any full-screen scrim, and before the cards. 2.0.39 painted the
+ * details wash under those scrims, so the bloom never reached the glass.
+ */
+object PageLayers {
+    val home = listOf("fill", "wash", "content")
+    val library = listOf("fill", "wash", "content")
+    val details = listOf("fill", "backdrop", "scrim", "wash", "content")
+
+    fun washAboveFill(layers: List<String>): Boolean {
+        val wash = layers.indexOf("wash")
+        val content = layers.indexOf("content")
+        if (wash < 0 || content <= wash) return false
+        val cover = listOf("fill", "scrim").map { layers.indexOf(it) }.filter { it >= 0 }
+        return cover.all { it < wash }
+    }
+}
+
 object ArtworkWash {
+    /**
+     * 1 once a poster row is on screen and has art. 0 on the hero, where the
+     * backdrop is the picture. The dark page fill stays underneath this wash.
+     */
+    fun strength(onHero: Boolean, hasArtwork: Boolean): Float =
+        if (onHero || !hasArtwork) 0f else 1f
+
     fun argb(darkMuted: Int?, muted: Int?, darkVibrant: Int?): Int? {
         return darkMuted ?: muted ?: darkVibrant
     }
@@ -49,8 +75,8 @@ object ArtworkWash {
             val hi = max(rr, max(gg, bb))
             val lo = min(rr, min(gg, bb))
             val light = (hi + lo) / 2
-            if (light < 28 || light > 170) continue
-            if (hi == 0 || (hi - lo) * 255 / hi < 18) continue
+            if (light < 12 || light > 220) continue
+            if (hi == 0 || (hi - lo) * 255 / hi < 12) continue
             r += rr
             g += gg
             b += bb
