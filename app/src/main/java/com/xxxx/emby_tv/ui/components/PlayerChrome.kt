@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
@@ -154,8 +155,9 @@ fun PlayerTransportBar(
     showVersionButton: Boolean,
     episodes: List<BaseItemDto>,
     restoreButton: Int,
-    seeking: Boolean,
-    seekOriginMs: Long,
+    timelineFocus: FocusRequester,
+    centralPlayFocus: FocusRequester,
+    buttonFocus: List<FocusRequester>,
     onSeekDirection: (Int) -> Unit,
     onTogglePause: () -> Unit,
     onOpenSheet: (PlayerSheet) -> Unit,
@@ -164,22 +166,19 @@ fun PlayerTransportBar(
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val progressFocus = remember { FocusRequester() }
-    val buttonFocus = remember { List(4) { FocusRequester() } }
     val isEpisode = mediaInfo.type == "Episode" && mediaInfo.seriesId != null
+    val downFromActions = if (isPlaying) timelineFocus else centralPlayFocus
+    val upFromTimeline = if (isPlaying) {
+        buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)]
+    } else {
+        centralPlayFocus
+    }
     AnimatedVisibility(
         visible = visible,
         enter = ScreenTransition.barEnter(),
         exit = ScreenTransition.barExit(),
         modifier = modifier,
     ) {
-        LaunchedEffect(Unit) {
-            try {
-                val button = buttonFocus.getOrNull(restoreButton)
-                if (button != null) button.requestFocus() else progressFocus.requestFocus()
-            } catch (_: Exception) {
-            }
-        }
         Box(
             Modifier
                 .fillMaxWidth()
@@ -210,18 +209,18 @@ fun PlayerTransportBar(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val settingsIndex = if (showVersionButton) 3 else 2
-                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), progressFocus, 0, onButtonFocused) {
+                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), downFromActions, 0, onButtonFocused) {
                             onOpenSheet(PlayerSheet.Subtitles)
                         }
-                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), progressFocus, 1, onButtonFocused) {
+                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), downFromActions, 1, onButtonFocused) {
                             onOpenSheet(PlayerSheet.Audio)
                         }
                         if (showVersionButton) {
-                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), progressFocus, 2, onButtonFocused) {
+                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), downFromActions, 2, onButtonFocused) {
                                 onOpenSheet(PlayerSheet.Versions)
                             }
                         }
-                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), progressFocus, settingsIndex, onButtonFocused) {
+                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), downFromActions, settingsIndex, onButtonFocused) {
                             onOpenSheet(PlayerSheet.Settings)
                         }
                     }
@@ -237,10 +236,8 @@ fun PlayerTransportBar(
                     ProgressScrubber(
                         positionMs = positionMs,
                         durationMs = durationMs,
-                        focusRequester = progressFocus,
-                        upTarget = buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)],
-                        seeking = seeking,
-                        seekOriginMs = seekOriginMs,
+                        focusRequester = timelineFocus,
+                        upTarget = upFromTimeline,
                         onSeekDirection = {
                             onInteract()
                             onSeekDirection(it)
@@ -347,8 +344,6 @@ private fun ProgressScrubber(
     durationMs: Long,
     focusRequester: FocusRequester,
     upTarget: FocusRequester,
-    seeking: Boolean,
-    seekOriginMs: Long,
     onSeekDirection: (Int) -> Unit,
     onTogglePause: () -> Unit,
     onOpenEpisodes: (() -> Unit)?,
@@ -359,7 +354,7 @@ private fun ProgressScrubber(
     Surface(
         onClick = onTogglePause,
         modifier = modifier
-            .height(36.dp)
+            .height(28.dp)
             .focusRequester(focusRequester)
             .focusProperties { up = upTarget }
             .onKeyEvent { event ->
@@ -385,23 +380,7 @@ private fun ProgressScrubber(
             focusedContentColor = Color.White,
         ),
     ) {
-        Box(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
-            if (seeking) {
-                Column(
-                    Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxWidth(fraction.coerceAtLeast(0.12f))
-                        .wrapContentWidth(Alignment.End),
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(
-                        formatSeekOffset(positionMs - seekOriginMs),
-                        color = Color.White.copy(0.85f),
-                        fontSize = 11.sp,
-                    )
-                }
-            }
+        Box(Modifier.fillMaxSize()) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -432,6 +411,66 @@ private fun ProgressScrubber(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun PlayerCentralPlay(
+    focusRequester: FocusRequester,
+    down: FocusRequester,
+    up: FocusRequester,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onPlay,
+        modifier = modifier
+            .size(92.dp)
+            .shadow(18.dp, CircleShape)
+            .focusRequester(focusRequester)
+            .focusProperties {
+                this.down = down
+                this.up = up
+            },
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White,
+            contentColor = Color.Black,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color.Black,
+        ),
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "播放",
+                modifier = Modifier.size(54.dp),
+            )
+        }
+    }
+}
+
+@Composable
+fun PlayerSeekReadout(
+    targetMs: Long,
+    durationMs: Long,
+    direction: Int,
+    modifier: Modifier = Modifier,
+) {
+    val readout = seekReadout(targetMs, durationMs, direction)
+    Column(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.Black.copy(alpha = 0.62f))
+            .padding(horizontal = 32.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(readout.direction, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(4.dp))
+        Text(readout.target, color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(2.dp))
+        Text("/  ${readout.total}", color = Color.White.copy(alpha = 0.82f), fontSize = 18.sp)
     }
 }
 
