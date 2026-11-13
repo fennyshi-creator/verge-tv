@@ -11,7 +11,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -29,8 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,9 +55,13 @@ import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -92,18 +100,17 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.data.model.BaseItemDto
-import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
-import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.motion.FadeInImage
+import com.xxxx.emby_tv.ui.motion.Motion
+import com.xxxx.emby_tv.ui.motion.StageDock
 import com.xxxx.emby_tv.ui.motion.TvFocusHighlight
 import com.xxxx.emby_tv.ui.motion.TvLeadingRow
-import com.xxxx.emby_tv.ui.motion.rememberRowGlide
-import com.xxxx.emby_tv.ui.focus.scrolledPastStart
-import com.xxxx.emby_tv.ui.focus.viewportScroll
+import com.xxxx.emby_tv.ui.motion.rememberStageScroll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.math.min
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OfficialHome(
     resumeItems: List<BaseItemDto>,
@@ -134,38 +141,64 @@ fun OfficialHome(
         EmbyPresentation.isPosterRowLibrary(library) && library.latestItems.orEmpty().isNotEmpty()
     }
     val posterFocus = remember(posterRows.size) { List(posterRows.size) { FocusRequester() } }
+    val heroFocus = remember { FocusRequester() }
+    val heroItem = posterRows.firstNotNullOfOrNull { row ->
+        row.latestItems?.firstOrNull { !it.id.isNullOrBlank() }
+    } ?: resumeItems.firstOrNull { !it.id.isNullOrBlank() }
+        ?: libraries.firstNotNullOfOrNull { it.latestItems?.firstOrNull { item -> !item.id.isNullOrBlank() } }
     val contentFocus = if (resumeItems.isNotEmpty()) continueFocus else libraryFocus
+    val menuDown = if (heroItem != null) heroFocus else contentFocus
     var cursor = 1
     val continueIndex = if (resumeItems.isNotEmpty()) cursor++ else -1
     val libraryIndex = if (libraries.isNotEmpty()) cursor++ else -1
     val posterIndex = posterFocus.indices.map { cursor++ }
     fun indexOfId(items: List<BaseItemDto>): Int = items.indexOfFirst { it.id == restoreItemId }.coerceAtLeast(0)
     val posterRestore = posterRows.indexOfFirst { "latest-${it.id}" == restoreRowKey }
-    val initialLazy = when (restoreRowKey) {
+    val scroll = rememberScrollState()
+    val stage = rememberStageScroll(scroll)
+    val scope = rememberCoroutineScope()
+    fun focusRow(requester: FocusRequester, index: Int, pin: Boolean) {
+        stage.dock(if (pin) 0 else index)
+        scope.launch {
+            withFrameNanos { }
+            try {
+                requester.requestFocus()
+            } catch (_: IllegalStateException) {
+                withFrameNanos { }
+                try {
+                    requester.requestFocus()
+                } catch (_: IllegalStateException) {
+                }
+            }
+        }
+    }
+    fun restoredIndex(): Int = when (restoreRowKey) {
+        "resume" -> continueIndex
         "libraries" -> libraryIndex
         else -> if (posterRestore >= 0) posterIndex.getOrElse(posterRestore) { 0 } else 0
-    }.coerceAtLeast(0)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialLazy)
-    val bringIntoView = remember { TvBringIntoView() }
-    val glide = rememberRowGlide(listState, bringIntoView)
-    fun focusRow(requester: FocusRequester, lazyIndex: Int, pin: Boolean) {
-        glide.to(requester, lazyIndex, pin)
     }
 
     LaunchedEffect(requestInitialFocus, restoreRowKey, restoreItemId) {
         if (!requestInitialFocus && restoreRowKey == null) return@LaunchedEffect
         yield()
+        repeat(2) { withFrameNanos { } }
+        val rowIndex = restoredIndex()
         val target = when (restoreRowKey) {
             "search" -> searchFocus
             "favorites" -> favoritesFocus
             "resume" -> continueFocus
             "libraries" -> libraryFocus
+            "hero" -> heroFocus
             else -> posterFocus.getOrNull(posterRestore)
-                ?: when {
+                ?: if (heroItem != null && restoreRowKey == null) heroFocus else when {
                     resumeItems.isNotEmpty() -> continueFocus
                     libraries.isNotEmpty() -> libraryFocus
                     else -> homeTabFocus
                 }
+        }
+        if (rowIndex > 0 && restoreRowKey != null && restoreRowKey != "search" && restoreRowKey != "favorites" && restoreRowKey != "hero") {
+            stage.jump(rowIndex)
+            withFrameNanos { }
         }
         try {
             target.requestFocus()
@@ -173,40 +206,82 @@ fun OfficialHome(
         }
     }
 
-    CompositionLocalProvider(LocalHomeFont provides fontFamily) {
-        ProvideTvBringIntoView(
-            controller = bringIntoView,
-            viewportScroll = { listState.viewportScroll() },
-            scrolledPastStart = { listState.scrolledPastStart() },
-        ) {
-        Box(modifier.fillMaxSize().background(HomeStyle.background)) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 36.dp),
+    val keepStill = remember {
+        object : BringIntoViewSpec {
+            override val scrollAnimationSpec: AnimationSpec<Float> = Motion.pageFloat
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float) = 0f
+        }
+    }
+    CompositionLocalProvider(LocalHomeFont provides fontFamily, LocalBringIntoViewSpec provides keepStill) {
+        BoxWithConstraints(modifier.fillMaxSize().background(HomeStyle.background)) {
+            val viewport = constraints.maxHeight
+            val density = LocalDensity.current
+            stage.stagePx = (viewport * 0.08f).toInt().coerceIn(
+                with(density) { 36.dp.roundToPx() },
+                with(density) { 84.dp.roundToPx() },
+            )
+            val heroHeight = with(density) {
+                (viewport.toDp() - 176.dp).coerceAtLeast(280.dp)
+            }
+            val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
+            var columnRoot by remember { mutableIntStateOf(0) }
+            fun Modifier.stageAnchor(index: Int): Modifier = onGloballyPositioned { coords ->
+                val y = (coords.positionInRoot().y - columnRoot + scroll.value).toInt()
+                stage.record(index, y)
+            }
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { columnRoot = it.positionInRoot().y.toInt() }
+                    .verticalScroll(scroll),
             ) {
-                item(key = "top-bar", contentType = "bar") {
+                if (heroItem != null) {
+                    HomeHero(
+                        item = heroItem,
+                        serverUrl = serverUrl,
+                        searchFocus = searchFocus,
+                        homeTabFocus = homeTabFocus,
+                        favoritesFocus = favoritesFocus,
+                        settingsFocus = settingsFocus,
+                        heroFocus = heroFocus,
+                        downRow = contentFocus,
+                        onSearch = onSearch,
+                        onFavorites = onFavorites,
+                        onSettings = onSettings,
+                        onOpen = {
+                            heroItem.id?.let { onRememberFocus("hero", it) }
+                            if (heroItem.type == "Episode") onResume(heroItem) else onOpenItem(heroItem)
+                        },
+                        onDown = { focusRow(contentFocus, if (continueIndex >= 0) continueIndex else libraryIndex, pin = false) },
+                        onUp = { focusRow(homeTabFocus, 0, pin = true) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(heroHeight)
+                            .stageAnchor(0),
+                    )
+                } else {
                     HomeTopBar(
                         searchFocus = searchFocus,
                         homeTabFocus = homeTabFocus,
                         favoritesFocus = favoritesFocus,
                         settingsFocus = settingsFocus,
-                        down = contentFocus,
+                        down = menuDown,
                         onSearch = onSearch,
                         onFavorites = onFavorites,
                         onSettings = onSettings,
+                        modifier = Modifier.stageAnchor(0),
                     )
                 }
                 if (resumeItems.isNotEmpty()) {
-                    item(key = "resume", contentType = "row") {
-                        SectionTitle(stringResource(R.string.continue_watching))
+                    Column(Modifier.fillMaxWidth().stageAnchor(continueIndex)) {
+                        StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
                         TvLeadingRow(
                             items = resumeItems,
                             cardWidth = HomeStyle.continueWidth,
                             cardHeight = HomeStyle.continueHeight,
                             corner = HomeStyle.cardCorner,
                             focusRequester = continueFocus,
-                            up = homeTabFocus,
+                            up = heroFocus,
                             down = if (libraries.isNotEmpty()) libraryFocus else null,
                             initialWindowStart = continueWindowStart,
                             initialIndex = if (restoreRowKey == "resume") indexOfId(resumeItems) else -1,
@@ -219,8 +294,11 @@ fun OfficialHome(
                                 onResume(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { focusRow(continueFocus, continueIndex, pin = true) },
-                            onExitUp = { focusRow(homeTabFocus, 0, pin = true) },
+                            onFocused = { stage.dock(continueIndex) },
+                            onExitUp = {
+                                if (heroItem != null) focusRow(heroFocus, 0, pin = true)
+                                else focusRow(homeTabFocus, 0, pin = true)
+                            },
                             onExitDown = {
                                 when {
                                     libraryIndex >= 0 -> focusRow(libraryFocus, libraryIndex, pin = false)
@@ -236,15 +314,15 @@ fun OfficialHome(
                     }
                 }
                 if (libraries.isNotEmpty()) {
-                    item(key = "libraries", contentType = "row") {
-                        SectionTitle(stringResource(R.string.home_libraries))
+                    Column(Modifier.fillMaxWidth().stageAnchor(libraryIndex)) {
+                        StageTitle(stringResource(R.string.home_libraries), libraryIndex, stage, scroll)
                         TvLeadingRow(
                             items = libraries,
                             cardWidth = HomeStyle.libraryWidth,
                             cardHeight = HomeStyle.libraryHeight,
                             corner = HomeStyle.libraryCorner,
                             focusRequester = libraryFocus,
-                            up = if (resumeItems.isNotEmpty()) continueFocus else homeTabFocus,
+                            up = if (resumeItems.isNotEmpty()) continueFocus else heroFocus,
                             down = posterFocus.firstOrNull(),
                             initialIndex = if (restoreRowKey == "libraries") indexOfId(libraries) else -1,
                             imageUrls = libraries.map { primaryUrl(serverUrl, it) },
@@ -254,11 +332,10 @@ fun OfficialHome(
                                 onOpenLibrary(item)
                             },
                             onMenu = onSettings,
-                            onFocused = {
-                                if (resumeItems.isEmpty()) focusRow(libraryFocus, libraryIndex, pin = true)
-                            },
+                            onFocused = { stage.dock(libraryIndex) },
                             onExitUp = {
-                                if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = true)
+                                if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
+                                else if (heroItem != null) focusRow(heroFocus, 0, pin = true)
                                 else focusRow(homeTabFocus, 0, pin = true)
                             },
                             onExitDown = {
@@ -273,15 +350,19 @@ fun OfficialHome(
                     }
                 }
                 posterRows.forEachIndexed { index, library ->
-                    item(key = "latest-${library.id ?: index}", contentType = "row") {
-                        SectionTitle(library.name.orEmpty())
+                    Column(Modifier.fillMaxWidth().stageAnchor(posterIndex[index])) {
+                        StageTitle(library.name.orEmpty(), posterIndex[index], stage, scroll)
                         TvLeadingRow(
                             items = library.latestItems.orEmpty(),
                             cardWidth = HomeStyle.posterWidth,
                             cardHeight = HomeStyle.posterHeight,
                             corner = HomeStyle.cardCorner,
                             focusRequester = posterFocus[index],
-                            up = if (index == 0) libraryFocus else posterFocus[index - 1],
+                            up = if (index == 0) {
+                                if (libraryIndex >= 0) libraryFocus else if (continueIndex >= 0) continueFocus else heroFocus
+                            } else {
+                                posterFocus[index - 1]
+                            },
                             down = posterFocus.getOrNull(index + 1),
                             initialIndex = if (restoreRowKey == "latest-${library.id}") indexOfId(library.latestItems.orEmpty()) else -1,
                             imageUrls = library.latestItems.orEmpty().map { primaryUrl(serverUrl, it) },
@@ -294,10 +375,12 @@ fun OfficialHome(
                                 onOpenItem(item)
                             },
                             onMenu = onSettings,
+                            onFocused = { stage.dock(posterIndex[index]) },
                             onExitUp = {
                                 if (index == 0) {
                                     if (libraryIndex >= 0) focusRow(libraryFocus, libraryIndex, pin = false)
-                                    else if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = true)
+                                    else if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
+                                    else if (heroItem != null) focusRow(heroFocus, 0, pin = true)
                                     else focusRow(homeTabFocus, 0, pin = true)
                                 } else {
                                     focusRow(posterFocus[index - 1], posterIndex[index - 1], pin = false)
@@ -328,8 +411,7 @@ fun OfficialHome(
                     }
                 }
                 if (resumeItems.isEmpty() && libraries.isEmpty()) {
-                    item(key = "empty", contentType = "empty") {
-                        com.xxxx.emby_tv.ui.motion.MotionFade(Modifier.fillMaxWidth()) {
+                    com.xxxx.emby_tv.ui.motion.MotionFade(Modifier.fillMaxWidth()) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
@@ -342,13 +424,185 @@ fun OfficialHome(
                                 color = HomeStyle.meta,
                             )
                         }
-                        }
                     }
                 }
+                Spacer(Modifier.height(spacer))
             }
         }
+    }
+}
+
+@Composable
+private fun StageTitle(
+    text: String,
+    index: Int,
+    stage: com.xxxx.emby_tv.ui.motion.StageScroll,
+    scroll: androidx.compose.foundation.ScrollState,
+) {
+    val span = with(LocalDensity.current) { 240.dp.roundToPx() }
+    HomeText(
+        text = text,
+        fontSize = HomeStyle.sectionSize,
+        color = HomeStyle.title,
+        modifier = Modifier
+            .padding(start = HomeStyle.gutter, end = HomeStyle.gutter, top = 8.dp, bottom = 6.dp)
+            .graphicsLayer {
+                val top = stage.tops.getOrElse(index) { 0 }
+                val distance = (top - scroll.value) - stage.stagePx
+                val scale = StageDock.titleScale(distance, span)
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = TransformOrigin(0f, 0.5f)
+            },
+    )
+}
+
+@Composable
+private fun HomeHero(
+    item: BaseItemDto,
+    serverUrl: String,
+    searchFocus: FocusRequester,
+    homeTabFocus: FocusRequester,
+    favoritesFocus: FocusRequester,
+    settingsFocus: FocusRequester,
+    heroFocus: FocusRequester,
+    downRow: FocusRequester,
+    onSearch: () -> Unit,
+    onFavorites: () -> Unit,
+    onSettings: () -> Unit,
+    onOpen: () -> Unit,
+    onDown: () -> Unit,
+    onUp: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val backdrop = if (serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, item, 1280)
+    val logo = EmbyPresentation.logoUrl(serverUrl, item, maxWidth = 640)
+    Box(modifier) {
+        FadeInImage(
+            url = backdrop,
+            widthPx = 1280,
+            heightPx = 720,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Black.copy(0.72f),
+                        0.46f to Color.Black.copy(0.28f),
+                        1f to Color.Transparent,
+                    ),
+                ),
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, HomeStyle.background),
+                    ),
+                ),
+        )
+        HomeTopBar(
+            searchFocus = searchFocus,
+            homeTabFocus = homeTabFocus,
+            favoritesFocus = favoritesFocus,
+            settingsFocus = settingsFocus,
+            down = heroFocus,
+            onSearch = onSearch,
+            onFavorites = onFavorites,
+            onSettings = onSettings,
+            modifier = Modifier.align(Alignment.TopStart),
+        )
+        Column(
+            Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = HomeStyle.gutter, end = 280.dp, bottom = 24.dp)
+                .fillMaxWidth(0.46f)
+                .focusRequester(heroFocus)
+                .focusProperties {
+                    this.up = homeTabFocus
+                    this.down = downRow
+                }
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            onDown()
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            onUp()
+                            true
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            onOpen()
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                .focusable()
+                .clickable(onClick = onOpen),
+        ) {
+            if (logo.isNotBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(logo)
+                        .crossfade(Motion.imageMs)
+                        .build(),
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    modifier = Modifier.height(46.dp).fillMaxWidth(),
+                )
+            } else {
+                HomeText(
+                    text = item.name.orEmpty(),
+                    fontSize = 28.sp,
+                    color = HomeStyle.title,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+            }
+            val meta = heroMeta(item)
+            if (meta.isNotBlank()) {
+                HomeText(
+                    text = meta,
+                    fontSize = 14.sp,
+                    color = HomeStyle.meta,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+            val overview = item.overview?.trim().orEmpty()
+            if (overview.isNotBlank()) {
+                HomeText(
+                    text = overview,
+                    fontSize = 15.sp,
+                    color = Color(0xFFE4E4E4),
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
+}
+
+private fun heroMeta(item: BaseItemDto): String {
+    val parts = ArrayList<String>()
+    val genres = item.genres?.filter { it.isNotBlank() }?.take(2)?.joinToString(" / ").orEmpty()
+    if (genres.isNotBlank()) parts += genres
+    item.productionYear?.let { parts += it.toString() }
+    item.communityRating?.takeIf { it > 0.0 }?.let { rating ->
+        val tenths = kotlin.math.round(rating * 10.0).toInt()
+        parts += "${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
+    }
+    return parts.joinToString("  ·  ")
 }
 
 @Composable
@@ -361,15 +615,17 @@ private fun HomeTopBar(
     onSearch: () -> Unit,
     onFavorites: () -> Unit,
     onSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Box(
-        Modifier
+    Row(
+        modifier
             .fillMaxWidth()
             .padding(horizontal = HomeStyle.gutter, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        EmbyMark(Modifier.align(Alignment.CenterStart))
+        EmbyMark()
         Row(
-            modifier = Modifier.align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -406,9 +662,7 @@ private fun HomeTopBar(
                 down = down,
                 onClick = onFavorites,
             )
-        }
-        NavIconButton(
-            modifier = Modifier.align(Alignment.CenterEnd),
+            NavIconButton(
             focusRequester = settingsFocus,
             left = favoritesFocus,
             right = null,
@@ -422,6 +676,7 @@ private fun HomeTopBar(
                 tint = Color.White,
                 modifier = Modifier.size(22.dp),
             )
+        }
         }
     }
 }

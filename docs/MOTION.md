@@ -24,7 +24,8 @@ No scale and no zoom. Focus on a poster is a white stroke with a slow breathing 
 | You are building | Call |
 |---|---|
 | A horizontal poster or card row | `TvLeadingRow`. It locks the focused card in the leading slot, eases one press, and glides while the key is held. Pass `imageUrls` and `backdropUrls` so the next cards and the details backdrop are already cached. |
-| Moving Up or Down between those rows | `rememberRowGlide(listState, bringIntoView).to(focus, index, pin)`. `pin = true` only for the top of the page. It cancels the previous glide, so a held key does not queue animations, and it still finishes at scroll 0. |
+| Moving Up or Down between homepage rows | `rememberStageScroll`. The focused row docks at one mid-upper stage. The previous row only peeks above it and the next row only peeks below. A held key replaces the running ease. Index 0 is the hero and scrolls to the true top. |
+| Moving Up or Down on other pages | `rememberRowGlide(listState, bringIntoView).to(focus, index, pin)`. `pin = true` only for the top of the page. It cancels the previous glide, so a held key does not queue animations, and it still finishes at scroll 0. |
 | A poster grid | `TvLazyGrid`. It installs the same page ease and refuses the platform's 30% focus pivot. |
 | A poster, thumb, or backdrop | `FadeInImage` (or `HomeImage`, which calls it). Prefetch with `ArtworkPrefetch.enqueue` at `ArtworkPrefetch.pixels(role)`. The sizes must match or the cache misses. |
 | Opening another screen | `NavHost` already uses `ScreenTransition`. Do not add a second transition. |
@@ -34,6 +35,16 @@ No scale and no zoom. Focus on a poster is a white stroke with a slow breathing 
 | Back should return to the item that opened this screen | `rememberFocusRestore()`. Call `mark(row, id)` before navigating. On the way back, pass `initialIndex` to `TvLeadingRow` and the lazy list's `initialFirstVisibleItemIndex` so the item is already in place. Then `RestoreFocus` requests focus. Do not animate that scroll. |
 
 `TvFocusHighlight` is the breathing stroke. It draws in the draw phase. Do not read its alpha in the row.
+
+## Homepage stage
+
+`StageDock` is the vertical window for the homepage. Do not use it to add a hero on other pages.
+
+- `StageDock.offset` places a row so its top sits at `stagePx`. Index 0 always returns 0, which brings the hero back.
+- `StageDock.bottomSpacer` is the empty space under the last row. Without it the last row stops at the bottom of the screen and the Up that leaves it travels a different distance.
+- `StageDock.titleScale` is 1 on the stage and `0.68` a row away. Apply it with `graphicsLayer` on the title only. Do not scale posters.
+- `StageScroll.dock` animates with `Motion.page`. Keys closer than 160 ms use `Motion.repeatStep` and cancel the previous scroll.
+- The homepage hero is the first screen: left-aligned 搜索 / 首页 / 收藏 and the existing settings control, a recommended backdrop, logo or title, genre / year / rating, and a two-line synopsis. The first content row peeks along the bottom. One Down docks that row. Up from that row returns the hero. Up from the hero reaches the menus.
 
 ## A new page
 
