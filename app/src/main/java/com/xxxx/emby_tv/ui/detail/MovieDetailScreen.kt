@@ -647,6 +647,7 @@ private fun PersonRow(
         down = down,
         forceFocused = forceFocused,
         onFocused = onFocused,
+        peekPrevious = true,
         onActivate = {},
         caption = { index ->
             val person = people[index]
@@ -714,6 +715,7 @@ private fun SimilarRow(
         down = null,
         forceFocused = forceFocused,
         onFocused = onFocused,
+        peekPrevious = true,
         onActivate = { onOpen(items[it]) },
         caption = { index ->
             HomeText(
@@ -759,7 +761,7 @@ internal fun DetailSlotRow(
     art: @Composable BoxScope.(Int) -> Unit,
 ) {
     if (count == 0) return
-    val shape: Shape = if (cornerIsCircle) CircleShape else RoundedCornerShape(12.dp)
+    val shape: Shape = if (cornerIsCircle) CircleShape else RoundedCornerShape(14.dp)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stride = cardWidth + gap
         val fullSlots = (((maxWidth - 48.dp) + gap) / stride).toInt().coerceAtLeast(1)

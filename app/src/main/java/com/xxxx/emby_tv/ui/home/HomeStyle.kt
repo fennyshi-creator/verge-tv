@@ -11,6 +11,14 @@ val LocalHomeFont = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 /** When true, generated artwork is painted as a soft wash so a blurred backdrop reads in previews. */
 val LocalArtworkSoften = staticCompositionLocalOf { false }
 
+object PosterRowFit {
+    /** How many poster widths fit, counting a partial card on the right. */
+    fun visibleCount(viewport: Int, inset: Int, card: Int, gap: Int): Float {
+        if (card + gap <= 0) return 0f
+        return (viewport - inset + gap).toFloat() / (card + gap)
+    }
+}
+
 object HomeStyle {
     val background = Color(0xFF141210)
     val title = Color(0xFFF2F2F2)
@@ -19,14 +27,14 @@ object HomeStyle {
     val progressTrack = Color(0x59FFFFFF)
 
     val gutter = 32.dp
-    val rowGap = 14.dp
+    val rowGap = 20.dp
     val continueWidth = 186.dp
     val continueHeight = 104.dp
     val libraryWidth = 272.dp
     val libraryHeight = 118.dp
     val posterWidth = 124.dp
     val posterHeight = 186.dp
-    val cardCorner = 11.dp
+    val cardCorner = 14.dp
     val libraryCorner = 13.dp
 
     val sectionSize = 22.sp

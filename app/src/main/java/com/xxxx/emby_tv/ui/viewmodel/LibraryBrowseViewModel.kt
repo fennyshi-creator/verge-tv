@@ -38,8 +38,75 @@ class LibraryBrowseViewModel(application: Application) : AndroidViewModel(applic
     var genreHasMore by mutableStateOf(true)
         private set
 
+    var sortBy by mutableStateOf("DateLastContentAdded")
+        private set
+    var sortOrder by mutableStateOf("Descending")
+        private set
+    var playedFilter by mutableStateOf<String?>(null)
+        private set
+    var seriesStatus by mutableStateOf<String?>(null)
+        private set
+    var ratingFilter by mutableStateOf<String?>(null)
+        private set
+    var yearMin by mutableStateOf<Int?>(null)
+        private set
+    var yearMax by mutableStateOf<Int?>(null)
+        private set
+    var chosenGenres by mutableStateOf<Set<String>>(emptySet())
+        private set
+
     private var parentId = ""
     private var itemType = "Movie"
+
+    fun setSort(sortBy: String, sortOrder: String) {
+        this.sortBy = sortBy
+        this.sortOrder = sortOrder
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun setPlayed(filter: String?) {
+        playedFilter = filter
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun chooseSeriesStatus(status: String?) {
+        seriesStatus = status
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun setRating(rating: String?) {
+        ratingFilter = rating
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun setYears(min: Int?, max: Int?) {
+        yearMin = min
+        yearMax = max
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun toggleGenre(name: String) {
+        chosenGenres = if (name in chosenGenres) chosenGenres - name else chosenGenres + name
+        items = null
+        fetchPage(reset = true)
+    }
+
+    fun clearFilters() {
+        playedFilter = null
+        seriesStatus = null
+        ratingFilter = null
+        yearMin = null
+        yearMax = null
+        chosenGenres = emptySet()
+        selectedGenre = null
+        items = null
+        fetchPage(reset = true)
+    }
 
     fun load(parentId: String, type: String) {
         if (parentId == this.parentId && type == itemType && items != null) return
@@ -112,8 +179,14 @@ class LibraryBrowseViewModel(application: Application) : AndroidViewModel(applic
                         itemType,
                         start,
                         PAGE_SIZE,
-                        "DateCreated",
-                        "Descending",
+                        sortBy,
+                        sortOrder,
+                        filters = playedFilter,
+                        genre = chosenGenres.takeIf { it.isNotEmpty() }?.joinToString(","),
+                        officialRatings = ratingFilter,
+                        seriesStatus = seriesStatus,
+                        minYear = yearMin,
+                        maxYear = yearMax,
                     )
                 }
                 items = if (reset) page else items.orEmpty() + page
@@ -141,9 +214,14 @@ class LibraryBrowseViewModel(application: Application) : AndroidViewModel(applic
                         itemType,
                         start,
                         PAGE_SIZE,
-                        "DateCreated",
-                        "Descending",
+                        sortBy,
+                        sortOrder,
+                        filters = playedFilter,
                         genre = name,
+                        officialRatings = ratingFilter,
+                        seriesStatus = seriesStatus,
+                        minYear = yearMin,
+                        maxYear = yearMax,
                     )
                 }
                 genreItems = if (reset) page else genreItems.orEmpty() + page

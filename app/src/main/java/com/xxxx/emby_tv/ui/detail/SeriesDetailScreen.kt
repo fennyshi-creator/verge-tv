@@ -348,6 +348,7 @@ fun SeriesDetailPage(
                         up = episodeFocus,
                         down = if (similar.isNotEmpty()) similarFocus else null,
                         forceFocused = forceFocus == SeriesFocus.Cast,
+                        peekPrevious = true,
                         onActivate = {},
                         onFocused = { blurBackdrop = true },
                         caption = { index ->
@@ -398,6 +399,7 @@ fun SeriesDetailPage(
                         up = if (people.isNotEmpty()) castFocus else episodeFocus,
                         down = null,
                         forceFocused = forceFocus == SeriesFocus.Similar,
+                        peekPrevious = true,
                         onActivate = { onOpenSimilar(similar[it]) },
                         onFocused = { blurBackdrop = true },
                         caption = { index ->

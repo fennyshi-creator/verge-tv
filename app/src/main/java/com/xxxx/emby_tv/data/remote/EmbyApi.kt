@@ -60,18 +60,36 @@ internal fun libraryItemsPath(
     limit: Int,
     apiKey: String,
     genre: String? = null,
+    sortBy: String = "DateCreated",
+    sortOrder: String = "Descending",
+    filters: String? = null,
+    officialRatings: String? = null,
+    seriesStatus: String? = null,
+    minYear: Int? = null,
+    maxYear: Int? = null,
 ): String {
     val genreQuery = if (genre.isNullOrBlank()) {
         ""
     } else {
-        "&Genres=" + java.net.URLEncoder.encode(genre, "UTF-8")
+        "&Genres=" + genre.split(",").joinToString(",") {
+            java.net.URLEncoder.encode(it, "UTF-8")
+        }
     }
+    val filterQuery = if (filters.isNullOrBlank()) "" else "&Filters=$filters"
+    val ratingQuery = if (officialRatings.isNullOrBlank()) {
+        ""
+    } else {
+        "&OfficialRatings=" + java.net.URLEncoder.encode(officialRatings, "UTF-8")
+    }
+    val statusQuery = if (seriesStatus.isNullOrBlank()) "" else "&SeriesStatus=$seriesStatus"
+    val minQuery = if (minYear == null) "" else "&MinPremiereDate=$minYear-01-01"
+    val maxQuery = if (maxYear == null) "" else "&MaxPremiereDate=$maxYear-12-31"
     return "/Users/$userId/Items?IncludeItemTypes=$includeItemTypes" +
             "&Recursive=true&ParentId=$parentId" +
-            "&SortBy=DateCreated&SortOrder=Descending" +
+            "&SortBy=$sortBy&SortOrder=$sortOrder" +
             "&StartIndex=$startIndex&Limit=$limit" +
-            genreQuery +
-            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
+            genreQuery + filterQuery + ratingQuery + statusQuery + minQuery + maxQuery +
+            "&Fields=PrimaryImageAspectRatio,ProductionYear,EndDate,Status,ImageTags,BackdropImageTags" +
             "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }
@@ -112,8 +130,8 @@ internal fun seriesAddedPath(
 ): String {
     return "/Users/$userId/Items?ParentId=$parentId&IncludeItemTypes=Series&Recursive=true" +
             "&SortBy=DateLastContentAdded,DateCreated&SortOrder=Descending&Limit=$limit" +
-            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags,SeriesId,SeriesName,SeriesPrimaryImageTag" +
-            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&Fields=Overview,Genres,CommunityRating,ProductionYear,ImageTags,BackdropImageTags,SeriesId,SeriesName,SeriesPrimaryImageTag" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb,Logo&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }
 
@@ -139,8 +157,8 @@ internal fun latestItemsPath(
     val type = if (includeItemTypes.isBlank()) "" else "&IncludeItemTypes=$includeItemTypes"
     return "/Users/$userId/Items/Latest?Limit=$limit&ParentId=$parentId&GroupItems=false" +
             type +
-            "&Fields=PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
-            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&Fields=Overview,Genres,CommunityRating,PrimaryImageAspectRatio,ProductionYear,ImageTags,BackdropImageTags" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb,Logo&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }
 
@@ -349,15 +367,15 @@ object EmbyApi {
         sortOrder: String = "Ascending",
         filters: String? = null,
         genre: String? = null,
+        officialRatings: String? = null,
+        seriesStatus: String? = null,
+        minYear: Int? = null,
+        maxYear: Int? = null,
     ): Pair<List<BaseItemDto>, Int> {
-        val url = if (genre != null || (sortBy == "DateCreated" && sortOrder == "Descending" && filters.isNullOrBlank())) {
-            libraryItemsPath(userId, parentId, type, startIndex, limit, apiKey, genre)
-        } else "/Users/$userId/Items?IncludeItemTypes=$type" +
-                "&Fields=BasicSyncInfo,PrimaryImageAspectRatio,ProductionYear,Status,EndDate" +
-                "&StartIndex=$startIndex&SortBy=$sortBy&SortOrder=$sortOrder&ParentId=$parentId" +
-                (filters?.let { "&Filters=$it" } ?: "") +
-                "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1&Recursive=true&Limit=$limit" +
-                "&X-Emby-Token=$apiKey"
+        val url = libraryItemsPath(
+            userId, parentId, type, startIndex, limit, apiKey, genre,
+            sortBy, sortOrder, filters, officialRatings, seriesStatus, minYear, maxYear,
+        )
         return httpAsBaseItemDtoListWithTotal(context, serverUrl, apiKey, deviceId, url)
     }
 

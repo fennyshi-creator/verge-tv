@@ -36,6 +36,12 @@ object StageDock {
     }
 
     fun travel(fromTop: Int, toTop: Int): Int = toTop - fromTop
+
+    /** First library row stays under the title. Later rows dock at the stage. */
+    fun libraryRowOffset(rowTop: Int, gridRow: Int, stagePx: Int, maxScroll: Int): Int {
+        if (gridRow <= 0) return 0
+        return offset(rowTop, gridRow, stagePx, maxScroll)
+    }
 }
 
 @Stable

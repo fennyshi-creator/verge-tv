@@ -131,6 +131,10 @@ class EmbyRepository private constructor(private val context: Context) {
         sortOrder: String = "Ascending",
         filters: String? = null,
         genre: String? = null,
+        officialRatings: String? = null,
+        seriesStatus: String? = null,
+        minYear: Int? = null,
+        maxYear: Int? = null,
     ): Pair<List<BaseItemDto>, Int> {
         requireLoggedIn()
         return EmbyApi.getLibraryList(
@@ -147,6 +151,10 @@ class EmbyRepository private constructor(private val context: Context) {
             sortOrder,
             filters,
             genre,
+            officialRatings,
+            seriesStatus,
+            minYear,
+            maxYear,
         )
     }
 

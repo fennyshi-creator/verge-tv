@@ -105,29 +105,15 @@ fun LibraryBrowseConnected(
     BackHandler(enabled = viewModel.selectedGenre != null) {
         viewModel.clearGenre()
     }
-    LibraryBrowsePage(
+    LibraryGridPage(
         libraryName = libraryName,
         itemType = itemType,
-        tab = tab,
-        onTab = {
-            if (it != LibraryTab.Genres) viewModel.clearGenre()
-            tab = it
-        },
-        items = viewModel.items.orEmpty(),
-        itemsLoading = viewModel.items == null || (viewModel.isLoading && viewModel.selectedGenre == null),
-        suggestions = viewModel.suggestions,
-        genres = viewModel.genres,
-        selectedGenre = viewModel.selectedGenre,
-        genreItems = viewModel.genreItems.orEmpty(),
-        genreLoading = viewModel.selectedGenre != null && viewModel.genreItems == null,
         serverUrl = serverUrl,
-        restoreItemId = returnId,
+        viewModel = viewModel,
         onOpenItem = { item ->
             returnId = item.id
             onOpenItem(item)
         },
-        onOpenGenre = viewModel::openGenre,
-        onLoadMore = viewModel::loadMore,
     )
 }
 

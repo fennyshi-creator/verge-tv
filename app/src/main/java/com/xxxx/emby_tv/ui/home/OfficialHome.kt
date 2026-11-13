@@ -457,7 +457,7 @@ private fun StageTitle(
         fontSize = HomeStyle.sectionSize,
         color = HomeStyle.title,
         modifier = Modifier
-            .padding(start = HomeStyle.gutter, end = HomeStyle.gutter, top = 8.dp, bottom = 6.dp)
+            .padding(start = HomeStyle.gutter, end = HomeStyle.gutter, top = 12.dp, bottom = 10.dp)
             .graphicsLayer {
                 val top = stage.tops.getOrElse(index) { 0 }
                 val distance = (top - scroll.value) - stage.stagePx
