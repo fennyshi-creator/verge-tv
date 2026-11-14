@@ -174,7 +174,9 @@ class FsPlayback(private val appContext: Context) {
     fun play() {
         playWhenReady = true
         try {
-            engine?.start()
+            val current = engine ?: return
+            current.start()
+            dispatchPlaying(true)
         } catch (error: Exception) {
             Log.w(TAG, "start failed", error)
         }

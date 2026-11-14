@@ -183,6 +183,14 @@ class PlayerRemoteTest {
     }
 
     @Test
+    fun thirdOkPausesEvenIfThePlayerHasNotReportedResumeYet() {
+        assertFalse(remoteIsPlaying(userPaused = true, reportedPlaying = false, hasStarted = true))
+        assertTrue(remoteIsPlaying(userPaused = false, reportedPlaying = false, hasStarted = true))
+        assertTrue(remoteIsPlaying(userPaused = false, reportedPlaying = true, hasStarted = true))
+        assertFalse(remoteIsPlaying(userPaused = false, reportedPlaying = false, hasStarted = false))
+    }
+
+    @Test
     fun centerStaysEmptyWhilePlayingAndAfterTheBarHides() {
         assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = true, playing = true, seeking = false))
         assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = false, playing = true, seeking = false))

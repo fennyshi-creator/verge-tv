@@ -253,7 +253,7 @@ fun OfficialHome(
                 (cardPx / density.density).dp
             }
             val posterCardHeight = posterCard * 3f / 2f
-            val seamPx = with(density) { 280.dp.roundToPx() }.coerceAtLeast(1)
+            val seamPx = with(density) { 640.dp.roundToPx() }.coerceAtLeast(1)
             val heroVisible = 1f - (scroll.value / seamPx.toFloat()).coerceIn(0f, 1f)
             val pinnedBackdrop = if (heroItem == null || serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, heroItem, 1280)
             if (pinnedBackdrop.isNotBlank()) {
@@ -267,14 +267,15 @@ fun OfficialHome(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.62f)
+                        .fillMaxHeight(0.52f)
                         .align(Alignment.BottomCenter)
                         .graphicsLayer { alpha = heroVisible }
                         .background(
                             Brush.verticalGradient(
                                 0f to Color.Transparent,
-                                0.42f to Color.Black.copy(0.12f),
-                                1f to Color.Black.copy(0.34f),
+                                0.28f to Color.Black.copy(0.18f),
+                                0.62f to Color.Black.copy(0.62f),
+                                1f to Color.Black.copy(0.84f),
                             ),
                         ),
                 )
@@ -332,20 +333,6 @@ fun OfficialHome(
                 }
                 if (showContinue) {
                     Column(Modifier.fillMaxWidth().stageAnchor(continueIndex)) {
-                        Box(Modifier.fillMaxWidth()) {
-                            Box(
-                                Modifier
-                                    .matchParentSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            0f to Color.Transparent,
-                                            0.28f to Color.Black.copy(alpha = 0.22f),
-                                            0.62f to Color.Black.copy(alpha = 0.5f),
-                                            1f to Color.Black.copy(alpha = 0.58f),
-                                        ),
-                                    ),
-                            )
-                            Column(Modifier.fillMaxWidth()) {
                         StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
                         TvLeadingRow(
                             items = resumeItems,
@@ -383,8 +370,6 @@ fun OfficialHome(
                             },
                         ) { item ->
                             ContinueArt(item, serverUrl)
-                        }
-                            }
                         }
                     }
                 }

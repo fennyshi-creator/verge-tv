@@ -246,6 +246,55 @@ object EmbyPresentation {
         return bestQuality(ranked) ?: qualityFromPixels(item.width, item.height)
     }
 
+    /** White badge text. 4K stays 4K. 1080p is shown as 1080P. */
+    fun resolutionChip(item: BaseItemDto): String? {
+        val raw = qualityBadge(item) ?: return null
+        return when (raw.lowercase(Locale.US)) {
+            "4k", "2160p" -> "4K"
+            "1080p" -> "1080P"
+            "720p" -> "720P"
+            else -> raw
+        }
+    }
+
+    /**
+     * Audio chip from the real stream. "DD+ 5.1" for E-AC-3. Bitrate is never included.
+     */
+    fun audioChip(item: BaseItemDto): String? {
+        val streams = item.mediaStreams?.takeIf { it.isNotEmpty() }
+            ?: item.mediaSources?.firstOrNull()?.mediaStreams
+        val audio = streams.orEmpty()
+            .filter { it.type.equals("Audio", true) }
+            .maxByOrNull { it.channels ?: 0 }
+            ?: return null
+        val codec = audio.codec?.lowercase(Locale.US).orEmpty()
+        val name = when (codec) {
+            "eac3", "e-ac3", "eac-3" -> "DD+"
+            "ac3", "ac-3" -> "DD"
+            "truehd", "mlp" -> "TrueHD"
+            "aac" -> "AAC"
+            "dts", "dca" -> "DTS"
+            "flac" -> "FLAC"
+            "mp3" -> "MP3"
+            "opus" -> "Opus"
+            "" -> return null
+            else -> codec.uppercase(Locale.US)
+        }
+        val layout = when (audio.channels) {
+            8 -> "7.1"
+            7 -> "6.1"
+            6 -> "5.1"
+            5 -> "5.0"
+            4 -> "4.0"
+            3 -> "2.1"
+            2 -> "2.0"
+            1 -> "1.0"
+            else -> audio.channelLayout
+                ?.takeIf { it.isNotBlank() && !it.contains("kbps", true) && !it.contains("0 kbps", true) }
+        }
+        return if (layout.isNullOrBlank()) name else "$name $layout"
+    }
+
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION
 
     /** Button text. Resolution only, in the 1080P / 2160P form. A probe bitrate of 0 is never shown. */

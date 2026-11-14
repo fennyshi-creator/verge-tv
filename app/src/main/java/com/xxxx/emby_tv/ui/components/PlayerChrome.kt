@@ -195,19 +195,8 @@ fun PlayerTransportBar(
                         Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 14.sp)
-                    Spacer(Modifier.width(14.dp))
-                    ProgressScrubber(
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        focusRequester = timelineFocus,
-                        upTarget = buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)],
-                        onOpenEpisodes = if (isEpisode) onOpenEpisodes else null,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val settingsIndex = if (showVersionButton) 3 else 2
                         RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), pictureFocus, 0, onButtonFocused, onMenuFocus) {
@@ -225,6 +214,19 @@ fun PlayerTransportBar(
                             onOpenSheet(PlayerSheet.Settings)
                         }
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 14.sp)
+                    Spacer(Modifier.width(14.dp))
+                    ProgressScrubber(
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        focusRequester = timelineFocus,
+                        upTarget = buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)],
+                        onOpenEpisodes = if (isEpisode) onOpenEpisodes else null,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 if (isEpisode && episodes.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))

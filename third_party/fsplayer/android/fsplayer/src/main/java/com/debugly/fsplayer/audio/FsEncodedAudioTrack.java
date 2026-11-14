@@ -51,6 +51,10 @@ public final class FsEncodedAudioTrack {
         if (Build.VERSION.SDK_INT >= 29) {
             boolean direct = AudioTrack.isDirectPlaybackSupported(format, attributes);
             Log.i(TAG, "isDirectPlaybackSupported encoding=" + encoding + " -> " + direct);
+            if (!direct) {
+                Log.w(TAG, "passthrough refused; caller should decode PCM");
+                return null;
+            }
         }
 
         int min = AudioTrack.getMinBufferSize(sampleRate, channelMask, encoding);

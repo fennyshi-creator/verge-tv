@@ -46,6 +46,7 @@ import com.xxxx.emby_tv.ui.components.SEEK_QUIET_MS
 import com.xxxx.emby_tv.ui.components.SEEK_READOUT_HOLD_MS
 import com.xxxx.emby_tv.ui.components.centerGlyph
 import com.xxxx.emby_tv.ui.components.chromeHoldMs
+import com.xxxx.emby_tv.ui.components.remoteIsPlaying
 import com.xxxx.emby_tv.ui.components.decideRemote
 import com.xxxx.emby_tv.ui.components.latchedDisplayMs
 import com.xxxx.emby_tv.ui.components.nextSeek
@@ -1468,6 +1469,11 @@ fun PlayerScreen(
                 if (message.contains("429") || message.contains("限流")) {
                     return
                 }
+                // Passthrough that cannot be opened must decode, not leave the screen.
+                if (player.passthroughEnabled && audioRecoveryStage == 0) {
+                    handleAudioSinkFailure()
+                    return
+                }
                 fallbackToServerTranscode()
             }
 
@@ -1618,7 +1624,7 @@ fun PlayerScreen(
                 val decision = decideRemote(
                     RemoteContext(
                         controlsVisible = chromeVisible,
-                        playing = isPlaying && !userPaused,
+                        playing = remoteIsPlaying(userPaused, isPlaying, hasPlayed),
                         sheetOpen = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None,
                         episodeStrip = episodeStrip,
                         resumePrompt = showResumeButtons && playbackPositionTicks > 0,

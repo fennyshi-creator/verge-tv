@@ -271,4 +271,37 @@ class EmbyPresentationTest {
         val real = MediaSourceInfoDto(name = "2160p", bitrate = 8_000_000)
         assertTrue(EmbyPresentation.versionDetail(real).contains("8000 kbps"))
     }
+
+    @Test
+    fun mediaFactsUseResolutionAndRealAudioWithoutBitrate() {
+        val clip = BaseItemDto(
+            name = "山姆免费试播片段",
+            type = "Movie",
+            runTimeTicks = 2L * 60L * 10_000_000L,
+            mediaSources = listOf(
+                MediaSourceInfoDto(
+                    name = "4K",
+                    bitrate = 192,
+                    mediaStreams = listOf(
+                        com.xxxx.emby_tv.data.model.MediaStreamDto(
+                            type = "Video",
+                            width = 3840,
+                            height = 1600,
+                        ),
+                        com.xxxx.emby_tv.data.model.MediaStreamDto(
+                            type = "Audio",
+                            codec = "eac3",
+                            profile = "Dolby Digital Plus + Dolby Atmos",
+                            channels = 6,
+                            bitRate = 768_000,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assertEquals("2min", EmbyPresentation.runtimeLabel(clip.runTimeTicks))
+        assertEquals("4K", EmbyPresentation.resolutionChip(clip))
+        assertEquals("DD+ 5.1", EmbyPresentation.audioChip(clip))
+        assertFalse(EmbyPresentation.audioChip(clip)!!.contains("kbps"))
+    }
 }

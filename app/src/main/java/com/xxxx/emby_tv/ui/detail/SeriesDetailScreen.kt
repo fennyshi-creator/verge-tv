@@ -612,22 +612,7 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverU
                 HomeText(overview, 13.sp, Color(0xFFE8E8E8), maxLines = 2)
             }
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val runtime = EmbyPresentation.runtimeLabel(episode.runTimeTicks).orEmpty()
-                if (runtime.isNotBlank()) HomeText(runtime, 13.sp, Color.White)
-                val badge = EmbyPresentation.qualityBadge(episode)
-                if (!badge.isNullOrBlank()) {
-                    Spacer(Modifier.width(10.dp))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF2C2C2C))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        HomeText(badge, 11.sp, Color.White, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
+            MediaFactsRow(episode)
         }
     }
 }

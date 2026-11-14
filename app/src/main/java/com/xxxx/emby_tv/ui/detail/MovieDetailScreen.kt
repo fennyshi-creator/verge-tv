@@ -513,22 +513,38 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
             )
         }
         Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val runtime = EmbyPresentation.runtimeLabel(item.runTimeTicks).orEmpty()
-            if (runtime.isNotBlank()) {
-                HomeText(runtime, 13.sp, Color.White)
+        MediaFactsRow(item)
+    }
+}
+
+@Composable
+internal fun MediaFactsRow(item: BaseItemDto) {
+    val runtime = EmbyPresentation.runtimeLabel(item.runTimeTicks).orEmpty()
+    val resolution = EmbyPresentation.resolutionChip(item).orEmpty()
+    val audio = EmbyPresentation.audioChip(item).orEmpty()
+    if (runtime.isBlank() && resolution.isBlank() && audio.isBlank()) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (runtime.isNotBlank()) HomeText(runtime, 13.sp, Color.White)
+        if (resolution.isNotBlank()) {
+            if (runtime.isNotBlank()) Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            ) {
+                HomeText(resolution, 11.sp, Color(0xFF161616), fontWeight = FontWeight.SemiBold)
             }
-            val badge = EmbyPresentation.qualityBadge(item)
-            if (!badge.isNullOrBlank()) {
-                Spacer(Modifier.width(10.dp))
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF2C2C2C))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                ) {
-                    HomeText(badge, 11.sp, Color.White, fontWeight = FontWeight.Medium)
-                }
+        }
+        if (audio.isNotBlank()) {
+            if (runtime.isNotBlank() || resolution.isNotBlank()) Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White.copy(0.16f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            ) {
+                HomeText(audio, 11.sp, Color.White, fontWeight = FontWeight.Medium)
             }
         }
     }

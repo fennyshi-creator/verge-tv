@@ -4,6 +4,7 @@ import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.MediaStreamDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -194,5 +195,20 @@ class EmbyPlaybackTest {
             "https://emby.example/emby/videos/1/master.m3u8",
             EmbyPlayback.resolvePlaybackUrl("https://emby.example", published, forceTranscode = true),
         )
+    }
+
+    @Test
+    fun loopbackStrmGatewayUnwrapsToThePublishedPlaylist() {
+        val encoded = java.net.URLEncoder.encode("https://cdn.example/eac3/index.m3u8", Charsets.UTF_8.name())
+        val gateway = MediaSourceInfoDto(
+            container = "hls",
+            path = "http://127.0.0.1:3000/api/play?url=$encoded",
+            transcodingUrl = "/videos/1/master.m3u8?AudioCodec=aac",
+        )
+        assertEquals(
+            "https://cdn.example/eac3/index.m3u8",
+            EmbyPlayback.resolvePlaybackUrl("https://emby.example", gateway, forceTranscode = false),
+        )
+        assertNull(EmbyPlayback.reachable("http://127.0.0.1:3000/api/play"))
     }
 }

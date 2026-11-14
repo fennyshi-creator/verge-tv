@@ -113,6 +113,15 @@ fun decideRemote(context: RemoteContext, key: PlayerKey, phase: KeyPhase): Remot
     }
 }
 
+/**
+ * Whether OK should pause. A resume that has not yet been reported by the
+ * player still counts as playing, otherwise the next OK calls play again.
+ */
+fun remoteIsPlaying(userPaused: Boolean, reportedPlaying: Boolean, hasStarted: Boolean): Boolean {
+    if (userPaused) return false
+    return reportedPlaying || hasStarted
+}
+
 /** Pause mark only while the bar is up and the user has paused. Never a play glyph. */
 fun centerGlyph(chromeVisible: Boolean, playing: Boolean, seeking: Boolean): CenterGlyph {
     if (!chromeVisible || playing || seeking) return CenterGlyph.None
