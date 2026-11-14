@@ -609,6 +609,10 @@ typedef struct FFPlayer {
     /* FsIec61937Eac3 *, owned here. Null unless the open is an IEC carrier. */
     void *audio_iec;
     int audio_drop_logs;
+    int audio_wait_logs;
+    int64_t audio_log_origin_us;
+    int64_t audio_sink_pause_us;
+    int audio_sink_pause_origin;
 
     char *iformat_name;
 
@@ -786,6 +790,10 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->audio_passthrough_fallback     = 0;
     ffp->audio_iec                      = NULL;
     ffp->audio_drop_logs                = 0;
+    ffp->audio_wait_logs                = 0;
+    ffp->audio_log_origin_us            = 0;
+    ffp->audio_sink_pause_us            = 0;
+    ffp->audio_sink_pause_origin        = 0;
 
     /*
      * 字幕偏好必须有初值：ffp_apply_subtitle_preference 会把它推给字幕组件，

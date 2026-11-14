@@ -107,6 +107,8 @@ int main(void)
     expect_int("periods match", fs_iec61937_period_content_us(48000), fs_iec61937_period_transport_us(192000));
     expect_int("48k carrier is 128ms", fs_iec61937_period_transport_us(48000), 128000);
     expect_int("transport bytes", fs_iec61937_transport_bytes_per_sec(192000), 768000);
+    expect_int("pcm underrun may pause", fs_passthrough_pause_on_queue_underrun(0), 1);
+    expect_int("iec underrun does not pause", fs_passthrough_pause_on_queue_underrun(1), 0);
     expect_int("5.1 mask", fs_passthrough_open_channels(6), 6);
     expect_int("stereo container still opens 5.1", fs_passthrough_open_channels(2), 6);
     expect_int("7.1 mask", fs_passthrough_open_channels(8), 8);
@@ -196,6 +198,33 @@ int main(void)
             expect_int("reassembled sync", got[0], 0x0B);
             expect_int("reassembled frmsiz", got[3], 0x03);
             expect_int("gather drained", glen, 0);
+        }
+        {
+            /* Six 1-block frames (256 samples each) fill one 1536-sample period.
+             * The burst stays 24576 bytes. It is not shrunk to 4096. */
+            FsIec61937Eac3 *short_st = fs_iec61937_eac3_new();
+            uint8_t one_block[8];
+            uint8_t short_burst[FS_IEC61937_EAC3_BURST_BYTES];
+            int k;
+            int emitted = 0;
+            memset(one_block, 0, sizeof(one_block));
+            one_block[0] = 0x0B;
+            one_block[1] = 0x77;
+            one_block[3] = 0x03;
+            one_block[4] = 0x00; /* numblkscod = 0 → 1 block */
+            one_block[5] = 0x80;
+            for (k = 0; k < 6; k++) {
+                emitted = fs_iec61937_eac3_push(short_st, one_block, 8, short_burst, sizeof(short_burst));
+                if (k < 5)
+                    expect_int("one-block frame held", emitted, 0);
+            }
+            expect_int("six one-block frames are one period", emitted, 0);
+            one_block[3] = 0x03;
+            emitted = fs_iec61937_eac3_push(short_st, one_block, 8, short_burst, sizeof(short_burst));
+            expect_int("next independent emits 24576", emitted, FS_IEC61937_EAC3_BURST_BYTES);
+            expect_int("short frames pd is six frames", short_burst[6], 48);
+            expect_int("short frames still data-type 21", short_burst[4], 21);
+            fs_iec61937_eac3_free(short_st);
         }
         expect_int("flush held frame", fs_iec61937_eac3_flush(st, burst, sizeof(burst)), FS_IEC61937_EAC3_BURST_BYTES);
         expect_int("flushed pd", burst[6], 8);

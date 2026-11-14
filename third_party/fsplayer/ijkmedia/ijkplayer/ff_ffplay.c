@@ -144,6 +144,34 @@ static void update_sample_display(FFPlayer *ffp, uint8_t *samples, int samples_s
 
 #include "ff_heic_tile.h"
 
+extern void fs_passthrough_log_line(const char *line);
+
+static void fs_log_queue_wait(FFPlayer *ffp, PacketQueue *q, int64_t wait_us)
+{
+    char line[220];
+    int n;
+    int wait_ms;
+    int64_t now;
+    if (!ffp || wait_us <= 0)
+        return;
+    now = av_gettime_relative();
+    wait_ms = (int) ((now - wait_us) / 1000);
+    if (wait_ms < 0)
+        wait_ms = 0;
+    ffp->audio_wait_logs++;
+    n = ffp->audio_wait_logs;
+    if (n > 8 && (n % 16) != 0 && wait_ms < 200)
+        return;
+    snprintf(line, sizeof(line),
+             "audio queue wait n=%d elapsed=%lld wait_ms=%d packets_after=%d bytes_after=%d paused=0",
+             n,
+             ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
+             wait_ms,
+             q ? q->nb_packets : -1,
+             q ? q->size : -1);
+    fs_passthrough_log_line(line);
+}
+
 static int packet_queue_get_or_buffering(FFPlayer *ffp, PacketQueue *q, AVPacket *pkt, int *serial, int *finished)
 {
     assert(finished);
@@ -155,9 +183,20 @@ static int packet_queue_get_or_buffering(FFPlayer *ffp, PacketQueue *q, AVPacket
         if (new_packet < 0)
             return -1;
         else if (new_packet == 0) {
-            if (q->is_buffer_indicator && !*finished)
-                ffp_toggle_buffering(ffp, 1);
+            int64_t wait_us = 0;
+            int kept_playing = 0;
+            if (q->is_buffer_indicator && !*finished) {
+                if (fs_passthrough_pause_on_queue_underrun(ffp->audio_passthrough_on))
+                    ffp_toggle_buffering(ffp, 1);
+                else {
+                    /* Block for the next packet. Do not pause the IEC track. */
+                    kept_playing = 1;
+                    wait_us = av_gettime_relative();
+                }
+            }
             new_packet = packet_queue_get(q, pkt, 1, serial);
+            if (kept_playing)
+                fs_log_queue_wait(ffp, q, wait_us);
             if (new_packet < 0)
                 return -1;
         }
@@ -284,8 +323,6 @@ static int fs_speed_is_one(FFPlayer *ffp)
     float rate = ffp->pf_playback_rate;
     return fabsf(rate) < 0.00001f || fabsf(rate - 1.0f) < 0.001f;
 }
-
-extern void fs_passthrough_log_line(const char *line);
 
 static void fs_log_drop(FFPlayer *ffp, const char *reason)
 {
@@ -1128,9 +1165,61 @@ static int stream_seek(VideoState *is, int64_t pos, int64_t rel, int by_bytes)
 }
 
 /* pause or resume the video */
+static const char *fs_sink_pause_name(int origin)
+{
+    switch (origin) {
+    case 1: return "user";
+    case 2: return "seek";
+    case 3: return "buffering";
+    default: return "lifecycle";
+    }
+}
+
+static int fs_sink_pause_origin(VideoState *is)
+{
+    if (!is)
+        return 0;
+    if (is->seek_req || is->seek_buffering)
+        return 2;
+    if (is->pause_req)
+        return 1;
+    if (is->buffering_on)
+        return 3;
+    return 0;
+}
+
+static void fs_log_sink_pause(FFPlayer *ffp, int pause_on, int was_paused)
+{
+    char line[180];
+    int64_t now;
+    int origin;
+    if (!ffp || !ffp->audio_passthrough_on || was_paused == pause_on)
+        return;
+    now = av_gettime_relative();
+    if (pause_on) {
+        origin = fs_sink_pause_origin(ffp->is);
+        ffp->audio_sink_pause_origin = origin;
+        ffp->audio_sink_pause_us = now;
+        snprintf(line, sizeof(line),
+                 "audio sink pause origin=%s elapsed=%lld",
+                 fs_sink_pause_name(origin),
+                 ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL);
+    } else {
+        snprintf(line, sizeof(line),
+                 "audio sink resume origin=%s elapsed=%lld paused_ms=%lld",
+                 fs_sink_pause_name(ffp->audio_sink_pause_origin),
+                 ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
+                 ffp->audio_sink_pause_us > 0 ? (long long) ((now - ffp->audio_sink_pause_us) / 1000) : 0LL);
+        ffp->audio_sink_pause_us = 0;
+    }
+    fs_passthrough_log_line(line);
+}
+
 static void stream_toggle_pause_l(FFPlayer *ffp, int pause_on)
 {
     VideoState *is = ffp->is;
+    int was_paused = is->paused;
+    int touches_sink = 1;
     if (is->paused && !pause_on) {
         is->frame_timer += av_gettime_relative() / 1000000.0 - is->vidclk.last_updated;
 
@@ -1141,10 +1230,13 @@ static void stream_toggle_pause_l(FFPlayer *ffp, int pause_on)
     set_clock(&is->extclk, get_clock(&is->extclk), is->extclk.clock_serial);
     if (is->step && (is->pause_req || is->buffering_on)) {
         is->paused = is->vidclk.paused = is->extclk.paused = pause_on;
+        touches_sink = 0;
     } else {
         is->paused = is->audclk.paused = is->vidclk.paused = is->extclk.paused = pause_on;
         SDL_AoutPauseAudio(ffp->aout, pause_on);
     }
+    if (touches_sink)
+        fs_log_sink_pause(ffp, pause_on, was_paused);
 }
 
 static void stream_update_pause_l(FFPlayer *ffp)
@@ -3658,6 +3750,7 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                     char line[320];
                     int content_us = fs_iec61937_period_content_us(content_rate);
                     int transport_us = fs_iec61937_period_transport_us(audio_hw_params->freq);
+                    ffp->audio_log_origin_us = av_gettime_relative();
                     SDL_AoutSetDefaultLatencySeconds(ffp->aout,
                         (2.0 * FS_IEC61937_EAC3_BURST_BYTES) / audio_hw_params->bytes_per_sec);
                     snprintf(line, sizeof(line),

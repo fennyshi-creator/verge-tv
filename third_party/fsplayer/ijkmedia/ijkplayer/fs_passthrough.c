@@ -192,6 +192,11 @@ int fs_iec61937_period_transport_us(int carrier_rate)
     return (int) ((long long) FS_IEC61937_EAC3_BURST_BYTES * 1000000LL / bps);
 }
 
+int fs_passthrough_pause_on_queue_underrun(int passthrough_on)
+{
+    return passthrough_on ? 0 : 1;
+}
+
 struct FsIec61937Eac3 {
     uint8_t payload[FS_IEC61937_EAC3_BURST_BYTES - 8];
     int payload_bytes;

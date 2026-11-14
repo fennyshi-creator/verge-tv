@@ -93,6 +93,13 @@ int fs_iec61937_period_content_us(int content_rate);
 int fs_iec61937_period_transport_us(int carrier_rate);
 
 /*
+ * 1 = an empty packet queue may pause the AudioTrack.
+ * Encoded passthrough returns 0: AudioTrack.pause/play breaks HDMI DD+.
+ * User pause, seek, startup, and EOF do not use this; they still pause.
+ */
+int fs_passthrough_pause_on_queue_underrun(int passthrough_on);
+
+/*
  * Next syncframe at or after [start]. Returns its size, or 0.
  * *at receives the byte offset. Independent and dependent frames are
  * both returned, one at a time, so a glued Atmos packet is not one write.
