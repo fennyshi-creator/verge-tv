@@ -4,10 +4,13 @@ package com.xxxx.emby_tv.ui.player
  * What to tell Emby about the playhead.
  *
  * A report of 0 ticks clears Continue Watching. A report at or past the
- * runtime marks the item watched. A failed session must do neither: keep the
- * position the user already had, and never claim the title finished.
+ * runtime marks the item watched. The Emby runtime on this library can be
+ * longer than the file, so it is not a duration we are allowed to invent a
+ * position from. A playhead past the real file, or a jump with no known
+ * duration, keeps the resume the user already had.
  */
 object PlaybackReport {
+    @Suppress("UNUSED_PARAMETER")
     fun safePositionMs(
         playerPositionMs: Long,
         resumeMs: Long,
@@ -17,17 +20,24 @@ object PlaybackReport {
     ): Long {
         val fromPlayer = playerPositionMs.coerceAtLeast(0L)
         val saved = resumeMs.coerceAtLeast(0L)
-        val knownDuration = when {
-            playerDurationMs > 5_000L -> playerDurationMs
-            runtimeMs > 5_000L -> runtimeMs
-            else -> 0L
-        }
+        val fileMs = if (playerDurationMs > 5_000L) playerDurationMs else 0L
+        // runtimeMs stays in the signature so callers can pass the library length.
+        // It is not a file duration and is never written back as the playhead.
+
         if (!naturalEnd) {
-            val kept = if (fromPlayer <= 0L) saved else fromPlayer
-            if (knownDuration <= 0L) return kept
-            return kept.coerceAtMost(knownDuration * 4L / 5L)
+            if (fileMs > 0L) {
+                if (fromPlayer <= 0L || fromPlayer >= fileMs) {
+                    return saved.coerceAtMost(fileMs - 1_000L).coerceAtLeast(0L)
+                }
+                return fromPlayer.coerceAtMost(fileMs - 1_000L)
+            }
+            if (fromPlayer <= 0L) return saved
+            // No measured file length yet. A leap past the resume is the bad clock
+            // that stored ~120s. A few seconds of real playback still reports.
+            if (fromPlayer > saved + 30_000L) return saved
+            return fromPlayer
         }
-        if (knownDuration <= 0L) return fromPlayer
-        return fromPlayer.coerceAtMost(knownDuration)
+        if (fileMs <= 0L) return if (fromPlayer <= 0L) saved else fromPlayer
+        return fromPlayer.coerceAtMost(fileMs)
     }
 }

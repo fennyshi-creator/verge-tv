@@ -241,6 +241,8 @@ typedef struct Decoder {
     int pkt_serial;
     int finished;
     int packet_pending;
+    /* Byte offset into pkt while an E-AC-3 access unit still has syncframes. */
+    int passthrough_off;
     int bfsc_ret;
     uint8_t *bfsc_data;
 

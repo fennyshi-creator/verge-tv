@@ -17,7 +17,7 @@ class PlaybackReportTest {
     }
 
     @Test
-    fun aShortSessionCannotBeReportedAsFinished() {
+    fun aPositionPastTheFileKeepsTheResume() {
         val ms = PlaybackReport.safePositionMs(
             playerPositionMs = 140_000L,
             resumeMs = 60_000L,
@@ -25,7 +25,45 @@ class PlaybackReportTest {
             playerDurationMs = 115_000L,
             naturalEnd = false,
         )
-        assertEquals(92_000L, ms)
+        assertEquals(60_000L, ms)
+    }
+
+    @Test
+    fun aStaleRuntimeCannotBecomeTheStoredPosition() {
+        // 2.0.48 clamped a wild playhead to 4/5 of the 149.5s library runtime
+        // and Continue Watching came back at ~120s, past the real ~115s file.
+        val ms = PlaybackReport.safePositionMs(
+            playerPositionMs = 120_000L,
+            resumeMs = 60_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 0L,
+            naturalEnd = false,
+        )
+        assertEquals(60_000L, ms)
+    }
+
+    @Test
+    fun playbackInsideAnUnknownDurationStillReports() {
+        val ms = PlaybackReport.safePositionMs(
+            playerPositionMs = 69_000L,
+            resumeMs = 60_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 0L,
+            naturalEnd = false,
+        )
+        assertEquals(69_000L, ms)
+    }
+
+    @Test
+    fun aRealPositionInsideTheFileIsKept() {
+        val ms = PlaybackReport.safePositionMs(
+            playerPositionMs = 70_000L,
+            resumeMs = 60_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 115_000L,
+            naturalEnd = false,
+        )
+        assertEquals(70_000L, ms)
     }
 
     @Test

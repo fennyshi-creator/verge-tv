@@ -45,36 +45,41 @@ int fs_eac3_frame_bytes(const uint8_t *data, int size)
     return bytes;
 }
 
-int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap)
+int fs_eac3_next_frame(const uint8_t *data, int size, int start, int *at)
 {
     int i;
-    int copied = 0;
-    int saw_independent = 0;
-    if (!data || size < 4 || !out || cap < 4)
+    if (!data || size < 4 || start < 0)
         return 0;
-    for (i = 0; i + 4 <= size; i++) {
-        int n;
-        int dependent;
-        if (data[i] != 0x0B || data[i + 1] != 0x77)
+    for (i = start; i + 4 <= size; i++) {
+        int n = fs_eac3_frame_bytes(data + i, size - i);
+        if (n < 4)
             continue;
-        n = fs_eac3_frame_bytes(data + i, size - i);
-        if (n <= 0)
-            return copied;
-        dependent = fs_eac3_frame_is_dependent(data + i, n);
-        if (!saw_independent) {
-            if (dependent)
-                return 0;
-            saw_independent = 1;
-        } else if (!dependent) {
-            return copied;
-        }
-        if (copied + n > cap)
-            return copied;
-        memcpy(out + copied, data + i, (size_t) n);
-        copied += n;
-        i += n - 1;
+        if (at)
+            *at = i;
+        return n;
     }
-    return copied;
+    return 0;
+}
+
+int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap)
+{
+    int at = 0;
+    int n;
+    if (!out || cap < 4)
+        return 0;
+    n = fs_eac3_next_frame(data, size, 0, &at);
+    if (n < 4 || n > cap)
+        return 0;
+    memcpy(out, data + at, (size_t) n);
+    return n;
+}
+
+int fs_passthrough_open_channels(int container_channels)
+{
+    if (container_channels == 8)
+        return 8;
+    /* 5.1 is the HDMI layout for this E-AC-3 / Atmos item. */
+    return 6;
 }
 
 static int fs_dec3_payload_has_dependent(const uint8_t *data, int size)
@@ -146,29 +151,30 @@ static int fs_wanted_encoding(int codec_id, int profile, int joc_hint,
         return FS_ENCODING_AC3;
     if (codec_id != FS_CODEC_ID_EAC3)
         return 0; /* TrueHD and everything else stay on the PCM decoder. */
-    /*
-     * Ask for plain E-AC-3 first. JOC/Atmos is a dependent substream inside
-     * the same packets; ENCODING_E_AC3_JOC is tried only if this open fails.
-     * Leading with JOC made devices that passthrough DD+ refuse the track
-     * and then fail the PCM fallback.
-     */
+    /* Family is E-AC-3. JOC vs plain is chosen by fs_passthrough_open_order. */
     joc = 0;
     (void) joc;
     return FS_ENCODING_E_AC3;
 }
 
-int fs_passthrough_open_order(int encoding, int *out, int cap)
+int fs_passthrough_open_order(int encoding, int joc, int *out, int cap)
 {
     if (!out || cap <= 0 || encoding == 0)
         return 0;
-    if (encoding == FS_ENCODING_E_AC3 || encoding == FS_ENCODING_E_AC3_JOC) {
-        out[0] = FS_ENCODING_E_AC3;
+    if (encoding == FS_ENCODING_AC3) {
+        out[0] = FS_ENCODING_AC3;
+        return 1;
+    }
+    if (encoding != FS_ENCODING_E_AC3 && encoding != FS_ENCODING_E_AC3_JOC)
+        return 0;
+    if (joc) {
+        out[0] = FS_ENCODING_E_AC3_JOC;
         if (cap < 2)
             return 1;
-        out[1] = FS_ENCODING_E_AC3_JOC;
+        out[1] = FS_ENCODING_E_AC3;
         return 2;
     }
-    out[0] = encoding;
+    out[0] = FS_ENCODING_E_AC3;
     return 1;
 }
 
@@ -189,7 +195,9 @@ FsPassthroughDecision fs_passthrough_decide(
     if (!enabled || !speed_is_one)
         return d;
     d.encoding = fs_wanted_encoding(codec_id, profile, joc_hint, extradata, extradata_size);
-    d.joc = d.encoding == FS_ENCODING_E_AC3_JOC;
+    d.joc = d.encoding == FS_ENCODING_E_AC3 &&
+            (joc_hint || profile == FS_PROFILE_EAC3_DDP_ATMOS ||
+             fs_eac3_extradata_has_dependent(extradata, extradata_size));
     if (d.encoding != 0 && endpoint_open_ok == 0) {
         d.encoding = 0;
         d.joc = 0;

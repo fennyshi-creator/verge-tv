@@ -83,14 +83,21 @@ int main(void)
 
     d = fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 30, 0, 1, NULL, 0);
     expect_int("open ok", d.encoding, FS_ENCODING_E_AC3);
-    expect_int("open ok not joc encoding", d.joc, 0);
+    expect_int("atmos opens joc first", d.joc, 1);
     expect_int("open ok no fallback", d.fallback_pcm, 0);
+    expect_int("plain eac3 is not joc",
+               fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, 1, NULL, 0).joc, 0);
     {
         int order[2] = {0, 0};
-        expect_int("eac3 order count", fs_passthrough_open_order(FS_ENCODING_E_AC3_JOC, order, 2), 2);
-        expect_int("eac3 tried before joc", order[0], FS_ENCODING_E_AC3);
-        expect_int("joc is the second try", order[1], FS_ENCODING_E_AC3_JOC);
+        expect_int("atmos order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 1, order, 2), 2);
+        expect_int("joc is the first try", order[0], FS_ENCODING_E_AC3_JOC);
+        expect_int("eac3 is the second try", order[1], FS_ENCODING_E_AC3);
+        expect_int("plain order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, order, 2), 1);
+        expect_int("plain stays eac3", order[0], FS_ENCODING_E_AC3);
     }
+    expect_int("5.1 mask", fs_passthrough_open_channels(6), 6);
+    expect_int("stereo container still opens 5.1", fs_passthrough_open_channels(2), 6);
+    expect_int("7.1 mask", fs_passthrough_open_channels(8), 8);
 
     d = fs_passthrough_decide(1, 1, FS_CODEC_ID_TRUEHD, 0, 0, 0, NULL, 0);
     expect_int("truehd reject is not a fallback", d.fallback_pcm, 0);
@@ -111,9 +118,16 @@ int main(void)
         packet[10] = 0x40;
         packet[11] = 0x03;
         n = fs_eac3_passthrough_payload(packet, 16, out, 16);
-        expect_int("independent plus dependent", n, 16);
+        expect_int("one syncframe per write", n, 8);
+        expect_int("payload is the independent frame", out[2], 0x00);
+        {
+            int at = -1;
+            int n2 = fs_eac3_next_frame(packet, 16, n, &at);
+            expect_int("dependent follows as its own frame", n2, 8);
+            expect_int("dependent offset", at, 8);
+        }
         n = fs_eac3_passthrough_payload(packet + 8, 8, out, 16);
-        expect_int("lone dependent is dropped", n, 0);
+        expect_int("dependent frame is kept", n, 8);
         packet[0] = 0x00;
         n = fs_eac3_passthrough_payload(packet, 8, out, 16);
         expect_int("non sync is dropped", n, 0);

@@ -69,7 +69,22 @@ typedef struct SDL_Aout_Opaque {
     volatile float speed;
     volatile bool speed_changed;
     int encoded;
+    int encoded_stop;
 } SDL_Aout_Opaque;
+
+/* One E-AC-3 syncframe: 0x0B77 and frmsiz covering this buffer and nothing else. */
+static int eac3_write_is_one_syncframe(const uint8_t *data, int size)
+{
+    int frmsiz;
+    int bytes;
+    if (!data || size < 4 || size > 4096)
+        return 0;
+    if (data[0] != 0x0B || data[1] != 0x77)
+        return 0;
+    frmsiz = ((data[2] & 0x07) << 8) | data[3];
+    bytes = (frmsiz + 1) * 2;
+    return bytes == size;
+}
 
 static int aout_format_is_encoded(SDL_AudioFormat format)
 {
@@ -131,9 +146,10 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         SDL_UnlockMutex(opaque->wakeup_mutex);
 
         /*
-         * Encoded mode writes one or more complete AC-3 / E-AC-3 frames.
-         * The callback prefixes a little-endian length so we never pad the
-         * bitstream with PCM silence.
+         * Encoded mode writes exactly one raw syncframe. AudioFlinger packs
+         * ENCODING_E_AC3 / E_AC3_JOC into IEC 61937. A second preamble, or
+         * more than one frame in this write, is what kills the HDMI HAL.
+         * The callback prefixes a little-endian length. There is no padding.
          */
         int request = opaque->encoded ? opaque->buffer_size : copy_size;
         audio_cblk(userdata, buffer, request);
@@ -147,15 +163,26 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             SDL_Android_AudioTrack_flush(env, atrack);
         } else if (opaque->encoded) {
             int payload = 0;
-            if (request >= 4) {
+            int eac3 = opaque->spec.format == AUDIO_EAC3 || opaque->spec.format == AUDIO_EAC3_JOC;
+            if (opaque->encoded_stop) {
+                SDL_Delay(10);
+            } else if (request >= 4) {
                 payload = (int)buffer[0] | ((int)buffer[1] << 8) |
                           ((int)buffer[2] << 16) | ((int)buffer[3] << 24);
             }
-            if (payload > 0 && payload <= request - 4) {
+            if (opaque->encoded_stop) {
+                /* already waiting */
+            } else if (payload > 0 && payload <= request - 4 &&
+                       (!eac3 || eac3_write_is_one_syncframe(buffer + 4, payload))) {
                 int written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
-                if (written != payload) {
+                if (written < 0) {
+                    ALOGW("AudioTrack: encoded write failed %d/%d; stopping writes", written, payload);
+                    opaque->encoded_stop = 1;
+                } else if (written != payload) {
                     ALOGW("AudioTrack: encoded write %d/%d", written, payload);
                 }
+            } else if (payload > 0) {
+                ALOGW("AudioTrack: refuse mispacked encoded buffer %d", payload);
             } else {
                 SDL_Delay(5);
             }

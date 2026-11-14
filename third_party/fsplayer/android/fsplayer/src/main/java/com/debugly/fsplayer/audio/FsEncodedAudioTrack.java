@@ -78,7 +78,8 @@ public final class FsEncodedAudioTrack {
                 return null;
             }
             Log.i(TAG, "opened encoded AudioTrack encoding=" + encoding
-                    + " rate=" + sampleRate + " buffer=" + buffer);
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                    + " buffer=" + buffer);
             return track;
         } catch (Throwable error) {
             Log.w(TAG, "AudioTrack.Builder failed encoding=" + encoding, error);

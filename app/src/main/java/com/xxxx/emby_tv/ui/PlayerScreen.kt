@@ -286,6 +286,7 @@ fun PlayerScreen(
 
     var position by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
+    var resumePastFileClamped by remember { mutableStateOf(false) }
     var buffered by remember { mutableStateOf(0L) }
     var audioStatusLine by remember { mutableStateOf("") }
 
@@ -1451,6 +1452,17 @@ fun PlayerScreen(
                         isBuffering = false
                         val rawDuration = player.duration
                         if (rawDuration > 0) duration = rawDuration
+                        // HLS often learns the real length after prepare. A resume
+                        // past that length (the ~120s point stored by 2.0.48) seeks
+                        // off the end of a ~115s file.
+                        val resumeMs = playbackPositionTicks / 10_000L
+                        if (!resumePastFileClamped &&
+                            rawDuration > 30_000L &&
+                            resumeMs >= rawDuration - 1_500L
+                        ) {
+                            resumePastFileClamped = true
+                            player.seekTo(0)
+                        }
                     }
                     FsPlayback.STATE_IDLE -> isBuffering = false
                     FsPlayback.STATE_ENDED -> {

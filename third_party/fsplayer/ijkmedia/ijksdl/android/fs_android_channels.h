@@ -1,7 +1,8 @@
 /*
  * PCM channel count -> Android AudioFormat channel mask.
- * Encoded AC-3 / E-AC-3 passthrough does not use this; it stays stereo
- * because Android packetizes the bitstream to IEC 61937.
+ * E-AC-3 / Atmos passthrough uses the same masks (5.1 or 7.1).
+ * AudioFlinger applies IEC 61937 for ENCODING_E_AC3 and ENCODING_E_AC3_JOC.
+ * The track stays on the content channel count; it is not forced to stereo.
  *
  * Masks match AudioFormat: MONO 0x4, STEREO 0xc, QUAD 0xcc,
  * 5.1 0xfc, 7.1 0x3fc.
