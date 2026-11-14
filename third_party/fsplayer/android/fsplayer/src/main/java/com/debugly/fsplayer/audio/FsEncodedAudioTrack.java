@@ -51,10 +51,12 @@ public final class FsEncodedAudioTrack {
         if (Build.VERSION.SDK_INT >= 29) {
             boolean direct = AudioTrack.isDirectPlaybackSupported(format, attributes);
             Log.i(TAG, "isDirectPlaybackSupported encoding=" + encoding + " -> " + direct);
-            if (!direct) {
-                Log.w(TAG, "passthrough refused; caller should decode PCM");
-                return null;
-            }
+            /*
+             * Do not refuse the open here. On HDMI devices this query often
+             * reports false for E-AC-3 / JOC even when the AVR accepts the
+             * bitstream. A failed Builder returns null and the caller falls
+             * through to the next encoding, then to PCM.
+             */
         }
 
         int min = AudioTrack.getMinBufferSize(sampleRate, channelMask, encoding);

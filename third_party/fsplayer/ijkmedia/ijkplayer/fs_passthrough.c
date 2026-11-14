@@ -89,13 +89,38 @@ static int fs_wanted_encoding(int codec_id, int profile, int joc_hint,
                               const uint8_t *extradata, int extradata_size)
 {
     int joc;
+    (void) profile;
+    (void) joc_hint;
+    (void) extradata;
+    (void) extradata_size;
     if (codec_id == FS_CODEC_ID_AC3)
         return FS_ENCODING_AC3;
     if (codec_id != FS_CODEC_ID_EAC3)
         return 0; /* TrueHD and everything else stay on the PCM decoder. */
-    joc = joc_hint || profile == FS_PROFILE_EAC3_DDP_ATMOS ||
-          fs_eac3_extradata_has_dependent(extradata, extradata_size);
-    return joc ? FS_ENCODING_E_AC3_JOC : FS_ENCODING_E_AC3;
+    /*
+     * Ask for plain E-AC-3 first. JOC/Atmos is a dependent substream inside
+     * the same packets; ENCODING_E_AC3_JOC is tried only if this open fails.
+     * Leading with JOC made devices that passthrough DD+ refuse the track
+     * and then fail the PCM fallback.
+     */
+    joc = 0;
+    (void) joc;
+    return FS_ENCODING_E_AC3;
+}
+
+int fs_passthrough_open_order(int encoding, int *out, int cap)
+{
+    if (!out || cap <= 0 || encoding == 0)
+        return 0;
+    if (encoding == FS_ENCODING_E_AC3 || encoding == FS_ENCODING_E_AC3_JOC) {
+        out[0] = FS_ENCODING_E_AC3;
+        if (cap < 2)
+            return 1;
+        out[1] = FS_ENCODING_E_AC3_JOC;
+        return 2;
+    }
+    out[0] = encoding;
+    return 1;
 }
 
 FsPassthroughDecision fs_passthrough_decide(

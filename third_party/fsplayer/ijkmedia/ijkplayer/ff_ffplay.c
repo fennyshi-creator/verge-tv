@@ -3459,24 +3459,41 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
     if (ffp->audio_passthrough_encoding && ffp->audio_passthrough && fs_speed_is_one(ffp)) {
         SDL_AudioSpec pt_wanted = wanted_spec;
         SDL_AudioSpec pt_spec;
-        int encoding = ffp->audio_passthrough_encoding;
+        int order[2];
+        int norder;
+        int opened = 0;
+        int opened_encoding = 0;
+        int ti;
+        norder = fs_passthrough_open_order(ffp->audio_passthrough_encoding, order, 2);
         memset(&pt_spec, 0, sizeof(pt_spec));
         pt_wanted.channels = 2;
         if (pt_wanted.freq <= 0)
             pt_wanted.freq = 48000;
-        if (encoding == FS_ENCODING_AC3)
-            pt_wanted.format = AUDIO_AC3;
-        else if (encoding == FS_ENCODING_E_AC3_JOC)
-            pt_wanted.format = AUDIO_EAC3_JOC;
-        else
-            pt_wanted.format = AUDIO_EAC3;
         pt_wanted.samples = 1536;
-        if (SDL_AoutOpenAudio(ffp->aout, &pt_wanted, &pt_spec) == 0) {
+        for (ti = 0; ti < norder; ti++) {
+            int encoding = order[ti];
+            memset(&pt_spec, 0, sizeof(pt_spec));
+            if (encoding == FS_ENCODING_AC3)
+                pt_wanted.format = AUDIO_AC3;
+            else if (encoding == FS_ENCODING_E_AC3_JOC)
+                pt_wanted.format = AUDIO_EAC3_JOC;
+            else
+                pt_wanted.format = AUDIO_EAC3;
+            if (SDL_AoutOpenAudio(ffp->aout, &pt_wanted, &pt_spec) == 0) {
+                opened = 1;
+                opened_encoding = encoding;
+                break;
+            }
+            av_log(NULL, AV_LOG_WARNING,
+                   "audio passthrough encoding %d rejected\n", encoding);
+        }
+        if (opened) {
             ffp->audio_passthrough_on = 1;
+            ffp->audio_passthrough_encoding = opened_encoding;
             ffp->audio_passthrough_fallback = 0;
             av_log(NULL, AV_LOG_INFO,
                    "audio passthrough opened encoding=%d rate=%d\n",
-                   encoding, pt_spec.freq);
+                   opened_encoding, pt_spec.freq);
             av_channel_layout_uninit(wanted_channel_layout);
             av_channel_layout_default(wanted_channel_layout, 2);
             audio_hw_params->fmt = AV_SAMPLE_FMT_S16;
@@ -3494,8 +3511,19 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
         ffp->audio_passthrough_encoding = 0;
         ffp->audio_passthrough_fallback = 1;
         av_log(NULL, AV_LOG_WARNING,
-               "audio passthrough encoding %d rejected; falling back to PCM decode\n",
-               encoding);
+               "audio passthrough rejected; decoding to stereo PCM\n");
+        /*
+         * A 5.1 PCM AudioTrack open hangs some Android TV HALs. Passthrough
+         * was the multichannel path. The decode fallback stays stereo so
+         * prepare can finish and the picture stays up. AAC never comes
+         * through this branch.
+         */
+        if (wanted_nb_channels > 2) {
+            wanted_nb_channels = 2;
+            wanted_spec.channels = 2;
+            av_channel_layout_uninit(wanted_channel_layout);
+            av_channel_layout_default(wanted_channel_layout, 2);
+        }
     }
     wanted_spec.samples = FFMIN(0xFFFF, FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AoutGetAudioPerSecondCallBacks(ffp->aout))));
     wanted_spec.callback = sdl_audio_callback;

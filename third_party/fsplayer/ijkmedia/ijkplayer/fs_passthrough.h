@@ -49,6 +49,13 @@ int fs_eac3_extradata_has_dependent(const uint8_t *data, int size);
  * joc_hint:       app/container said Atmos / JOC (profile may still be unknown)
  * endpoint_open_ok: 1 opened, 0 open failed, -1 not attempted yet
  */
+/*
+ * Encodings to try, HDMI-compatible first. Atmos/JOC bitstreams are still
+ * E-AC-3 packets: ENCODING_E_AC3 (6) is what AVRs accept. ENCODING_E_AC3_JOC
+ * (18) is only a second attempt. Returns the number of encodings written.
+ */
+int fs_passthrough_open_order(int encoding, int *out, int cap);
+
 FsPassthroughDecision fs_passthrough_decide(
     int enabled,
     int speed_is_one,

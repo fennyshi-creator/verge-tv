@@ -58,17 +58,17 @@ int main(void)
                FS_ENCODING_AC3);
     expect_int("eac3", fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, -1, NULL, 0).encoding,
                FS_ENCODING_E_AC3);
-    expect_int("joc profile",
+    expect_int("joc profile opens as eac3",
                fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, FS_PROFILE_EAC3_DDP_ATMOS, 0, -1, NULL, 0).encoding,
-               FS_ENCODING_E_AC3_JOC);
-    expect_int("joc hint", fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 1, -1, NULL, 0).encoding,
-               FS_ENCODING_E_AC3_JOC);
-    expect_int("joc dec3",
+               FS_ENCODING_E_AC3);
+    expect_int("joc hint opens as eac3", fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 1, -1, NULL, 0).encoding,
+               FS_ENCODING_E_AC3);
+    expect_int("joc dec3 opens as eac3",
                fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, -1, dec3, dec3_size).encoding,
-               FS_ENCODING_E_AC3_JOC);
-    expect_int("joc frame",
+               FS_ENCODING_E_AC3);
+    expect_int("joc frame opens as eac3",
                fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, -1, dependent, 3).encoding,
-               FS_ENCODING_E_AC3_JOC);
+               FS_ENCODING_E_AC3);
     expect_int("independent stays eac3",
                fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, -1, independent, 3).encoding,
                FS_ENCODING_E_AC3);
@@ -82,9 +82,15 @@ int main(void)
     expect_int("fallback not joc", d.joc, 0);
 
     d = fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 30, 0, 1, NULL, 0);
-    expect_int("open ok", d.encoding, FS_ENCODING_E_AC3_JOC);
-    expect_int("open ok joc", d.joc, 1);
+    expect_int("open ok", d.encoding, FS_ENCODING_E_AC3);
+    expect_int("open ok not joc encoding", d.joc, 0);
     expect_int("open ok no fallback", d.fallback_pcm, 0);
+    {
+        int order[2] = {0, 0};
+        expect_int("eac3 order count", fs_passthrough_open_order(FS_ENCODING_E_AC3_JOC, order, 2), 2);
+        expect_int("eac3 tried before joc", order[0], FS_ENCODING_E_AC3);
+        expect_int("joc is the second try", order[1], FS_ENCODING_E_AC3_JOC);
+    }
 
     d = fs_passthrough_decide(1, 1, FS_CODEC_ID_TRUEHD, 0, 0, 0, NULL, 0);
     expect_int("truehd reject is not a fallback", d.fallback_pcm, 0);

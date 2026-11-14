@@ -1445,6 +1445,14 @@ fun PlayerScreen(
                     FsPlayback.STATE_ENDED -> {
                         isBuffering = false
                         onPlaybackStateChanged(false)
+                        // A passthrough failure can look like an immediate end.
+                        // Reopen on the PCM decoder instead of leaving the title.
+                        if (position < 2_500L && audioRecoveryStage == 0 && player.passthroughEnabled) {
+                            audioRecoveryStage = 1
+                            Log.w(AUDIO_RECOVERY_TAG, "播放刚结束，改为 PCM 重开而不是退出")
+                            player.forcePcm(0L)
+                            return
+                        }
                         if (playMode == 1) {
                             player.seekTo(0)
                             player.play()
@@ -1469,12 +1477,24 @@ fun PlayerScreen(
                 if (message.contains("429") || message.contains("限流")) {
                     return
                 }
-                // Passthrough that cannot be opened must decode, not leave the screen.
-                if (player.passthroughEnabled && audioRecoveryStage == 0) {
-                    handleAudioSinkFailure()
-                    return
+                // Stay on this screen. An audio open/decode failure reopens
+                // without passthrough, then continues with video if PCM
+                // cannot be opened either. Server transcode is not a way out:
+                // this title reports SupportsTranscoding=false.
+                when (audioRecoveryStage) {
+                    0 -> {
+                        audioRecoveryStage = 1
+                        Log.w(AUDIO_RECOVERY_TAG, "播放器错误，关闭直通并以 PCM 重开")
+                        player.forcePcm(player.currentPosition.coerceAtLeast(0L))
+                    }
+                    else -> {
+                        if (audioRecoveryStage < 2) {
+                            audioRecoveryStage = 2
+                            Log.w(AUDIO_RECOVERY_TAG, "PCM 重开仍失败，保持画面并静音")
+                            player.setVolume(0f, 0f)
+                        }
+                    }
                 }
-                fallbackToServerTranscode()
             }
 
             override fun onVideoDecoder(name: String) {
