@@ -163,14 +163,33 @@ int fs_iec61937_carrier_rate(int content_rate)
 
 int fs_iec61937_open_rate(int encoding, int content_rate)
 {
-    int content = content_rate;
-    if (content != 32000 && content != 44100 && content != 48000)
-        content = 48000;
-    /* 13 @ 192 kHz opened on this HAL and then SIGSEGV'd. The untried
-     * IEC open is the bitstream rate. 192 kHz is only the PCM carrier. */
-    if (encoding == FS_ENCODING_IEC61937_PCM)
-        return fs_iec61937_carrier_rate(content);
-    return content;
+    /* encoding selects IEC61937 vs the PCM carrier. Both use one 4× step.
+     * 2.0.52 opened IEC61937 at the content rate, so each 24576-byte burst
+     * took 128 ms on a 48 kHz track while the bitstream inside it was 32 ms. */
+    (void) encoding;
+    return fs_iec61937_carrier_rate(content_rate);
+}
+
+int fs_iec61937_transport_bytes_per_sec(int carrier_rate)
+{
+    if (carrier_rate <= 0)
+        return 0;
+    return carrier_rate * 2 * 2;
+}
+
+int fs_iec61937_period_content_us(int content_rate)
+{
+    if (content_rate <= 0)
+        content_rate = 48000;
+    return (int) (1536LL * 1000000LL / content_rate);
+}
+
+int fs_iec61937_period_transport_us(int carrier_rate)
+{
+    int bps = fs_iec61937_transport_bytes_per_sec(carrier_rate);
+    if (bps <= 0)
+        return 0;
+    return (int) ((long long) FS_IEC61937_EAC3_BURST_BYTES * 1000000LL / bps);
 }
 
 struct FsIec61937Eac3 {

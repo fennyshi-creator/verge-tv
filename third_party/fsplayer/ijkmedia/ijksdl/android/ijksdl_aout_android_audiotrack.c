@@ -26,6 +26,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <time.h>
 #include <assert.h>
 #include <jni.h>
 #include "../ijksdl_inc_internal.h"
@@ -73,7 +74,25 @@ typedef struct SDL_Aout_Opaque {
     int encoded_stop;
     int callback_noted;
     int empty_logs;
+    int write_n;
+    int prev_log_ms;
+    int64_t play_ms;
+    int64_t cum_bytes;
 } SDL_Aout_Opaque;
+
+static int64_t aout_mono_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static int aout_log_timed(JNIEnv *env, const char *line)
+{
+    int64_t t0 = aout_mono_ms();
+    SDL_Android_AudioTrack_log(env, line);
+    return (int) (aout_mono_ms() - t0);
+}
 
 /* One E-AC-3 syncframe: 0x0B77 and frmsiz covering this buffer and nothing else. */
 static int eac3_write_is_one_syncframe(const uint8_t *data, int size)
@@ -129,12 +148,14 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
     SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
 
     if (!opaque->abort_request && !opaque->pause_on) {
-        char line[128];
+        char line[160];
+        if (opaque->play_ms == 0)
+            opaque->play_ms = aout_mono_ms();
         snprintf(line, sizeof(line), "audio play format=0x%x rate=%d channels=%d",
                  (unsigned) opaque->spec.format, opaque->spec.freq, opaque->spec.channels);
-        SDL_Android_AudioTrack_log(env, line);
+        opaque->prev_log_ms = aout_log_timed(env, line);
         SDL_Android_AudioTrack_play(env, atrack);
-        SDL_Android_AudioTrack_log(env, "audio play returned");
+        opaque->prev_log_ms = aout_log_timed(env, "audio play returned");
     }
 
     while (!opaque->abort_request) {
@@ -199,7 +220,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             int iec = opaque->spec.format == AUDIO_IEC61937 || opaque->spec.format == AUDIO_IEC61937_PCM;
             int eac3 = opaque->spec.format == AUDIO_EAC3 || opaque->spec.format == AUDIO_EAC3_JOC;
             int packed_ok;
-            char line[160];
+            char line[384];
             if (opaque->encoded_stop) {
                 SDL_Delay(10);
             } else if (request >= 4) {
@@ -215,15 +236,49 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 int pc = 0;
                 int pd = 0;
                 int written;
+                int sample;
+                int64_t t0;
+                int write_ms;
+                if (opaque->play_ms == 0)
+                    opaque->play_ms = aout_mono_ms();
                 if (iec && payload >= 8) {
                     pc = (int)buffer[8] | ((int)buffer[9] << 8);
                     pd = (int)buffer[10] | ((int)buffer[11] << 8);
                 }
-                snprintf(line, sizeof(line), "audio write bytes=%d pc=%d pd=%d", payload, pc, pd);
-                SDL_Android_AudioTrack_log(env, line);
+                opaque->write_n++;
+                sample = opaque->write_n <= 4 || (opaque->write_n % 32) == 0;
+                if (sample) {
+                    snprintf(line, sizeof(line),
+                             "audio write begin n=%d elapsed=%lld prev_log_ms=%d bytes=%d",
+                             opaque->write_n,
+                             (long long) (aout_mono_ms() - opaque->play_ms),
+                             opaque->prev_log_ms, payload);
+                    opaque->prev_log_ms = aout_log_timed(env, line);
+                }
+                t0 = aout_mono_ms();
                 written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
-                snprintf(line, sizeof(line), "audio write result=%d/%d", written, payload);
-                SDL_Android_AudioTrack_log(env, line);
+                write_ms = (int) (aout_mono_ms() - t0);
+                if (written > 0)
+                    opaque->cum_bytes += written;
+                if (sample || written < 0 || written != payload) {
+                    char hex[48];
+                    hex[0] = 0;
+                    if (opaque->write_n == 1 && payload >= 16) {
+                        int b;
+                        int used = 0;
+                        for (b = 0; b < 16 && used + 3 < (int) sizeof(hex); b++)
+                            used += snprintf(hex + used, sizeof(hex) - used, "%02x", buffer[4 + b]);
+                    }
+                    snprintf(line, sizeof(line),
+                             "audio write n=%d elapsed=%lld write_ms=%d prev_log_ms=%d "
+                             "bytes=%d pc=%d pd=%d result=%d/%d cum_bursts=%d cum_bytes=%lld hex=%s",
+                             opaque->write_n,
+                             (long long) (aout_mono_ms() - opaque->play_ms),
+                             write_ms, opaque->prev_log_ms, payload, pc, pd,
+                             written, payload, opaque->write_n,
+                             (long long) opaque->cum_bytes, hex);
+                    opaque->prev_log_ms = aout_log_timed(env, line);
+                }
                 if (written < 0) {
                     ALOGW("AudioTrack: encoded write failed %d/%d; stopping writes", written, payload);
                     opaque->encoded_stop = 1;
@@ -313,6 +368,10 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
     opaque->callback_noted = 0;
     opaque->encoded_stop = 0;
     opaque->empty_logs = 0;
+    opaque->write_n = 0;
+    opaque->prev_log_ms = 0;
+    opaque->play_ms = 0;
+    opaque->cum_bytes = 0;
     opaque->audio_tid = SDL_CreateThreadEx(&opaque->_audio_tid, aout_thread, aout, "ff_aout_android");
     if (!opaque->audio_tid) {
         ALOGE("aout_open_audio_n: failed to create audio thread");

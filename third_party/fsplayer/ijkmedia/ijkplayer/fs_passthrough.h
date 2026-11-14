@@ -77,10 +77,20 @@ int fs_iec61937_eac3_flush(FsIec61937Eac3 *st, uint8_t *out, int cap);
 int fs_iec61937_carrier_rate(int content_rate);
 
 /*
- * Sample rate to open. ENCODING_IEC61937 uses the bitstream rate (48 kHz).
- * The 4× PCM carrier uses 192 kHz. 13 @ 192 kHz is not an open we try.
+ * Sample rate to open for either IEC61937 or the PCM carrier.
+ * Both are 4× the bitstream rate, once. A 24576-byte E-AC-3 burst is
+ * 32 ms only at that carrier (192 kHz for a 48 kHz source).
  */
 int fs_iec61937_open_rate(int encoding, int content_rate);
+
+/* Stereo 16-bit bytes per second at the carrier. Not the 48 kHz content rate. */
+int fs_iec61937_transport_bytes_per_sec(int carrier_rate);
+
+/* One IEC E-AC-3 period is 1536 source samples, not each syncframe. */
+int fs_iec61937_period_content_us(int content_rate);
+
+/* Time to play one 24576-byte burst at the carrier. */
+int fs_iec61937_period_transport_us(int carrier_rate);
 
 /*
  * Next syncframe at or after [start]. Returns its size, or 0.

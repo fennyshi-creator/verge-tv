@@ -322,6 +322,7 @@ static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int 
     frame->linesize[0] = size;
     frame->format = AV_SAMPLE_FMT_U8;
     frame->sample_rate = sample_rate;
+    /* 1536 is one IEC period at the content rate, not 1536 carrier samples. */
     frame->nb_samples = advance_clock ? 1536 : 0;
     av_channel_layout_default(&frame->ch_layout, 2);
     frame->opaque = FS_PASSTHROUGH_FRAME_MAGIC;
@@ -3584,8 +3585,7 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 int encoding = order[ti];
                 int iec = encoding == FS_ENCODING_IEC61937 || encoding == FS_ENCODING_IEC61937_PCM;
                 if (iec) {
-                    /* IEC61937 at the bitstream rate. 192 kHz is the PCM
-                     * carrier only. 13 @ 192 kHz is not opened. */
+                    /* 4× carrier, once. 192 kHz for a 48 kHz source. */
                     pt_wanted.freq = fs_iec61937_open_rate(encoding, content_rate);
                     pt_wanted.channels = 2;
                     pt_wanted.format = encoding == FS_ENCODING_IEC61937
@@ -3642,13 +3642,34 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0)
                     return -1;
                 audio_hw_params->frame_size = audio_hw_params->ch_layout.nb_channels * 2;
-                /* One E-AC-3 burst is 1536 content samples (32 ms) on the
-                 * frame clock. bytes_per_sec follows the track rate so a
-                 * latency estimate matches what AudioTrack consumes. */
-                audio_hw_params->bytes_per_sec = audio_hw_params->freq * audio_hw_params->frame_size;
+                /* Transport domain: carrier Hz × stereo × 2 bytes.
+                 * The frame clock stays in content samples (1536 at 48 kHz
+                 * per emitted burst). Do not multiply those samples by 4. */
+                if (opened_encoding == FS_ENCODING_IEC61937
+                    || opened_encoding == FS_ENCODING_IEC61937_PCM)
+                    audio_hw_params->bytes_per_sec =
+                        fs_iec61937_transport_bytes_per_sec(audio_hw_params->freq);
+                else
+                    audio_hw_params->bytes_per_sec = audio_hw_params->freq * audio_hw_params->frame_size;
                 if (audio_hw_params->bytes_per_sec <= 0)
                     return -1;
-                SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0.08);
+                if (opened_encoding == FS_ENCODING_IEC61937
+                    || opened_encoding == FS_ENCODING_IEC61937_PCM) {
+                    char line[320];
+                    int content_us = fs_iec61937_period_content_us(content_rate);
+                    int transport_us = fs_iec61937_period_transport_us(audio_hw_params->freq);
+                    SDL_AoutSetDefaultLatencySeconds(ffp->aout,
+                        (2.0 * FS_IEC61937_EAC3_BURST_BYTES) / audio_hw_params->bytes_per_sec);
+                    snprintf(line, sizeof(line),
+                             "audio clock content_hz=%d carrier_hz=%d bytes_per_sec=%d "
+                             "period_content_us=%d period_transport_us=%d hw_buf=%d",
+                             content_rate, audio_hw_params->freq,
+                             audio_hw_params->bytes_per_sec, content_us, transport_us,
+                             pt_spec.size > 0 ? (int) pt_spec.size : 0);
+                    fs_passthrough_log_line(line);
+                } else {
+                    SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0.08);
+                }
                 return pt_spec.size > 0 ? (int) pt_spec.size : 65536;
             }
         }
