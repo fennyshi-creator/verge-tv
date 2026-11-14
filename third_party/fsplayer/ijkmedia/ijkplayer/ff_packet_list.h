@@ -35,5 +35,7 @@ void packet_queue_destroy(PacketQueue *q);
 void packet_queue_abort(PacketQueue *q);
 void packet_queue_start(PacketQueue *q);
 int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *serial);
+/* Copies nb_packets and size. Does not log and does not keep the lock. */
+void packet_queue_peek_stats(PacketQueue *q, int *nb_packets, int *size);
 
 #endif /* ff_packet_list_h */

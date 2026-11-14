@@ -35,6 +35,7 @@
 #include "../ijksdl_aout_internal.h"
 #include "ijksdl_android_jni.h"
 #include "android_audiotrack.h"
+#include "fs_diag.h"
 
 #ifdef SDLTRACE
 #undef SDLTRACE
@@ -78,6 +79,9 @@ typedef struct SDL_Aout_Opaque {
     int prev_log_ms;
     int64_t play_ms;
     int64_t cum_bytes;
+    int64_t gap_begin_us;
+    int64_t gap_end_us;
+    int have_gap;
 } SDL_Aout_Opaque;
 
 static int64_t aout_mono_ms(void)
@@ -220,7 +224,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             int iec = opaque->spec.format == AUDIO_IEC61937 || opaque->spec.format == AUDIO_IEC61937_PCM;
             int eac3 = opaque->spec.format == AUDIO_EAC3 || opaque->spec.format == AUDIO_EAC3_JOC;
             int packed_ok;
-            char line[384];
+            char line[640];
             if (opaque->encoded_stop) {
                 SDL_Delay(10);
             } else if (request >= 4) {
@@ -247,19 +251,36 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 }
                 opaque->write_n++;
                 sample = opaque->write_n <= 4 || (opaque->write_n % 32) == 0;
-                if (sample) {
-                    snprintf(line, sizeof(line),
-                             "audio write begin n=%d elapsed=%lld prev_log_ms=%d bytes=%d",
-                             opaque->write_n,
-                             (long long) (aout_mono_ms() - opaque->play_ms),
-                             opaque->prev_log_ms, payload);
-                    opaque->prev_log_ms = aout_log_timed(env, line);
+                {
+                    int64_t begin_us = fs_diag_mono_us();
+                    long long ss_gap = -1;
+                    long long since_end = -1;
+                    if (opaque->have_gap) {
+                        ss_gap = (long long) ((begin_us - opaque->gap_begin_us) / 1000);
+                        since_end = (long long) ((begin_us - opaque->gap_end_us) / 1000);
+                    }
+                    if (sample) {
+                        snprintf(line, sizeof(line),
+                                 "audio write begin n=%d elapsed=%lld epoch=write prev_log_ms=%d bytes=%d "
+                                 "ss_gap_ms=%lld since_end_ms=%lld t=%lld",
+                                 opaque->write_n,
+                                 (long long) (aout_mono_ms() - opaque->play_ms),
+                                 opaque->prev_log_ms, payload,
+                                 ss_gap, since_end,
+                                 (long long) fs_diag_session_ms(begin_us));
+                        opaque->prev_log_ms = aout_log_timed(env, line);
+                    }
+                    t0 = aout_mono_ms();
+                    written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
+                    write_ms = (int) (aout_mono_ms() - t0);
+                    opaque->gap_begin_us = begin_us;
+                    opaque->gap_end_us = fs_diag_mono_us();
+                    opaque->have_gap = 1;
+                    if (written > 0) {
+                        opaque->cum_bytes += written;
+                        fs_diag_mark_write(begin_us, opaque->gap_end_us, written);
+                    }
                 }
-                t0 = aout_mono_ms();
-                written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
-                write_ms = (int) (aout_mono_ms() - t0);
-                if (written > 0)
-                    opaque->cum_bytes += written;
                 if (sample || written < 0 || written != payload) {
                     char hex[48];
                     hex[0] = 0;
@@ -269,14 +290,29 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                         for (b = 0; b < 16 && used + 3 < (int) sizeof(hex); b++)
                             used += snprintf(hex + used, sizeof(hex) - used, "%02x", buffer[4 + b]);
                     }
-                    snprintf(line, sizeof(line),
-                             "audio write n=%d elapsed=%lld write_ms=%d prev_log_ms=%d "
-                             "bytes=%d pc=%d pd=%d result=%d/%d cum_bursts=%d cum_bytes=%lld hex=%s",
-                             opaque->write_n,
-                             (long long) (aout_mono_ms() - opaque->play_ms),
-                             write_ms, opaque->prev_log_ms, payload, pc, pd,
-                             written, payload, opaque->write_n,
-                             (long long) opaque->cum_bytes, hex);
+                    {
+                        char clocks[96];
+                        int sampq = -1;
+                        int aud_valid = 0;
+                        int vid_valid = 0;
+                        long long aud_ms = 0;
+                        long long vid_ms = 0;
+                        fs_diag_read_player_clock(userdata, &sampq, &aud_valid, &aud_ms,
+                                                  &vid_valid, &vid_ms);
+                        fs_diag_format_clocks(clocks, (int) sizeof(clocks),
+                                              aud_valid, aud_ms, vid_valid, vid_ms);
+                        snprintf(line, sizeof(line),
+                                 "audio write n=%d elapsed=%lld epoch=write write_ms=%d prev_log_ms=%d "
+                                 "bytes=%d pc=%d pd=%d result=%d/%d cum_bursts=%d cum_bytes=%lld "
+                                 "t=%lld sampq_frames=%d %s hex=%s",
+                                 opaque->write_n,
+                                 (long long) (aout_mono_ms() - opaque->play_ms),
+                                 write_ms, opaque->prev_log_ms, payload, pc, pd,
+                                 written, payload, opaque->write_n,
+                                 (long long) opaque->cum_bytes,
+                                 (long long) fs_diag_session_ms(fs_diag_mono_us()),
+                                 sampq, clocks, hex);
+                    }
                     opaque->prev_log_ms = aout_log_timed(env, line);
                 }
                 if (written < 0) {

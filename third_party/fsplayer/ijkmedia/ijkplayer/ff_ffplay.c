@@ -145,10 +145,15 @@ static void update_sample_display(FFPlayer *ffp, uint8_t *samples, int samples_s
 #include "ff_heic_tile.h"
 
 extern void fs_passthrough_log_line(const char *line);
+extern void fs_passthrough_log_line_buffered(const char *line);
+extern void fs_passthrough_log_sync(void);
+static void fs_diag_player_clocks(FFPlayer *ffp, int *sampq,
+                                  int *aud_valid, long long *aud_ms,
+                                  int *vid_valid, long long *vid_ms);
 
 static void fs_log_queue_wait(FFPlayer *ffp, PacketQueue *q, int64_t wait_us)
 {
-    char line[220];
+    char line[512];
     int n;
     int wait_ms;
     int64_t now;
@@ -162,13 +167,32 @@ static void fs_log_queue_wait(FFPlayer *ffp, PacketQueue *q, int64_t wait_us)
     n = ffp->audio_wait_logs;
     if (n > 8 && (n % 16) != 0 && wait_ms < 200)
         return;
-    snprintf(line, sizeof(line),
-             "audio queue wait n=%d elapsed=%lld wait_ms=%d packets_after=%d bytes_after=%d paused=0",
-             n,
-             ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
-             wait_ms,
-             q ? q->nb_packets : -1,
-             q ? q->size : -1);
+    {
+        char clocks[96];
+        int sampq = -1;
+        int aud_valid = 0;
+        int vid_valid = 0;
+        long long aud_ms = 0;
+        long long vid_ms = 0;
+        long long since_end = -1;
+        int64_t mono = fs_diag_mono_us();
+        fs_diag_player_clocks(ffp, &sampq, &aud_valid, &aud_ms, &vid_valid, &vid_ms);
+        fs_diag_format_clocks(clocks, (int) sizeof(clocks), aud_valid, aud_ms, vid_valid, vid_ms);
+        fs_diag_since_write_end_ms(mono, &since_end);
+        snprintf(line, sizeof(line),
+                 "audio queue wait n=%d elapsed=%lld epoch=open wait_ms=%d packets_after=%d bytes_after=%d paused=0 "
+                 "t=%lld epoch_session=%d sampq_frames=%d since_write_end_ms=%lld %s",
+                 n,
+                 ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
+                 wait_ms,
+                 q ? q->nb_packets : -1,
+                 q ? q->size : -1,
+                 (long long) fs_diag_session_ms(mono),
+                 ffp->diag_session,
+                 sampq,
+                 since_end,
+                 clocks);
+    }
     fs_passthrough_log_line(line);
 }
 
@@ -340,6 +364,100 @@ static int fs_passthrough_is_iec(FFPlayer *ffp)
         || ffp->audio_passthrough_encoding == FS_ENCODING_IEC61937_PCM;
 }
 
+static double get_clock(Clock *c);
+
+static int fs_diag_iec_on(FFPlayer *ffp)
+{
+    return ffp && ffp->audio_passthrough_on && fs_passthrough_is_iec(ffp);
+}
+
+static void fs_diag_player_clocks(FFPlayer *ffp, int *sampq,
+                                  int *aud_valid, long long *aud_ms,
+                                  int *vid_valid, long long *vid_ms)
+{
+    VideoState *is = ffp && ffp->is ? ffp->is : NULL;
+    if (sampq)
+        *sampq = is ? frame_queue_nb_remaining(&is->sampq) : -1;
+    if (aud_valid)
+        *aud_valid = 0;
+    if (vid_valid)
+        *vid_valid = 0;
+    if (aud_ms)
+        *aud_ms = 0;
+    if (vid_ms)
+        *vid_ms = 0;
+    if (!is)
+        return;
+    if (aud_valid && aud_ms && is->audclk.queue_serial &&
+        *is->audclk.queue_serial == is->audclk.clock_serial && !isnan(is->audclk.pts)) {
+        double v = get_clock(&is->audclk);
+        if (!isnan(v)) {
+            *aud_valid = 1;
+            *aud_ms = (long long) (v * 1000.0);
+        }
+    }
+    if (vid_valid && vid_ms && is->vidclk.queue_serial &&
+        *is->vidclk.queue_serial == is->vidclk.clock_serial && !isnan(is->vidclk.pts)) {
+        double v = get_clock(&is->vidclk);
+        if (!isnan(v)) {
+            *vid_valid = 1;
+            *vid_ms = (long long) (v * 1000.0);
+        }
+    }
+}
+
+void fs_diag_read_player_clock(void *player, int *sampq_frames,
+                               int *aud_valid, long long *aud_ms,
+                               int *vid_valid, long long *vid_ms)
+{
+    fs_diag_player_clocks((FFPlayer *) player, sampq_frames, aud_valid, aud_ms, vid_valid, vid_ms);
+}
+
+static void fs_diag_log_snapshot(FFPlayer *ffp, const char *kind)
+{
+    char line[768];
+    char clocks[96];
+    int sampq = -1;
+    int aud_valid = 0;
+    int vid_valid = 0;
+    long long aud_ms = 0;
+    long long vid_ms = 0;
+    int64_t now;
+    int gather = 0;
+    int period = 0;
+    if (!fs_diag_iec_on(ffp))
+        return;
+    now = fs_diag_mono_us();
+    if (ffp->is)
+        gather = ffp->is->auddec.passthrough_gather_len;
+    period = fs_iec61937_eac3_pending_bytes(ffp->audio_iec);
+    fs_diag_audio_set_residual(&ffp->diag_audio, gather, period);
+    fs_diag_audio_set_accepted(&ffp->diag_audio, fs_diag_accepted_load());
+    fs_diag_player_clocks(ffp, &sampq, &aud_valid, &aud_ms, &vid_valid, &vid_ms);
+    fs_diag_format_clocks(clocks, (int) sizeof(clocks), aud_valid, aud_ms, vid_valid, vid_ms);
+    if (!fs_diag_audio_format(&ffp->diag_audio, line, (int) sizeof(line),
+                              ffp->diag_session, fs_diag_session_ms(now), kind))
+        return;
+    {
+        size_t used = strlen(line);
+        if (used + 32 < sizeof(line))
+            snprintf(line + used, sizeof(line) - used, " sampq_frames=%d %s", sampq, clocks);
+    }
+    fs_passthrough_log_line(line);
+}
+
+static void fs_diag_maybe_second(FFPlayer *ffp)
+{
+    int64_t now;
+    if (!fs_diag_iec_on(ffp))
+        return;
+    now = fs_diag_mono_us();
+    if (ffp->diag_last_snapshot_us != 0 && now - ffp->diag_last_snapshot_us < 1000000)
+        return;
+    ffp->diag_last_snapshot_us = now;
+    fs_diag_log_snapshot(ffp, "sec");
+}
+
 static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int size,
                                   int64_t pkt_pts, int advance_clock)
 {
@@ -388,6 +506,12 @@ static int fs_passthrough_emit(FFPlayer *ffp, Decoder *d, AVFrame *frame,
         return 0;
     if (fs_passthrough_is_iec(ffp)) {
         int n;
+        int dependent = fs_eac3_frame_is_dependent(syncframe, sync_bytes);
+        int was_active = fs_iec61937_eac3_active(ffp->audio_iec);
+        fs_diag_audio_add_frame(&ffp->diag_audio, dependent,
+                                fs_eac3_frame_samples(syncframe, sync_bytes));
+        if (dependent && !was_active)
+            fs_diag_audio_add_orphan(&ffp->diag_audio, sync_bytes);
         if (!ffp->audio_iec)
             ffp->audio_iec = fs_iec61937_eac3_new();
         if (!ffp->audio_iec)
@@ -401,7 +525,15 @@ static int fs_passthrough_emit(FFPlayer *ffp, Decoder *d, AVFrame *frame,
             av_free(buf);
             return 0;
         }
-        return fs_passthrough_publish(d, frame, buf, n, pkt_pts, 1);
+        {
+            int published = fs_passthrough_publish(d, frame, buf, n, pkt_pts, 1);
+            if (published > 0 && n >= 8) {
+                fs_diag_audio_add_burst(&ffp->diag_audio, buf[6] | (buf[7] << 8));
+                fs_diag_audio_set_pts(&ffp->diag_audio, frame->pts,
+                                      frame->pts != AV_NOPTS_VALUE, d->pkt_serial);
+            }
+            return published;
+        }
     }
     buf = av_malloc((size_t) sync_bytes + AV_INPUT_BUFFER_PADDING_SIZE);
     if (!buf)
@@ -424,18 +556,31 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
         if (d->queue->abort_request)
             return -1;
 
-        nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
-                                     syncframe, (int) sizeof(syncframe));
+        {
+            int before = d->passthrough_gather_len;
+            nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
+                                         syncframe, (int) sizeof(syncframe));
+            if (fs_diag_iec_on(ffp)) {
+                int dropped = before - d->passthrough_gather_len;
+                if (nframe > 0)
+                    dropped -= nframe;
+                fs_diag_audio_add_invalid(&ffp->diag_audio, dropped);
+            }
+        }
         if (nframe <= 0) {
             if (d->queue->nb_packets == 0)
                 SDL_CondSignal(d->empty_queue_cond);
             if (packet_queue_get_or_buffering(ffp, d->queue, d->pkt, &d->pkt_serial, &d->finished) < 0)
                 return -1;
             if (d->queue->serial != d->pkt_serial) {
+                if (fs_diag_iec_on(ffp))
+                    fs_diag_audio_add_seek_packet(&ffp->diag_audio, d->pkt->size);
                 av_packet_unref(d->pkt);
                 continue;
             }
             if (!d->pkt->data || d->pkt->size <= 0) {
+                if (fs_diag_iec_on(ffp))
+                    fs_diag_audio_add_eof(&ffp->diag_audio);
                 d->finished = d->pkt_serial;
                 av_packet_unref(d->pkt);
                 if (d->passthrough_gather_len >= 2)
@@ -446,20 +591,38 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
                     if (!burst)
                         return AVERROR(ENOMEM);
                     n = fs_iec61937_eac3_flush(ffp->audio_iec, burst, FS_IEC61937_EAC3_BURST_BYTES);
-                    if (n > 0)
-                        return fs_passthrough_publish(d, frame, burst, n, AV_NOPTS_VALUE, 1);
+                    if (n > 0) {
+                        int published = fs_passthrough_publish(d, frame, burst, n, AV_NOPTS_VALUE, 1);
+                        if (published > 0 && fs_diag_iec_on(ffp) && n >= 8) {
+                            fs_diag_audio_add_burst(&ffp->diag_audio, burst[6] | (burst[7] << 8));
+                            fs_diag_audio_set_pts(&ffp->diag_audio, frame->pts,
+                                                  frame->pts != AV_NOPTS_VALUE, d->pkt_serial);
+                        }
+                        return published;
+                    }
                     av_free(burst);
                 }
                 continue;
             }
             pkt_pts = d->pkt->pts;
+            if (fs_diag_iec_on(ffp))
+                fs_diag_audio_add_raw(&ffp->diag_audio, d->pkt->size);
             fs_eac3_gather_append(d->passthrough_gather, &d->passthrough_gather_len,
                                   (int) sizeof(d->passthrough_gather),
                                   d->pkt->data, d->pkt->size);
             av_packet_unref(d->pkt);
             d->passthrough_off = 0;
-            nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
-                                         syncframe, (int) sizeof(syncframe));
+            {
+                int before = d->passthrough_gather_len;
+                nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
+                                             syncframe, (int) sizeof(syncframe));
+                if (fs_diag_iec_on(ffp)) {
+                    int dropped = before - d->passthrough_gather_len;
+                    if (nframe > 0)
+                        dropped -= nframe;
+                    fs_diag_audio_add_invalid(&ffp->diag_audio, dropped);
+                }
+            }
             if (nframe <= 0) {
                 if (d->passthrough_gather_len >= 2)
                     fs_log_drop(ffp, "incomplete-syncframe");
@@ -914,6 +1077,7 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
     case AVMEDIA_TYPE_AUDIO:
         decoder_abort(&is->auddec, &is->sampq);
         SDL_AoutCloseAudio(ffp->aout);
+        fs_diag_log_snapshot(ffp, "stop");
 
         decoder_destroy(&is->auddec);
         fs_iec61937_eac3_free(ffp->audio_iec);
@@ -1201,18 +1365,22 @@ static void fs_log_sink_pause(FFPlayer *ffp, int pause_on, int was_paused)
         ffp->audio_sink_pause_origin = origin;
         ffp->audio_sink_pause_us = now;
         snprintf(line, sizeof(line),
-                 "audio sink pause origin=%s elapsed=%lld",
+                 "audio sink pause origin=%s elapsed=%lld epoch=open t=%lld",
                  fs_sink_pause_name(origin),
-                 ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL);
+                 ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
+                 (long long) fs_diag_session_ms(fs_diag_mono_us()));
     } else {
         snprintf(line, sizeof(line),
-                 "audio sink resume origin=%s elapsed=%lld paused_ms=%lld",
+                 "audio sink resume origin=%s elapsed=%lld epoch=open paused_ms=%lld t=%lld",
                  fs_sink_pause_name(ffp->audio_sink_pause_origin),
                  ffp->audio_log_origin_us > 0 ? (long long) ((now - ffp->audio_log_origin_us) / 1000) : 0LL,
-                 ffp->audio_sink_pause_us > 0 ? (long long) ((now - ffp->audio_sink_pause_us) / 1000) : 0LL);
+                 ffp->audio_sink_pause_us > 0 ? (long long) ((now - ffp->audio_sink_pause_us) / 1000) : 0LL,
+                 (long long) fs_diag_session_ms(fs_diag_mono_us()));
         ffp->audio_sink_pause_us = 0;
     }
     fs_passthrough_log_line(line);
+    if (pause_on)
+        fs_diag_log_snapshot(ffp, "pause");
 }
 
 static void stream_toggle_pause_l(FFPlayer *ffp, int pause_on)
@@ -3755,10 +3923,15 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                         (2.0 * FS_IEC61937_EAC3_BURST_BYTES) / audio_hw_params->bytes_per_sec);
                     snprintf(line, sizeof(line),
                              "audio clock content_hz=%d carrier_hz=%d bytes_per_sec=%d "
-                             "period_content_us=%d period_transport_us=%d hw_buf=%d",
+                             "period_content_us=%d period_transport_us=%d hw_buf=%d epoch=open",
                              content_rate, audio_hw_params->freq,
                              audio_hw_params->bytes_per_sec, content_us, transport_us,
                              pt_spec.size > 0 ? (int) pt_spec.size : 0);
+                    fs_passthrough_log_line(line);
+                    snprintf(line, sizeof(line),
+                             "diag session=%d t=%lld epoch=session origin=iec open_elapsed_is_separate",
+                             ffp->diag_session,
+                             (long long) fs_diag_session_ms(fs_diag_mono_us()));
                     fs_passthrough_log_line(line);
                 } else {
                     SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0.08);
@@ -4853,6 +5026,13 @@ static int read_thread(void *arg)
 
     is->show_mode = ffp->show_mode;
 
+    {
+        static int diag_ids;
+        ffp->diag_session = __atomic_add_fetch(&diag_ids, 1, __ATOMIC_RELAXED);
+        ffp->diag_epoch_us = fs_diag_mono_us();
+        fs_diag_publish_session(ffp->diag_session, ffp->diag_epoch_us);
+    }
+
     /* open the streams */
     ret = -1;
     if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
@@ -4951,6 +5131,7 @@ static int read_thread(void *arg)
     for (;;) {
         if (is->abort_request)
             break;
+        fs_diag_maybe_second(ffp);
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
                 (!strcmp(ic->iformat->name, "rtsp") ||
@@ -4987,8 +5168,19 @@ static int read_thread(void *arg)
                 av_log(NULL, AV_LOG_ERROR,
                        "%s: error while seeking\n", is->ic->url);
             } else {
-                if (is->audio_stream >= 0)
+                if (is->audio_stream >= 0) {
+                    if (fs_diag_iec_on(ffp)) {
+                        int nb = 0;
+                        int sz = 0;
+                        int media;
+                        packet_queue_peek_stats(&is->audioq, &nb, &sz);
+                        media = sz - nb * (int) sizeof(MyAVPacketList);
+                        if (media < 0)
+                            media = 0;
+                        fs_diag_audio_add_seek_flush(&ffp->diag_audio, nb, media);
+                    }
                     packet_queue_flush(&is->audioq);
+                }
                 if (is->video_stream >= 0) {
                     if (ffp->node_vdec) {
                         ffpipenode_flush(ffp->node_vdec);
@@ -5082,19 +5274,42 @@ static int read_thread(void *arg)
         }
 
         /* if the queue are full, no need to read more */
-        if (ffp->infinite_buffer < 1 && !is->seek_req &&
-            (is->audioq.size + is->videoq.size + ff_sub_frame_cache_remaining(is->ffSub) > max_buffer_size(ffp)
-            || (   stream_has_enough_packets(is->audio_st, is->audio_stream, &is->audioq, MIN_FRAMES)
+        {
+            int sub_added = ff_sub_frame_cache_remaining(is->ffSub);
+            int cap_bytes = (int) max_buffer_size(ffp);
+            int byte_over = is->audioq.size + is->videoq.size + sub_added > cap_bytes;
+            int enough = stream_has_enough_packets(is->audio_st, is->audio_stream, &is->audioq, MIN_FRAMES)
                 && stream_has_enough_packets(is->video_st, is->video_stream, &is->videoq, MIN_FRAMES)
-                && ff_sub_has_enough_packets(is->ffSub, MIN_FRAMES)))) {
-            if (!is->eof) {
-                ffp_toggle_buffering(ffp, 0);
+                && ff_sub_has_enough_packets(is->ffSub, MIN_FRAMES);
+            if (ffp->infinite_buffer < 1 && !is->seek_req && (byte_over || enough)) {
+                if (fs_diag_iec_on(ffp)) {
+                    int ap = 0, ab = 0, vp = 0, vb = 0;
+                    int reason = (byte_over && enough) ? FS_DIAG_SLEEP_BOTH
+                        : byte_over ? FS_DIAG_SLEEP_BYTE_CAP : FS_DIAG_SLEEP_ENOUGH;
+                    char line[640];
+                    packet_queue_peek_stats(&is->audioq, &ap, &ab);
+                    packet_queue_peek_stats(&is->videoq, &vp, &vb);
+                    if (fs_diag_sleep_observe(&ffp->diag_sleep, ffp->diag_session, ffp->diag_epoch_us,
+                                              reason, fs_diag_mono_us(),
+                                              ap, ab, vp, vb, cap_bytes, sub_added,
+                                              line, (int) sizeof(line)))
+                        fs_passthrough_log_line_buffered(line);
+                }
+                if (!is->eof) {
+                    ffp_toggle_buffering(ffp, 0);
+                }
+                /* wait 10 ms */
+                SDL_LockMutex(wait_mutex);
+                SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
+                SDL_UnlockMutex(wait_mutex);
+                continue;
             }
-            /* wait 10 ms */
-            SDL_LockMutex(wait_mutex);
-            SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
-            SDL_UnlockMutex(wait_mutex);
-            continue;
+        }
+        if (fs_diag_iec_on(ffp)) {
+            char line[640];
+            if (fs_diag_sleep_close(&ffp->diag_sleep, ffp->diag_session, ffp->diag_epoch_us,
+                                    fs_diag_mono_us(), line, (int) sizeof(line)))
+                fs_passthrough_log_line_buffered(line);
         }
         if ((!is->paused || completed) &&
             (!is->audio_st || (is->auddec.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
@@ -5135,7 +5350,31 @@ static int read_thread(void *arg)
         }
         
         pkt->flags = 0;
-        ret = av_read_frame(ic, pkt);
+        {
+            int64_t read_t0 = fs_diag_mono_us();
+            ret = av_read_frame(ic, pkt);
+            if (fs_diag_iec_on(ffp)) {
+                int64_t dur = fs_diag_mono_us() - read_t0;
+                if (dur >= FS_DIAG_READ_SLOW_US) {
+                    char line[256];
+                    const char *stream = "none";
+                    int bytes = 0;
+                    if (ret >= 0 && pkt) {
+                        bytes = pkt->size;
+                        if (pkt->stream_index == is->audio_stream)
+                            stream = "audio";
+                        else if (pkt->stream_index == is->video_stream)
+                            stream = "video";
+                        else
+                            stream = "other";
+                    }
+                    if (fs_diag_format_read(line, (int) sizeof(line), ffp->diag_session,
+                                            fs_diag_session_ms(fs_diag_mono_us()),
+                                            dur, ret, stream, bytes))
+                        fs_passthrough_log_line_buffered(line);
+                }
+            }
+        }
         if (ret < 0) {
             int pb_eof = 0;
             int pb_error = 0;
@@ -5390,6 +5629,13 @@ static int read_thread(void *arg)
 
     ret = 0;
  fail:
+    {
+        char line[640];
+        if (fs_diag_sleep_close(&ffp->diag_sleep, ffp->diag_session, ffp->diag_epoch_us,
+                                fs_diag_mono_us(), line, (int) sizeof(line)))
+            fs_passthrough_log_line_buffered(line);
+        fs_passthrough_log_sync();
+    }
     if (ic && !is->ic)
         avformat_close_input(&ic);
     

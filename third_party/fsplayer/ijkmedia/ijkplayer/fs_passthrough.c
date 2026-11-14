@@ -233,6 +233,24 @@ static int fs_eac3_repeat_count(const uint8_t *frame, int size)
     return repeat_for_blocks[numblkscod];
 }
 
+int fs_eac3_frame_samples(const uint8_t *data, int size)
+{
+    int repeat = fs_eac3_repeat_count(data, size);
+    if (repeat <= 0)
+        return 0;
+    return 1536 / repeat;
+}
+
+int fs_iec61937_eac3_active(const FsIec61937Eac3 *st)
+{
+    return st && st->active;
+}
+
+int fs_iec61937_eac3_pending_bytes(const FsIec61937Eac3 *st)
+{
+    return st && st->active ? st->payload_bytes : 0;
+}
+
 static int fs_iec_append(FsIec61937Eac3 *st, const uint8_t *frame, int size)
 {
     if (!st || !frame || size < 4)

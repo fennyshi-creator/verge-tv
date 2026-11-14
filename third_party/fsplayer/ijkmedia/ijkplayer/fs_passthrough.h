@@ -45,6 +45,8 @@ typedef struct FsPassthroughDecision {
 
 /* 1 if this E-AC-3 syncframe is a dependent substream (strmtyp == 1). */
 int fs_eac3_frame_is_dependent(const uint8_t *data, int size);
+/* Content samples in one syncframe. 1536 for a full period. */
+int fs_eac3_frame_samples(const uint8_t *data, int size);
 
 /*
  * Bytes of one E-AC-3 syncframe, or 0 if [data] is not a syncframe.
@@ -72,6 +74,8 @@ void fs_iec61937_eac3_free(FsIec61937Eac3 *st);
 int fs_iec61937_eac3_push(FsIec61937Eac3 *st, const uint8_t *data, int size,
                           uint8_t *out, int cap);
 int fs_iec61937_eac3_flush(FsIec61937Eac3 *st, uint8_t *out, int cap);
+int fs_iec61937_eac3_active(const FsIec61937Eac3 *st);
+int fs_iec61937_eac3_pending_bytes(const FsIec61937Eac3 *st);
 
 /* 192000 for a 48 kHz bitstream. Unknown rates use 48 kHz. */
 int fs_iec61937_carrier_rate(int content_rate);

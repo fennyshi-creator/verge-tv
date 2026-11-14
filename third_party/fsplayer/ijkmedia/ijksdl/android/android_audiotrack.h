@@ -114,6 +114,8 @@ int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, ui
 void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line);
 /* Attaches the calling thread if needed. Safe to call from the decoder. */
 void fs_passthrough_log_line(const char *line);
+void fs_passthrough_log_line_buffered(const char *line);
+void fs_passthrough_log_sync(void);
 
 int  SDL_Android_AudioTrack_getAudioSessionId(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 void SDL_Android_AudioTrack_setSpeed(JNIEnv *env, SDL_Android_AudioTrack *atrack, float speed);

@@ -68,6 +68,7 @@
 #include "ff_subtitle_def.h"
 #include "ijkavformat/ijkiomanager.h"
 #include "ijkavformat/ijkioapplication.h"
+#include "fs_diag.h"
 
 #define DEFAULT_HIGH_WATER_MARK_IN_BYTES        (256 * 1024)
 #define SALTATION_RETURN_VALUE 1000
@@ -613,6 +614,11 @@ typedef struct FFPlayer {
     int64_t audio_log_origin_us;
     int64_t audio_sink_pause_us;
     int audio_sink_pause_origin;
+    int diag_session;
+    int64_t diag_epoch_us;
+    int64_t diag_last_snapshot_us;
+    FsDiagSleep diag_sleep;
+    FsDiagAudio diag_audio;
 
     char *iformat_name;
 
@@ -794,6 +800,11 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->audio_log_origin_us            = 0;
     ffp->audio_sink_pause_us            = 0;
     ffp->audio_sink_pause_origin        = 0;
+    ffp->diag_session                   = 0;
+    ffp->diag_epoch_us                  = 0;
+    ffp->diag_last_snapshot_us          = 0;
+    fs_diag_sleep_reset(&ffp->diag_sleep);
+    fs_diag_audio_reset(&ffp->diag_audio);
 
     /*
      * 字幕偏好必须有初值：ffp_apply_subtitle_preference 会把它推给字幕组件，

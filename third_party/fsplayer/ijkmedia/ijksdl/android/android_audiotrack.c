@@ -63,6 +63,8 @@ static jclass g_encoded_audiotrack_class;
 static jmethodID g_encoded_audiotrack_open;
 static jclass g_passthrough_log_class;
 static jmethodID g_passthrough_log_note;
+static jmethodID g_passthrough_log_buffered;
+static jmethodID g_passthrough_log_sync;
 static jmethodID g_write_burst;
 
 static int audiotrack_format_is_encoded(int format)
@@ -159,6 +161,34 @@ void SDL_Android_AudioTrack_global_init(JNIEnv *env)
         ALOGE("FsPassthroughLog.note not found");
         g_passthrough_log_note = NULL;
     }
+    g_passthrough_log_buffered = (*env)->GetStaticMethodID(
+        env, g_passthrough_log_class, "noteBuffered", "(Ljava/lang/String;)V");
+    if ((*env)->ExceptionCheck(env) || !g_passthrough_log_buffered) {
+        (*env)->ExceptionClear(env);
+        g_passthrough_log_buffered = NULL;
+    }
+    g_passthrough_log_sync = (*env)->GetStaticMethodID(
+        env, g_passthrough_log_class, "sync", "()V");
+    if ((*env)->ExceptionCheck(env) || !g_passthrough_log_sync) {
+        (*env)->ExceptionClear(env);
+        g_passthrough_log_sync = NULL;
+    }
+}
+
+static void fs_passthrough_call(JNIEnv *env, jmethodID method, const char *line)
+{
+    jstring text;
+    if (!env || !method || !line || !g_passthrough_log_class)
+        return;
+    text = (*env)->NewStringUTF(env, line);
+    if ((*env)->ExceptionCheck(env) || !text) {
+        (*env)->ExceptionClear(env);
+        return;
+    }
+    (*env)->CallStaticVoidMethod(env, g_passthrough_log_class, method, text);
+    (*env)->DeleteLocalRef(env, text);
+    if ((*env)->ExceptionCheck(env))
+        (*env)->ExceptionClear(env);
 }
 
 void fs_passthrough_log_line(const char *line)
@@ -169,6 +199,31 @@ void fs_passthrough_log_line(const char *line)
     if (JNI_OK != SDL_JNI_SetupThreadEnv(&env))
         return;
     SDL_Android_AudioTrack_log(env, line);
+}
+
+void fs_passthrough_log_line_buffered(const char *line)
+{
+    JNIEnv *env = NULL;
+    if (!line)
+        return;
+    if (JNI_OK != SDL_JNI_SetupThreadEnv(&env))
+        return;
+    if (g_passthrough_log_buffered)
+        fs_passthrough_call(env, g_passthrough_log_buffered, line);
+    else
+        SDL_Android_AudioTrack_log(env, line);
+}
+
+void fs_passthrough_log_sync(void)
+{
+    JNIEnv *env = NULL;
+    if (JNI_OK != SDL_JNI_SetupThreadEnv(&env))
+        return;
+    if (!env || !g_passthrough_log_class || !g_passthrough_log_sync)
+        return;
+    (*env)->CallStaticVoidMethod(env, g_passthrough_log_class, g_passthrough_log_sync);
+    if ((*env)->ExceptionCheck(env))
+        (*env)->ExceptionClear(env);
 }
 
 void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line)

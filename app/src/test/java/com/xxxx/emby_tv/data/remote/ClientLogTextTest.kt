@@ -26,6 +26,18 @@ class ClientLogTextTest {
     }
 
     @Test
+    fun diagnosticNumbersAreNotRedacted() {
+        val raw = "diag session=1 t=40931 raw_media_bytes=27525120 last_pts=1234567890 " +
+            "last_serial=2 audio_qbytes=3080 " +
+            "1234567890123456789012345678901234567890"
+        val cleaned = ClientLogText.redact(raw)
+        assertTrue(cleaned.contains("last_pts=1234567890"))
+        assertTrue(cleaned.contains("raw_media_bytes=27525120"))
+        assertTrue(cleaned.contains("1234567890123456789012345678901234567890"))
+        assertFalse(cleaned.contains("[redacted]"))
+    }
+
+    @Test
     fun bodyStaysUnderOneMegabyte() {
         val huge = "x".repeat(2_000_000)
         val body = ClientLogText.jsonBody(huge, "logcat " + "y".repeat(200_000))

@@ -141,6 +141,22 @@ void packet_queue_start(PacketQueue *q)
 }
 
 /* return < 0 if aborted, 0 if no packet and > 0 if packet.  */
+void packet_queue_peek_stats(PacketQueue *q, int *nb_packets, int *size)
+{
+    int nb = 0;
+    int sz = 0;
+    if (q) {
+        SDL_LockMutex(q->mutex);
+        nb = q->nb_packets;
+        sz = q->size;
+        SDL_UnlockMutex(q->mutex);
+    }
+    if (nb_packets)
+        *nb_packets = nb;
+    if (size)
+        *size = sz;
+}
+
 int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *serial)
 {
     MyAVPacketList pkt1;
