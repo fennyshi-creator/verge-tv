@@ -332,6 +332,20 @@ fun OfficialHome(
                 }
                 if (showContinue) {
                     Column(Modifier.fillMaxWidth().stageAnchor(continueIndex)) {
+                        Box(Modifier.fillMaxWidth()) {
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            0f to Color.Transparent,
+                                            0.28f to Color.Black.copy(alpha = 0.22f),
+                                            0.62f to Color.Black.copy(alpha = 0.5f),
+                                            1f to Color.Black.copy(alpha = 0.58f),
+                                        ),
+                                    ),
+                            )
+                            Column(Modifier.fillMaxWidth()) {
                         StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
                         TvLeadingRow(
                             items = resumeItems,
@@ -369,6 +383,8 @@ fun OfficialHome(
                             },
                         ) { item ->
                             ContinueArt(item, serverUrl)
+                        }
+                            }
                         }
                     }
                 }

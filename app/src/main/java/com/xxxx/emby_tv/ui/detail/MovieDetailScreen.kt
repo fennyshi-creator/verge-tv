@@ -36,9 +36,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -631,8 +633,8 @@ internal fun ActionRow(
         val favoriteOn = highlighted && actions[slot] == "favorite"
         val playedOn = highlighted && actions[slot] == "played"
         PlayPill(label, focused = playOn, onClick = onPlay)
-        if (showVersions) {
-            VersionPill(
+        if (showVersions && EmbyPresentation.showVersionButton(sources.size)) {
+            VersionMark(
                 label = versionLabel,
                 focused = versionOn,
                 onClick = onPickVersion,
@@ -677,49 +679,27 @@ private fun PlayPill(label: String, focused: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun VersionPill(label: String, focused: Boolean, onClick: () -> Unit) {
+private fun VersionMark(label: String, focused: Boolean, onClick: () -> Unit) {
     val showLabel = focused && EmbyPresentation.versionShowsLabel(focused) && label.isNotBlank()
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-    val labelPx = measurer.measure(
-        text = label,
-        style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium),
-    ).size.width
-    val labelDp = with(density) { labelPx.toDp() }
-    val target = if (showLabel) 36.dp + labelDp + 16.dp else 42.dp
-    val width by animateDpAsState(target, com.xxxx.emby_tv.ui.motion.Motion.row(), label = "version-width")
-    val labelAlpha by animateFloatAsState(if (showLabel) 1f else 0f, com.xxxx.emby_tv.ui.motion.Motion.row(), label = "version-label")
-    val background by animateColorAsState(
-        if (focused) Color.White else Color.White.copy(0.16f),
-        com.xxxx.emby_tv.ui.motion.Motion.focus(),
-        label = "version-fill",
-    )
     val fg = if (focused) Color(0xFF161616) else Color.White
-    Box(
+    Row(
         Modifier
             .height(42.dp)
-            .width(width)
             .clip(RoundedCornerShape(50))
-            .background(background)
-            .clickable(onClick = onClick),
+            .background(if (focused) Color.White else Color.White.copy(0.16f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = if (showLabel) 12.dp else 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        DiamondIcon(
-            Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 12.dp)
-                .size(18.dp),
-            color = fg,
-        )
-        if (labelAlpha > 0.02f && label.isNotBlank()) {
-            HomeText(
-                label,
-                15.sp,
-                fg.copy(alpha = labelAlpha),
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 36.dp),
+        Icon(Icons.Filled.VideoLibrary, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+        if (showLabel) {
+            Spacer(Modifier.width(8.dp))
+            HomeText(label, 15.sp, fg, fontWeight = FontWeight.Medium, maxLines = 1)
+            Icon(
+                Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                tint = fg,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -747,24 +727,6 @@ private fun IconBubble(
         contentAlignment = Alignment.Center,
     ) {
         icon()
-    }
-}
-
-@Composable
-private fun DiamondIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
-    Canvas(modifier) {
-        fun gem(cx: Float, cy: Float, rx: Float, ry: Float) = Path().apply {
-            moveTo(cx, cy - ry)
-            lineTo(cx + rx, cy)
-            lineTo(cx, cy + ry)
-            lineTo(cx - rx, cy)
-            close()
-        }
-        val cx = size.width / 2f
-        val rx = size.width * 0.34f
-        val ry = size.height * 0.24f
-        drawPath(gem(cx, size.height * 0.34f, rx, ry), color)
-        drawPath(gem(cx, size.height * 0.68f, rx, ry), color)
     }
 }
 

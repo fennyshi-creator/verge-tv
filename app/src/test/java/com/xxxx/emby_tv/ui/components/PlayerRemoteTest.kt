@@ -25,7 +25,7 @@ class PlayerRemoteTest {
         assertTrue(down.consume)
         assertEquals(RemoteCommand.Ignore, repeat.command)
         assertTrue(repeat.consume)
-        assertEquals(RemoteCommand.PauseAndFocusPlay, up.command)
+        assertEquals(RemoteCommand.Pause, up.command)
         assertTrue(up.consume)
     }
 
@@ -45,15 +45,20 @@ class PlayerRemoteTest {
     }
 
     @Test
-    fun hiddenOkWhilePausedRevealsThePlayButtonWithoutResuming() {
+    fun hiddenOkWhilePausedResumesAndLeavesThePictureClean() {
         val decision = decideRemote(hidden(playing = false), PlayerKey.Ok, KeyPhase.Up)
-        assertEquals(RemoteCommand.RevealPausedPlay, decision.command)
+        assertEquals(RemoteCommand.Resume, decision.command)
+        assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = false, playing = false, seeking = false))
     }
 
     @Test
-    fun visibleOkIsLeftToTheFocusedControl() {
-        val visible = hidden(playing = false).copy(controlsVisible = true)
-        val decision = decideRemote(visible, PlayerKey.Ok, KeyPhase.Down)
+    fun visibleOkTogglesWithoutTimelineFocusUnlessAMenuHasFocus() {
+        val playing = hidden(playing = true).copy(controlsVisible = true)
+        val paused = playing.copy(playing = false)
+        assertEquals(RemoteCommand.Pause, decideRemote(playing, PlayerKey.Ok, KeyPhase.Up).command)
+        assertEquals(RemoteCommand.Resume, decideRemote(paused, PlayerKey.Ok, KeyPhase.Up).command)
+        val menu = playing.copy(menuFocused = true)
+        val decision = decideRemote(menu, PlayerKey.Ok, KeyPhase.Up)
         assertEquals(RemoteCommand.Ignore, decision.command)
         assertFalse(decision.consume)
     }
@@ -74,9 +79,11 @@ class PlayerRemoteTest {
     }
 
     @Test
-    fun visibleArrowsAreNotIntercepted() {
+    fun visibleArrowsSeekUnlessAMenuIconHasFocus() {
         val visible = hidden(playing = true).copy(controlsVisible = true)
-        val decision = decideRemote(visible, PlayerKey.Right, KeyPhase.Down)
+        assertEquals(RemoteCommand.SeekForward, decideRemote(visible, PlayerKey.Right, KeyPhase.Down).command)
+        val menu = visible.copy(menuFocused = true)
+        val decision = decideRemote(menu, PlayerKey.Left, KeyPhase.Down)
         assertFalse(decision.consume)
         assertEquals(RemoteCommand.Ignore, decision.command)
     }
@@ -94,7 +101,7 @@ class PlayerRemoteTest {
     @Test
     fun hiddenDownRevealsTheTimelineAndDoesNotPause() {
         val decision = decideRemote(hidden(playing = true), PlayerKey.Down, KeyPhase.Down)
-        assertEquals(RemoteCommand.RevealTimeline, decision.command)
+        assertEquals(RemoteCommand.RevealBar, decision.command)
         val repeat = decideRemote(hidden(playing = true), PlayerKey.Down, KeyPhase.Repeat)
         assertEquals(RemoteCommand.Ignore, repeat.command)
         assertTrue(repeat.consume)
@@ -173,6 +180,19 @@ class PlayerRemoteTest {
         val backward = seekReadout(5_000L, 60_000L, -1)
         assertEquals("◀◀  快退", backward.direction)
         assertEquals("0:00:05", backward.target)
+    }
+
+    @Test
+    fun centerStaysEmptyWhilePlayingAndAfterTheBarHides() {
+        assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = true, playing = true, seeking = false))
+        assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = false, playing = true, seeking = false))
+        assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = false, playing = false, seeking = false))
+        assertEquals(CenterGlyph.Pause, centerGlyph(chromeVisible = true, playing = false, seeking = false))
+        assertEquals(CenterGlyph.None, centerGlyph(chromeVisible = true, playing = false, seeking = true))
+        assertEquals(CHROME_RESUME_MS, chromeHoldMs(resumed = true))
+        assertTrue(chromeHoldMs(resumed = true) < chromeHoldMs(resumed = false))
+        assertTrue(SEEK_READOUT_TARGET_SP <= 28)
+        assertTrue(SEEK_READOUT_CUE_SP < SEEK_READOUT_TARGET_SP)
     }
 
     @Test

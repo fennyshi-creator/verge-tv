@@ -15,7 +15,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.tv.material3.*
 import androidx.compose.material3.Icon
@@ -26,6 +25,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.Key
@@ -33,9 +34,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import com.xxxx.emby_tv.ui.components.KeyPhase
 import com.xxxx.emby_tv.ui.components.OkLatch
-import com.xxxx.emby_tv.ui.components.PlayerCentralPlay
+import com.xxxx.emby_tv.ui.components.CenterGlyph
 import com.xxxx.emby_tv.ui.components.PlayerKey
-import com.xxxx.emby_tv.ui.components.PlayerLanding
+import com.xxxx.emby_tv.ui.components.PlayerPauseMark
 import com.xxxx.emby_tv.ui.components.PlayerSeekReadout
 import com.xxxx.emby_tv.ui.components.PositionLatch
 import com.xxxx.emby_tv.ui.components.RemoteCommand
@@ -43,6 +44,8 @@ import com.xxxx.emby_tv.ui.components.RemoteContext
 import com.xxxx.emby_tv.ui.components.SEEK_LATCH_MS
 import com.xxxx.emby_tv.ui.components.SEEK_QUIET_MS
 import com.xxxx.emby_tv.ui.components.SEEK_READOUT_HOLD_MS
+import com.xxxx.emby_tv.ui.components.centerGlyph
+import com.xxxx.emby_tv.ui.components.chromeHoldMs
 import com.xxxx.emby_tv.ui.components.decideRemote
 import com.xxxx.emby_tv.ui.components.latchedDisplayMs
 import com.xxxx.emby_tv.ui.components.nextSeek
@@ -304,11 +307,12 @@ fun PlayerScreen(
     var seekFeedback by remember { mutableStateOf(false) }
     var positionLatch by remember { mutableStateOf<PositionLatch?>(null) }
     var overlayEpoch by remember { mutableIntStateOf(0) }
-    var landing by remember { mutableStateOf(PlayerLanding.Hold) }
-    var remotePaused by remember { mutableStateOf(false) }
+    var userPaused by remember { mutableStateOf(false) }
+    var chromeHold by remember { mutableLongStateOf(chromeHoldMs(resumed = false)) }
+    var menuFocused by remember { mutableStateOf(false) }
+    val menuOwners = remember { mutableStateMapOf<Int, Boolean>() }
     val okLatch = remember { OkLatch() }
     val timelineFocus = remember { FocusRequester() }
-    val centralPlayFocus = remember { FocusRequester() }
     val transportButtons = remember { List(4) { FocusRequester() } }
     var showDiagnostics by remember { mutableStateOf(false) }
     var decodeAudio by remember { mutableStateOf(false) }
@@ -1505,10 +1509,8 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            hasPlayed = true
-            remotePaused = false
-        } else if (hasPlayed) chromeVisible = true
+        if (isPlaying) hasPlayed = true
+        else if (hasPlayed) chromeVisible = true
     }
 
     LaunchedEffect(seekPulse) {
@@ -1529,7 +1531,24 @@ fun PlayerScreen(
         overlayEpoch++
         seekFeedback = false
         chromeVisible = false
-        landing = PlayerLanding.Hold
+    }
+
+    fun showChrome(resumed: Boolean) {
+        chromeHold = chromeHoldMs(resumed)
+        chromeVisible = true
+        chromeTick = System.currentTimeMillis()
+    }
+
+    fun pauseFromRemote() {
+        userPaused = true
+        player.pause()
+        showChrome(resumed = false)
+    }
+
+    fun resumeFromRemote() {
+        userPaused = false
+        player.play()
+        showChrome(resumed = true)
     }
 
     fun nudgeSeek(dir: Int) {
@@ -1550,7 +1569,7 @@ fun PlayerScreen(
         seekTarget = gesture.targetMs
         seekPulse = now
         seekFeedback = true
-        if (!chromeVisible) landing = PlayerLanding.Timeline
+        chromeHold = chromeHoldMs(resumed = false)
         chromeVisible = true
         chromeTick = now
         episodeStrip = false
@@ -1567,18 +1586,18 @@ fun PlayerScreen(
     val showNextEpisode = nextEpisode != null && !dismissNextEpisode && duration > 0L &&
         shownPosition >= nextPromptAt && !episodeStrip
 
-    LaunchedEffect(chromeVisible, playerSheet, chromeTick, isPlaying, remotePaused, episodeStrip, seekFeedback) {
-        if (!chromeVisible || !isPlaying || remotePaused || seekFeedback || episodeStrip ||
+    LaunchedEffect(chromeVisible, playerSheet, chromeTick, chromeHold, userPaused, episodeStrip, seekFeedback) {
+        if (!chromeVisible || userPaused || seekFeedback || episodeStrip ||
             playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None
         ) {
             return@LaunchedEffect
         }
-        delay(5_000)
+        delay(chromeHold)
         hideOverlay()
     }
 
-    LaunchedEffect(chromeVisible, episodeStrip, playerSheet, showResumeButtons) {
-        if (chromeVisible || episodeStrip || showResumeButtons ||
+    LaunchedEffect(episodeStrip, playerSheet, showResumeButtons) {
+        if (episodeStrip || showResumeButtons ||
             playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None
         ) {
             return@LaunchedEffect
@@ -1590,31 +1609,46 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(chromeVisible, landing, episodeStrip, playerSheet) {
-        if (!chromeVisible || episodeStrip || playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None) {
-            return@LaunchedEffect
-        }
-        if (landing == PlayerLanding.Hold && restoreButton < 0) return@LaunchedEffect
-        delay(48)
-        val requester = when (landing) {
-            PlayerLanding.CentralPlay -> centralPlayFocus
-            PlayerLanding.Timeline -> timelineFocus
-            PlayerLanding.Hold -> transportButtons.getOrNull(restoreButton)
-        } ?: return@LaunchedEffect
-        repeat(2) {
-            try {
-                requester.requestFocus()
-                return@LaunchedEffect
-            } catch (_: Exception) {
-                delay(32)
-            }
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onPreviewKeyEvent { event ->
+                if (remoteKey(event) == PlayerKey.Back) return@onPreviewKeyEvent false
+                val decision = decideRemote(
+                    RemoteContext(
+                        controlsVisible = chromeVisible,
+                        playing = isPlaying && !userPaused,
+                        sheetOpen = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None,
+                        episodeStrip = episodeStrip,
+                        resumePrompt = showResumeButtons && playbackPositionTicks > 0,
+                        seeking = seekFeedback,
+                        menuFocused = menuFocused,
+                    ),
+                    remoteKey(event),
+                    remotePhase(event),
+                )
+                if (!decision.consume && decision.command == RemoteCommand.Ignore) return@onPreviewKeyEvent false
+                when (decision.command) {
+                    RemoteCommand.SeekBackward -> nudgeSeek(-1)
+                    RemoteCommand.SeekForward -> nudgeSeek(1)
+                    RemoteCommand.RevealBar -> {
+                        okLatch.cancel()
+                        showChrome(resumed = false)
+                    }
+                    RemoteCommand.Pause -> {
+                        if (okLatch.consume(KeyPhase.Up)) pauseFromRemote()
+                    }
+                    RemoteCommand.Resume -> {
+                        if (okLatch.consume(KeyPhase.Up)) resumeFromRemote()
+                    }
+                    RemoteCommand.Ignore -> {
+                        if (remoteKey(event) == PlayerKey.Ok) okLatch.consume(remotePhase(event))
+                    }
+                    RemoteCommand.HideOverlay -> hideOverlay()
+                }
+                true
+            }
             .onKeyEvent { event ->
                 if (event.key != Key.Back || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when {
@@ -1643,61 +1677,19 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .clickable(enabled = !chromeVisible, onClick = {
-                    landing = PlayerLanding.Timeline
-                    chromeVisible = true
-                    chromeTick = System.currentTimeMillis()
-                })
-                .onKeyEvent { event ->
-                    val decision = decideRemote(
-                        RemoteContext(
-                            controlsVisible = chromeVisible,
-                            playing = isPlaying && !remotePaused,
-                            sheetOpen = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None,
-                            episodeStrip = episodeStrip,
-                            resumePrompt = showResumeButtons && playbackPositionTicks > 0,
-                            seeking = seekFeedback,
-                        ),
-                        remoteKey(event),
-                        remotePhase(event),
-                    )
-                    if (!decision.consume && decision.command == RemoteCommand.Ignore) return@onKeyEvent false
-                    when (decision.command) {
-                        RemoteCommand.SeekBackward -> nudgeSeek(-1)
-                        RemoteCommand.SeekForward -> nudgeSeek(1)
-                        RemoteCommand.RevealTimeline -> {
-                            okLatch.cancel()
-                            landing = PlayerLanding.Timeline
-                            chromeVisible = true
-                            chromeTick = System.currentTimeMillis()
-                        }
-                        RemoteCommand.PauseAndFocusPlay -> {
-                            if (okLatch.consume(KeyPhase.Up)) {
-                                remotePaused = true
-                                player.pause()
-                                landing = PlayerLanding.CentralPlay
-                                restoreButton = -1
-                                chromeVisible = true
-                                chromeTick = System.currentTimeMillis()
-                            }
-                        }
-                        RemoteCommand.RevealPausedPlay -> {
-                            if (okLatch.consume(KeyPhase.Up)) {
-                                landing = PlayerLanding.CentralPlay
-                                restoreButton = -1
-                                chromeVisible = true
-                                chromeTick = System.currentTimeMillis()
-                            }
-                        }
-                        RemoteCommand.Ignore -> {
-                            if (remoteKey(event) == PlayerKey.Ok) okLatch.consume(remotePhase(event))
-                        }
-                        RemoteCommand.HideOverlay -> hideOverlay()
-                    }
-                    true
-                }
+                .clickable(enabled = !chromeVisible, onClick = { showChrome(resumed = false) })
                 .focusRequester(focusRequester)
-                .focusable(enabled = !chromeVisible)
+                .focusProperties {
+                    if (chromeVisible) {
+                        up = transportButtons[0]
+                        down = timelineFocus
+                    }
+                }
+                .focusable(
+                    enabled = playerSheet == com.xxxx.emby_tv.ui.components.PlayerSheet.None &&
+                        !episodeStrip &&
+                        !(showResumeButtons && playbackPositionTicks > 0),
+                )
         ) {
             // 1. Video Layer
             AndroidView(
@@ -1796,18 +1788,9 @@ fun PlayerScreen(
             )
 
 
-            if (isBuffering || (!isPlaying && !chromeVisible)) {
+            if (isBuffering && !userPaused) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (isBuffering) {
-                        CircularProgressIndicator(color = Color.White)
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Paused",
-                            modifier = Modifier.size(64.dp),
-                            tint = Color.White.copy(0.9f),
-                        )
-                    }
+                    CircularProgressIndicator(color = Color.White)
                 }
             }
 
@@ -1847,22 +1830,14 @@ fun PlayerScreen(
                 )
             }
 
-            val showCentralPlay = chromeVisible && !episodeStrip && !seekFeedback &&
-                playerSheet == com.xxxx.emby_tv.ui.components.PlayerSheet.None &&
-                (!isPlaying || remotePaused)
-            if (showCentralPlay) {
-                PlayerCentralPlay(
-                    focusRequester = centralPlayFocus,
-                    down = timelineFocus,
-                    up = transportButtons[0],
-                    onPlay = {
-                        remotePaused = false
-                        player.play()
-                        landing = PlayerLanding.Timeline
-                        chromeTick = System.currentTimeMillis()
-                    },
-                    modifier = Modifier.align(Alignment.Center),
-                )
+            val glyph = centerGlyph(
+                chromeVisible = chromeVisible && !episodeStrip &&
+                    playerSheet == com.xxxx.emby_tv.ui.components.PlayerSheet.None,
+                playing = !userPaused,
+                seeking = seekFeedback,
+            )
+            if (glyph == CenterGlyph.Pause) {
+                PlayerPauseMark(Modifier.align(Alignment.Center))
             }
             val readoutMs = seekTarget ?: positionLatch?.targetMs
             if (seekFeedback && readoutMs != null) {
@@ -1870,7 +1845,7 @@ fun PlayerScreen(
                     targetMs = readoutMs,
                     durationMs = duration,
                     direction = seekDir,
-                    modifier = Modifier.align(Alignment.Center).offset(y = if (showCentralPlay) (-120).dp else 0.dp),
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
             PlayerTransportBar(
@@ -1880,31 +1855,13 @@ fun PlayerScreen(
                 mediaInfo = mediaInfo,
                 positionMs = shownPosition,
                 durationMs = duration,
-                isPlaying = isPlaying && !remotePaused,
                 showVersionButton = allMediaSources.size > 1,
                 episodes = if (episodeStrip) emptyList() else seriesEpisodes,
                 restoreButton = restoreButton,
                 timelineFocus = timelineFocus,
-                centralPlayFocus = centralPlayFocus,
+                pictureFocus = focusRequester,
                 buttonFocus = transportButtons,
-                onSeekDirection = { nudgeSeek(it) },
-                onTogglePause = {
-                    chromeTick = System.currentTimeMillis()
-                    if (remotePaused) {
-                        landing = PlayerLanding.CentralPlay
-                    } else if (isPlaying) {
-                        remotePaused = true
-                        player.pause()
-                        landing = PlayerLanding.CentralPlay
-                        restoreButton = -1
-                    } else {
-                        remotePaused = false
-                        player.play()
-                        landing = PlayerLanding.Timeline
-                    }
-                },
                 onOpenSheet = {
-                    landing = PlayerLanding.Hold
                     playerSheet = it
                     chromeTick = System.currentTimeMillis()
                 },
@@ -1913,6 +1870,10 @@ fun PlayerScreen(
                     chromeTick = System.currentTimeMillis()
                 },
                 onButtonFocused = { restoreButton = it },
+                onMenuFocus = { index, focused ->
+                    if (focused) menuOwners[index] = true else menuOwners.remove(index)
+                    menuFocused = menuOwners.isNotEmpty()
+                },
                 onInteract = { chromeTick = System.currentTimeMillis() },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )

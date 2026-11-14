@@ -163,19 +163,19 @@ class PolishTest {
         assertEquals(VersionControl.Icon, EmbyPresentation.versionControl(2, focused = false, menuOpen = false))
         assertEquals(VersionControl.Label, EmbyPresentation.versionControl(2, focused = true, menuOpen = false))
         assertEquals(VersionControl.Menu, EmbyPresentation.versionControl(2, focused = true, menuOpen = true))
-        assertTrue(EmbyPresentation.versionDiamondFilled())
+        assertTrue(EmbyPresentation.versionUsesPlayerIcon())
+        assertTrue(EmbyPresentation.versionMenuHint(focused = true))
+        assertTrue(!EmbyPresentation.versionMenuHint(focused = false))
         assertTrue(!EmbyPresentation.versionShowsLabel(false))
-        val circle = EmbyPresentation.versionPillWidth(expanded = false, labelChars = 2)
-        val pill = EmbyPresentation.versionPillWidth(expanded = true, labelChars = 2)
-        assertTrue(pill > circle)
-        assertEquals(pill - circle, EmbyPresentation.versionNeighborShift(circle, pill))
         val source = com.xxxx.emby_tv.data.model.MediaSourceInfoDto(
             name = "4K",
             bitrate = 192,
         )
         val text = EmbyPresentation.versionButtonLabel(source)
+        assertEquals("2160P", text)
         assertTrue(!text.contains("kbps"))
-        assertTrue(!text.contains("0"))
+        val hd = com.xxxx.emby_tv.data.model.MediaSourceInfoDto(name = "1080p")
+        assertEquals("1080P", EmbyPresentation.versionButtonLabel(hd))
     }
 
     @Test

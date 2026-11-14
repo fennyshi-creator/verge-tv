@@ -31,7 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -47,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
@@ -151,28 +150,20 @@ fun PlayerTransportBar(
     mediaInfo: BaseItemDto,
     positionMs: Long,
     durationMs: Long,
-    isPlaying: Boolean,
     showVersionButton: Boolean,
     episodes: List<BaseItemDto>,
     restoreButton: Int,
     timelineFocus: FocusRequester,
-    centralPlayFocus: FocusRequester,
+    pictureFocus: FocusRequester,
     buttonFocus: List<FocusRequester>,
-    onSeekDirection: (Int) -> Unit,
-    onTogglePause: () -> Unit,
     onOpenSheet: (PlayerSheet) -> Unit,
     onOpenEpisodes: () -> Unit,
     onButtonFocused: (Int) -> Unit,
+    onMenuFocus: (Int, Boolean) -> Unit,
     onInteract: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isEpisode = mediaInfo.type == "Episode" && mediaInfo.seriesId != null
-    val downFromActions = if (isPlaying) timelineFocus else centralPlayFocus
-    val upFromTimeline = if (isPlaying) {
-        buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)]
-    } else {
-        centralPlayFocus
-    }
     AnimatedVisibility(
         visible = visible,
         enter = ScreenTransition.barEnter(),
@@ -192,72 +183,49 @@ fun PlayerTransportBar(
                 .padding(start = 36.dp, end = 28.dp, top = 28.dp, bottom = if (isEpisode) 0.dp else 18.dp),
         ) {
             Column(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f)) {
-                        LogoOrTitle(serverUrl, mediaInfo)
-                        if (isEpisode) {
-                            val line = episodeBarLabel(
-                                mediaInfo.parentIndexNumber,
-                                mediaInfo.indexNumber,
-                                mediaInfo.name,
-                            )
-                            if (!line.isNullOrBlank()) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val settingsIndex = if (showVersionButton) 3 else 2
-                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), downFromActions, 0, onButtonFocused) {
-                            onOpenSheet(PlayerSheet.Subtitles)
-                        }
-                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), downFromActions, 1, onButtonFocused) {
-                            onOpenSheet(PlayerSheet.Audio)
-                        }
-                        if (showVersionButton) {
-                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), downFromActions, 2, onButtonFocused) {
-                                onOpenSheet(PlayerSheet.Versions)
-                            }
-                        }
-                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), downFromActions, settingsIndex, onButtonFocused) {
-                            onOpenSheet(PlayerSheet.Settings)
-                        }
+                LogoOrTitle(serverUrl, mediaInfo)
+                if (isEpisode) {
+                    val line = episodeBarLabel(
+                        mediaInfo.parentIndexNumber,
+                        mediaInfo.indexNumber,
+                        mediaInfo.name,
+                    )
+                    if (!line.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (!isPlaying) {
-                        Text("❚❚", color = Color.White, fontSize = 12.sp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 13.sp)
-                    Spacer(Modifier.width(12.dp))
+                    Text(formatPlayerClock(positionMs), color = Color.White, fontSize = 14.sp)
+                    Spacer(Modifier.width(14.dp))
                     ProgressScrubber(
                         positionMs = positionMs,
                         durationMs = durationMs,
                         focusRequester = timelineFocus,
-                        upTarget = upFromTimeline,
-                        onSeekDirection = {
-                            onInteract()
-                            onSeekDirection(it)
-                        },
-                        onTogglePause = {
-                            onInteract()
-                            onTogglePause()
-                        },
+                        upTarget = buttonFocus[restoreButton.coerceAtLeast(0).coerceAtMost(buttonFocus.lastIndex)],
                         onOpenEpisodes = if (isEpisode) onOpenEpisodes else null,
                         modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        formatPlayerRemaining((durationMs - positionMs).coerceAtLeast(0L)),
-                        color = Color.White.copy(0.92f),
-                        fontSize = 13.sp,
-                    )
+                    Spacer(Modifier.width(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val settingsIndex = if (showVersionButton) 3 else 2
+                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), pictureFocus, 0, onButtonFocused, onMenuFocus) {
+                            onOpenSheet(PlayerSheet.Subtitles)
+                        }
+                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), pictureFocus, 1, onButtonFocused, onMenuFocus) {
+                            onOpenSheet(PlayerSheet.Audio)
+                        }
+                        if (showVersionButton) {
+                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), pictureFocus, 2, onButtonFocused, onMenuFocus) {
+                                onOpenSheet(PlayerSheet.Versions)
+                            }
+                        }
+                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), pictureFocus, settingsIndex, onButtonFocused, onMenuFocus) {
+                            onOpenSheet(PlayerSheet.Settings)
+                        }
+                    }
                 }
-                Spacer(Modifier.height(4.dp))
-                ClockRow(positionMs, durationMs)
                 if (isEpisode && episodes.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     EpisodePeek(serverUrl, apiKey, episodes)
@@ -294,29 +262,6 @@ private fun LogoOrTitle(serverUrl: String, item: BaseItemDto) {
 }
 
 @Composable
-private fun ClockRow(positionMs: Long, durationMs: Long) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            kotlinx.coroutines.delay(30_000)
-        }
-    }
-    val end = now + (durationMs - positionMs).coerceAtLeast(0L)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(formatWallClock(now), color = Color.White.copy(0.7f), fontSize = 11.sp)
-        Spacer(Modifier.weight(1f))
-        Text("${formatWallClock(end)} 结束", color = Color.White.copy(0.7f), fontSize = 11.sp)
-    }
-}
-
-private fun formatWallClock(epochMs: Long): String {
-    val calendar = java.util.Calendar.getInstance()
-    calendar.timeInMillis = epochMs
-    return "%02d:%02d".format(calendar.get(java.util.Calendar.HOUR_OF_DAY), calendar.get(java.util.Calendar.MINUTE))
-}
-
-@Composable
 private fun EpisodePeek(serverUrl: String, apiKey: String, episodes: List<BaseItemDto>) {
     Row(
         Modifier
@@ -344,31 +289,24 @@ private fun ProgressScrubber(
     durationMs: Long,
     focusRequester: FocusRequester,
     upTarget: FocusRequester,
-    onSeekDirection: (Int) -> Unit,
-    onTogglePause: () -> Unit,
     onOpenEpisodes: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     val fraction = if (durationMs <= 0L) 0f else (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     Surface(
-        onClick = onTogglePause,
+        onClick = {},
         modifier = modifier
             .height(28.dp)
             .focusRequester(focusRequester)
             .focusProperties { up = upTarget }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionLeft, Key.DirectionRight -> {
-                        onSeekDirection(if (event.key == Key.DirectionLeft) -1 else 1)
-                        true
-                    }
-                    Key.DirectionDown -> {
-                        onOpenEpisodes?.invoke()
-                        onOpenEpisodes != null
-                    }
-                    else -> false
+                if (event.key == Key.DirectionDown && onOpenEpisodes != null) {
+                    onOpenEpisodes()
+                    true
+                } else {
+                    false
                 }
             }
             .onFocusChanged { focused = it.isFocused },
@@ -415,39 +353,20 @@ private fun ProgressScrubber(
 }
 
 @Composable
-fun PlayerCentralPlay(
-    focusRequester: FocusRequester,
-    down: FocusRequester,
-    up: FocusRequester,
-    onPlay: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onPlay,
-        modifier = modifier
-            .size(92.dp)
-            .shadow(18.dp, CircleShape)
-            .focusRequester(focusRequester)
-            .focusProperties {
-                this.down = down
-                this.up = up
-            },
-        shape = ClickableSurfaceDefaults.shape(CircleShape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White,
-            contentColor = Color.Black,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Color.Black,
-        ),
+fun PlayerPauseMark(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(64.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.38f)),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "播放",
-                modifier = Modifier.size(54.dp),
-            )
-        }
+        Icon(
+            imageVector = Icons.Default.Pause,
+            contentDescription = "暂停",
+            tint = Color.White,
+            modifier = Modifier.size(26.dp),
+        )
     }
 }
 
@@ -461,16 +380,14 @@ fun PlayerSeekReadout(
     val readout = seekReadout(targetMs, durationMs, direction)
     Column(
         modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.Black.copy(alpha = 0.62f))
-            .padding(horizontal = 32.dp, vertical = 16.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.46f))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(readout.direction, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(4.dp))
-        Text(readout.target, color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(2.dp))
-        Text("/  ${readout.total}", color = Color.White.copy(alpha = 0.82f), fontSize = 18.sp)
+        Text(readout.direction, color = Color.White.copy(alpha = 0.9f), fontSize = SEEK_READOUT_CUE_SP.sp, fontWeight = FontWeight.Medium)
+        Text(readout.target, color = Color.White, fontSize = SEEK_READOUT_TARGET_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(readout.total, color = Color.White.copy(alpha = 0.72f), fontSize = SEEK_READOUT_CUE_SP.sp)
     }
 }
 
@@ -483,6 +400,7 @@ private fun RoundAction(
     downTarget: FocusRequester,
     index: Int,
     onFocused: (Int) -> Unit,
+    onMenuFocus: (Int, Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -493,11 +411,14 @@ private fun RoundAction(
         modifier = modifier
             .size(40.dp)
             .focusProperties { down = downTarget }
-            .onFocusChanged { if (it.isFocused) onFocused(index) },
+            .onFocusChanged {
+                if (it.isFocused) onFocused(index)
+                onMenuFocus(index, it.isFocused)
+            },
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(0.16f),
+            containerColor = Color.White.copy(0.34f),
             contentColor = Color.White,
             focusedContainerColor = Color.White,
             focusedContentColor = Color.Black,

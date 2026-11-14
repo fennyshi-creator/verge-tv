@@ -93,7 +93,7 @@
     <string name="SecondaryAudioNotSupported">Secondary audio not supported</string>
     <string name="BitrateExceedsLimit">Bitrate exceeds limit</string>
 
-    <string name="scan_qr_hint">Scan QR code in LAN to input info</string>
+    <string name="scan_qr_hint">Scan with your phone to enter the connection</string>
     <string name="starting_server">Starting Local Server...</string>
     <string name="local_server_url">Server URL </string>
     <string name="update_title">Application Update</string>

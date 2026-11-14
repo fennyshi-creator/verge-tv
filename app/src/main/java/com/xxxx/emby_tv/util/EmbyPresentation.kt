@@ -248,32 +248,30 @@ object EmbyPresentation {
 
     fun versionLabel(source: MediaSourceInfoDto): String = identifiableQuality(source) ?: OTHER_VERSION
 
-    /** Pill text. Quality only. A probe bitrate of 0 must never be shown. */
+    /** Button text. Resolution only, in the 1080P / 2160P form. A probe bitrate of 0 is never shown. */
     fun versionButtonLabel(source: MediaSourceInfoDto): String {
         val quality = identifiableQuality(source).orEmpty()
-        val cleaned = quality
             .substringBefore("kbps")
             .substringBefore("·")
             .trim()
-        return cleaned.ifBlank { OTHER_VERSION }
+        val shown = when (quality.lowercase(Locale.US)) {
+            "4k", "2160p" -> "2160P"
+            "1080p" -> "1080P"
+            "720p" -> "720P"
+            else -> quality.uppercase(Locale.US)
+        }
+        return shown.ifBlank { OTHER_VERSION }
     }
-
-    /** Collapsed control is a 42dp circle. Focus grows it to the right by the label. */
-    fun versionPillWidth(expanded: Boolean, labelChars: Int, circle: Int = 42): Int {
-        if (!expanded) return circle
-        val extra = 16 + labelChars.coerceAtLeast(1) * 9
-        return circle + extra
-    }
-
-    fun versionNeighborShift(collapsed: Int, expanded: Int): Int = (expanded - collapsed).coerceAtLeast(0)
 
     fun showVersionButton(sourceCount: Int): Boolean = sourceCount > 1
 
-    /** The label is visible only while the control is focused. Focus itself does not open the menu. */
+    /** The label and the downward menu cue appear together, only while focused. */
     fun versionShowsLabel(focused: Boolean): Boolean = focused
 
-    /** Filled diamond. The 2.0.39 control was a hairline stroke and read as a wireframe. */
-    fun versionDiamondFilled(): Boolean = true
+    /** Same glyph as the player's multi-version button. The stacked diamond is retired. */
+    fun versionUsesPlayerIcon(): Boolean = true
+
+    fun versionMenuHint(focused: Boolean): Boolean = focused
 
     fun versionControl(sourceCount: Int, focused: Boolean, menuOpen: Boolean): VersionControl {
         if (!showVersionButton(sourceCount)) return VersionControl.Hidden

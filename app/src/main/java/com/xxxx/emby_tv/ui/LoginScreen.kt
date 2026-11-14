@@ -240,9 +240,8 @@ fun LoginScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B0B0D))) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 顶部状态栏
         TopStatusBar(
             currentVersion = mainViewModel.currentVersion,
             newVersion = mainViewModel.newVersion,
@@ -250,66 +249,46 @@ fun LoginScreen(
             onMenuClick = { showMenu = true }
         )
         Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxSize().padding(horizontal = 72.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(72.dp),
         ) {
-            // 左侧：QR Code 和提示
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(48.dp),
+                modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Spacer(modifier = Modifier.weight(2f))
                 if (qrCodeBitmap != null) {
                     Image(
                         bitmap = qrCodeBitmap!!,
                         contentDescription = stringResource(R.string.scan_qr_hint),
                         modifier = Modifier
-                            .size(200.dp)
-                            .background(Color.White, RoundedCornerShape(12.dp))
-                            .padding(12.dp)
+                            .size(232.dp)
+                            .background(Color.White, RoundedCornerShape(28.dp))
+                            .padding(18.dp)
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(28.dp))
                     Text(
                         text = stringResource(R.string.scan_qr_hint),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = "${stringResource(R.string.local_server_url)}: $localServerAddress",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.7f)
+                        color = Color.White.copy(alpha = 0.92f),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.4.sp,
                     )
                 } else {
-                    CircularProgressIndicator(color = Color.White)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.starting_server),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.7f)
+                    CircularProgressIndicator(
+                        color = Color.White.copy(alpha = 0.8f),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
-
-                Spacer(modifier = Modifier.weight(1.5f))
-
-                Text(
-                    text = stringResource(R.string.footer_notice),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.5f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
             }
 
-            // 右侧：登录表单
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = 48.dp),
+                    .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 28.dp, vertical = 32.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -391,10 +370,10 @@ fun LoginScreen(
                             } else false
                         },
                     colors = ButtonDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.primary,
-                        focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-                        contentColor = MaterialTheme.colorScheme.onSurface
+                        focusedContainerColor = Color.White,
+                        focusedContentColor = Color(0xFF161616),
+                        containerColor = Color.White.copy(alpha = 0.14f),
+                        contentColor = Color.White,
                     ),
                     shape = ButtonDefaults.shape()
                 ) {
@@ -558,21 +537,16 @@ fun TvInputButton(
 ) {
     Surface(
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(14.dp)),
         border = ClickableSurfaceDefaults.border(
-            border = Border(
-                BorderStroke(
-                    2.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            ),
-            focusedBorder = Border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary))
+            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))),
+            focusedBorder = Border(BorderStroke(0.dp, Color.Transparent)),
         ),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            focusedContainerColor = MaterialTheme.colorScheme.primary,
-            focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = Color.White.copy(alpha = 0.08f),
+            contentColor = Color.White,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color(0xFF161616),
         ),
         modifier = modifier
             .fillMaxWidth(0.8f)
@@ -621,21 +595,16 @@ fun ProtocolButton(
 ) {
     Surface(
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(14.dp)),
         border = ClickableSurfaceDefaults.border(
-            border = Border(
-                BorderStroke(
-                    2.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            ),
-            focusedBorder = Border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary))
+            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))),
+            focusedBorder = Border(BorderStroke(0.dp, Color.Transparent)),
         ),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            focusedContainerColor = MaterialTheme.colorScheme.onSurface,
-            focusedContentColor = MaterialTheme.colorScheme.surface,
+            containerColor = Color.White.copy(alpha = 0.08f),
+            contentColor = Color.White,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color(0xFF161616),
         ),
         modifier = modifier.height(64.dp)
     ) {

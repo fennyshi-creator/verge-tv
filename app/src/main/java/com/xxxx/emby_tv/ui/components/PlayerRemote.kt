@@ -3,45 +3,31 @@ package com.xxxx.emby_tv.ui.components
 /**
  * Remote behavior for the playback overlay.
  *
- * The picture keeps the remote until the bar is open. Once the bar is open,
- * arrows and OK belong to whichever control is focused. Sheets, the episode
- * strip, and the resume prompt are never intercepted here.
+ * The picture stays clean whenever the bar is hidden. A center glyph exists
+ * only as the frosted pause mark while the bar is showing a user pause.
+ * Nothing is drawn in the center while content is playing.
  *
  * Hidden, playing:
  * - OK down / key-repeat: consumed, playback stays running.
- * - OK up, after that down: pause, open the bar, focus the central Play button.
- * - Left / Right down and key-repeat: seek immediately, open the bar on the
- *   timeline, and show the central target-time readout.
- * - Down: open the bar on the timeline. Playback keeps running.
+ * - OK up: pause and show the bar. Focus stays off the progress bar.
+ * - Left / Right: seek immediately and show the compact center readout.
+ * - Down or Menu: show the bar. Playback keeps running.
  * - Back: leave playback.
  *
  * Hidden, paused:
- * - OK up: open the bar on the central Play button. Playback stays paused.
+ * - OK up: resume. No center glyph is shown.
  * - Left / Right: seek, and stay paused.
- * - Down: open the bar on the timeline.
+ * - Down or Menu: show the bar.
  *
- * Bar open, central Play focused (paused):
- * - OK: resume. The bar hides itself after the normal playing timeout.
- * - Down: timeline. Up: subtitle, audio, version, settings.
- * - Back: hide the bar and the seek readout. A second Back leaves playback.
+ * Bar open, focus not on a menu icon:
+ * - OK pauses or resumes. Resume dismisses the bar quickly.
+ * - Left / Right seek with the same readout.
+ * - Back hides the bar first.
  *
- * Bar open, timeline focused:
- * - Left / Right: the same seek and the same central readout.
- * - OK while playing: pause, then move focus to the central Play button.
- * - OK while paused: resume.
- * - Up while paused: central Play. Up while playing: the secondary buttons.
- * - Down, on an episode: the episode strip.
- * - Back: hide the overlay.
+ * Bar open, focus on subtitles, audio, version, or settings:
+ * - OK opens that sheet. Arrows move among the icons.
  *
- * Bar open, a secondary button focused:
- * - Left / Right move between those buttons and do not seek.
- * - OK opens that button's sheet.
- * - Down while paused: central Play. Down while playing: timeline.
- *
- * A sheet, the episode strip, or the resume prompt:
- * - arrows and OK pass through.
- * - Back closes that layer first.
- *
+ * A sheet, the episode strip, or the resume prompt keeps its own keys.
  * Dedicated media play, pause, and play/pause keys are not consumed.
  */
 enum class PlayerKey {
@@ -58,17 +44,17 @@ enum class PlayerKey {
 
 enum class KeyPhase { Down, Repeat, Up }
 
-enum class PlayerLanding { Hold, Timeline, CentralPlay }
-
 enum class RemoteCommand {
     Ignore,
-    PauseAndFocusPlay,
-    RevealPausedPlay,
-    RevealTimeline,
+    Pause,
+    Resume,
+    RevealBar,
     SeekBackward,
     SeekForward,
     HideOverlay,
 }
+
+enum class CenterGlyph { None, Pause }
 
 data class RemoteContext(
     val controlsVisible: Boolean,
@@ -77,6 +63,7 @@ data class RemoteContext(
     val episodeStrip: Boolean,
     val resumePrompt: Boolean,
     val seeking: Boolean,
+    val menuFocused: Boolean = false,
 )
 
 data class RemoteDecision(
@@ -97,7 +84,8 @@ fun decideRemote(context: RemoteContext, key: PlayerKey, phase: KeyPhase): Remot
         }
         return RemoteDecision(RemoteCommand.Ignore, consume = false)
     }
-    if (context.controlsVisible) {
+    val menuOwnsArrows = context.controlsVisible && context.menuFocused
+    if (menuOwnsArrows && (key == PlayerKey.Ok || key == PlayerKey.Left || key == PlayerKey.Right || key == PlayerKey.Down)) {
         return RemoteDecision(RemoteCommand.Ignore, consume = false)
     }
     return when (key) {
@@ -109,24 +97,37 @@ fun decideRemote(context: RemoteContext, key: PlayerKey, phase: KeyPhase): Remot
             KeyPhase.Up -> RemoteDecision(RemoteCommand.Ignore, consume = true)
             else -> RemoteDecision(RemoteCommand.SeekForward, consume = true)
         }
-        PlayerKey.Down -> when (phase) {
-            KeyPhase.Down -> RemoteDecision(RemoteCommand.RevealTimeline, consume = true)
+        PlayerKey.Down -> when {
+            context.controlsVisible -> RemoteDecision(RemoteCommand.Ignore, consume = false)
+            phase == KeyPhase.Down -> RemoteDecision(RemoteCommand.RevealBar, consume = true)
             else -> RemoteDecision(RemoteCommand.Ignore, consume = true)
         }
         PlayerKey.Ok -> when (phase) {
-            KeyPhase.Up -> {
-                val command = if (context.playing) {
-                    RemoteCommand.PauseAndFocusPlay
-                } else {
-                    RemoteCommand.RevealPausedPlay
-                }
-                RemoteDecision(command, consume = true)
-            }
+            KeyPhase.Up -> RemoteDecision(
+                if (context.playing) RemoteCommand.Pause else RemoteCommand.Resume,
+                consume = true,
+            )
             else -> RemoteDecision(RemoteCommand.Ignore, consume = true)
         }
         else -> RemoteDecision(RemoteCommand.Ignore, consume = false)
     }
 }
+
+/** Pause mark only while the bar is up and the user has paused. Never a play glyph. */
+fun centerGlyph(chromeVisible: Boolean, playing: Boolean, seeking: Boolean): CenterGlyph {
+    if (!chromeVisible || playing || seeking) return CenterGlyph.None
+    return CenterGlyph.Pause
+}
+
+const val CHROME_PLAYING_MS = 5_000L
+const val CHROME_RESUME_MS = 650L
+
+/** After an explicit resume the bar leaves quickly. Opening it while playing keeps the longer hold. */
+fun chromeHoldMs(resumed: Boolean): Long = if (resumed) CHROME_RESUME_MS else CHROME_PLAYING_MS
+
+/** Center seek type is readable and compact. 48sp was the oversized 2.0.44 readout. */
+const val SEEK_READOUT_TARGET_SP = 26
+const val SEEK_READOUT_CUE_SP = 13
 
 /**
  * One OK press is a down followed by an up. Repeats between them must not

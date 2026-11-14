@@ -106,7 +106,7 @@
     <string name="SecondaryAudioNotSupported">辅助音频流不受支持</string>
     <string name="BitrateExceedsLimit">码率超过限制</string>
 
-    <string name="scan_qr_hint">局域网内扫码录入信息</string>
+    <string name="scan_qr_hint">用手机扫码，填写连接信息</string>
     <string name="starting_server">正在启动本地服务器...</string>
     <string name="local_server_url">服务器地址</string>
     <string name="update_title">应用更新</string>
