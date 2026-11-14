@@ -25,6 +25,7 @@
 #include "ijksdl_aout_android_audiotrack.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <assert.h>
 #include <jni.h>
 #include "../ijksdl_inc_internal.h"
@@ -88,7 +89,19 @@ static int eac3_write_is_one_syncframe(const uint8_t *data, int size)
 
 static int aout_format_is_encoded(SDL_AudioFormat format)
 {
-    return format == AUDIO_AC3 || format == AUDIO_EAC3 || format == AUDIO_EAC3_JOC;
+    return format == AUDIO_AC3 || format == AUDIO_EAC3 || format == AUDIO_EAC3_JOC
+        || format == AUDIO_IEC61937 || format == AUDIO_IEC61937_PCM;
+}
+
+static int iec_burst_is_one_period(const uint8_t *data, int size)
+{
+    /* 24576 bytes: IEC 61937-3 E-AC-3 repetition period. */
+    if (!data || size != 24576)
+        return 0;
+    /* Pa Pb, little-endian, data-type 21. */
+    if (data[0] != 0x72 || data[1] != 0xF8 || data[2] != 0x1F || data[3] != 0x4E)
+        return 0;
+    return data[4] == 21 && data[5] == 0;
 }
 
 static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
@@ -146,10 +159,9 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         SDL_UnlockMutex(opaque->wakeup_mutex);
 
         /*
-         * Encoded mode writes exactly one raw syncframe. AudioFlinger packs
-         * ENCODING_E_AC3 / E_AC3_JOC into IEC 61937. A second preamble, or
-         * more than one frame in this write, is what kills the HDMI HAL.
-         * The callback prefixes a little-endian length. There is no padding.
+         * IEC mode writes one app-packed 24576-byte burst. The callback
+         * prefixes a little-endian length. ENCODING_E_AC3 is not used here:
+         * a preamble on that encoding would be wrapped twice.
          */
         int request = opaque->encoded ? opaque->buffer_size : copy_size;
         audio_cblk(userdata, buffer, request);
@@ -163,18 +175,34 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             SDL_Android_AudioTrack_flush(env, atrack);
         } else if (opaque->encoded) {
             int payload = 0;
+            int iec = opaque->spec.format == AUDIO_IEC61937 || opaque->spec.format == AUDIO_IEC61937_PCM;
             int eac3 = opaque->spec.format == AUDIO_EAC3 || opaque->spec.format == AUDIO_EAC3_JOC;
+            int packed_ok;
+            char line[160];
             if (opaque->encoded_stop) {
                 SDL_Delay(10);
             } else if (request >= 4) {
                 payload = (int)buffer[0] | ((int)buffer[1] << 8) |
                           ((int)buffer[2] << 16) | ((int)buffer[3] << 24);
             }
+            packed_ok = payload > 0 && payload <= request - 4 &&
+                (iec ? iec_burst_is_one_period(buffer + 4, payload)
+                     : (!eac3 || eac3_write_is_one_syncframe(buffer + 4, payload)));
             if (opaque->encoded_stop) {
                 /* already waiting */
-            } else if (payload > 0 && payload <= request - 4 &&
-                       (!eac3 || eac3_write_is_one_syncframe(buffer + 4, payload))) {
-                int written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
+            } else if (packed_ok) {
+                int pc = 0;
+                int pd = 0;
+                int written;
+                if (iec && payload >= 8) {
+                    pc = (int)buffer[8] | ((int)buffer[9] << 8);
+                    pd = (int)buffer[10] | ((int)buffer[11] << 8);
+                }
+                snprintf(line, sizeof(line), "audio write bytes=%d pc=%d pd=%d", payload, pc, pd);
+                SDL_Android_AudioTrack_log(env, line);
+                written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
+                snprintf(line, sizeof(line), "audio write result=%d/%d", written, payload);
+                SDL_Android_AudioTrack_log(env, line);
                 if (written < 0) {
                     ALOGW("AudioTrack: encoded write failed %d/%d; stopping writes", written, payload);
                     opaque->encoded_stop = 1;
@@ -182,6 +210,8 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     ALOGW("AudioTrack: encoded write %d/%d", written, payload);
                 }
             } else if (payload > 0) {
+                snprintf(line, sizeof(line), "audio write refused bytes=%d", payload);
+                SDL_Android_AudioTrack_log(env, line);
                 ALOGW("AudioTrack: refuse mispacked encoded buffer %d", payload);
             } else {
                 SDL_Delay(5);

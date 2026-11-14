@@ -55,14 +55,19 @@ static AudioFormatMapEntry g_audio_format_map[] = {
     { AUDIO_AC3,    ENCODING_AC3,       "AUDIO_AC3",    "ENCODING_AC3" },
     { AUDIO_EAC3,   ENCODING_E_AC3,     "AUDIO_EAC3",   "ENCODING_E_AC3" },
     { AUDIO_EAC3_JOC, ENCODING_E_AC3_JOC, "AUDIO_EAC3_JOC", "ENCODING_E_AC3_JOC" },
+    { AUDIO_IEC61937, ENCODING_IEC61937, "AUDIO_IEC61937", "ENCODING_IEC61937" },
+    { AUDIO_IEC61937_PCM, ENCODING_PCM_16BIT, "AUDIO_IEC61937_PCM", "ENCODING_PCM_16BIT" },
 };
 
 static jclass g_encoded_audiotrack_class;
 static jmethodID g_encoded_audiotrack_open;
+static jclass g_passthrough_log_class;
+static jmethodID g_passthrough_log_note;
 
 static int audiotrack_format_is_encoded(int format)
 {
-    return format == ENCODING_AC3 || format == ENCODING_E_AC3 || format == ENCODING_E_AC3_JOC;
+    return format == ENCODING_AC3 || format == ENCODING_E_AC3 || format == ENCODING_E_AC3_JOC
+        || format == ENCODING_IEC61937;
 }
 
 static Uint8 find_sdl_channel(int android_channel)
@@ -130,6 +135,37 @@ void SDL_Android_AudioTrack_global_init(JNIEnv *env)
         ALOGE("FsEncodedAudioTrack.open not found");
         g_encoded_audiotrack_open = NULL;
     }
+    local = (*env)->FindClass(env, "com/debugly/fsplayer/audio/FsPassthroughLog");
+    if ((*env)->ExceptionCheck(env) || !local) {
+        (*env)->ExceptionClear(env);
+        ALOGE("FsPassthroughLog class not found");
+        return;
+    }
+    g_passthrough_log_class = (*env)->NewGlobalRef(env, local);
+    (*env)->DeleteLocalRef(env, local);
+    g_passthrough_log_note = (*env)->GetStaticMethodID(
+        env, g_passthrough_log_class, "note", "(Ljava/lang/String;)V");
+    if ((*env)->ExceptionCheck(env) || !g_passthrough_log_note) {
+        (*env)->ExceptionClear(env);
+        ALOGE("FsPassthroughLog.note not found");
+        g_passthrough_log_note = NULL;
+    }
+}
+
+void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line)
+{
+    jstring text;
+    if (!env || !line || !g_passthrough_log_class || !g_passthrough_log_note)
+        return;
+    text = (*env)->NewStringUTF(env, line);
+    if ((*env)->ExceptionCheck(env) || !text) {
+        (*env)->ExceptionClear(env);
+        return;
+    }
+    (*env)->CallStaticVoidMethod(env, g_passthrough_log_class, g_passthrough_log_note, text);
+    (*env)->DeleteLocalRef(env, text);
+    if ((*env)->ExceptionCheck(env))
+        (*env)->ExceptionClear(env);
 }
 
 static jobject audiotrack_open_encoded(JNIEnv *env, int encoding, int sample_rate, int channel_mask)
@@ -161,6 +197,7 @@ static void SDL_Android_AudioTrack_get_default_spec(SDL_Android_AudioTrack_Spec 
     spec->sample_rate_in_hz = 0;
     spec->channel_config = CHANNEL_OUT_STEREO;
     spec->audio_format = ENCODING_PCM_16BIT;
+    spec->burst = 0;
     spec->buffer_size_in_bytes = 0;
     spec->mode = MODE_STREAM;
 }
@@ -228,6 +265,9 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
     case ENCODING_E_AC3_JOC:
         ALOGI("SDL_Android_AudioTrack: %s", "ENCODING_E_AC3_JOC");
         break;
+    case ENCODING_IEC61937:
+        ALOGI("SDL_Android_AudioTrack: %s", "ENCODING_IEC61937");
+        break;
 #if 0
     case ENCODING_PCM_FLOAT:
         ALOGI("SDL_Android_AudioTrack: %s", "ENCODING_PCM_FLOAT");
@@ -253,7 +293,7 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
         return NULL;
     }
     atrack->spec = *spec;
-    atrack->encoded = audiotrack_format_is_encoded(atrack->spec.audio_format);
+    atrack->encoded = audiotrack_format_is_encoded(atrack->spec.audio_format) || spec->burst;
 
     /*
      * Encoded AC-3 / E-AC-3 rates are the bitstream rate (usually 48000).
@@ -339,6 +379,7 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_sdl_spec(JNIEnv *env, co
     atrack_spec.sample_rate_in_hz = sdl_spec->freq;
     atrack_spec.channel_config = find_android_channel(sdl_spec->channels);
     atrack_spec.audio_format = find_android_format(sdl_spec->format);
+    atrack_spec.burst = sdl_spec->format == AUDIO_IEC61937 || sdl_spec->format == AUDIO_IEC61937_PCM;
     atrack_spec.buffer_size_in_bytes = sdl_spec->size;
 
     return SDL_Android_AudioTrack_new_from_spec(env, &atrack_spec);

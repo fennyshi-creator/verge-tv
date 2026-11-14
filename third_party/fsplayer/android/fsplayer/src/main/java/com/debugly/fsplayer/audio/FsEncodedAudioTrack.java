@@ -16,8 +16,10 @@ import android.util.Log;
 public final class FsEncodedAudioTrack {
     private static final String TAG = "FsPassthrough";
 
+    public static final int ENCODING_PCM_16BIT = 2;
     public static final int ENCODING_AC3 = 5;
     public static final int ENCODING_E_AC3 = 6;
+    public static final int ENCODING_IEC61937 = 13;
     public static final int ENCODING_E_AC3_JOC = 18;
 
     private FsEncodedAudioTrack() {
@@ -27,8 +29,14 @@ public final class FsEncodedAudioTrack {
      * @return an initialized track, or null if this output cannot carry the encoding
      */
     public static AudioTrack open(int encoding, int sampleRate, int channelMask) {
-        if (!isEncoded(encoding) || sampleRate <= 0 || channelMask == 0) {
+        if (!isOpenable(encoding) || sampleRate <= 0 || channelMask == 0) {
             Log.w(TAG, "refuse encoded open encoding=" + encoding + " rate=" + sampleRate);
+            FsPassthroughLog.note("audio open refuse encoding=" + encoding
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask));
+            return null;
+        }
+        if (encoding == ENCODING_IEC61937 && Build.VERSION.SDK_INT < 24) {
+            FsPassthroughLog.note("audio open encoding=13 needs api 24");
             return null;
         }
         AudioFormat format;
@@ -45,6 +53,9 @@ public final class FsEncodedAudioTrack {
                     .build();
         } catch (Throwable error) {
             Log.w(TAG, "AudioFormat rejected encoding=" + encoding, error);
+            FsPassthroughLog.note("audio open encoding=" + encoding
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                    + " format-rejected");
             return null;
         }
 
@@ -62,9 +73,12 @@ public final class FsEncodedAudioTrack {
         int min = AudioTrack.getMinBufferSize(sampleRate, channelMask, encoding);
         if (min <= 0) {
             Log.w(TAG, "getMinBufferSize failed encoding=" + encoding + " -> " + min);
+            FsPassthroughLog.note("audio open encoding=" + encoding
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                    + " minBuffer=" + min + " fail");
             return null;
         }
-        int buffer = Math.max(min, 65536);
+        int buffer = Math.max(min, encoding == ENCODING_IEC61937 || sampleRate >= 128000 ? 49152 : 65536);
         try {
             AudioTrack track = new AudioTrack.Builder()
                     .setAudioAttributes(attributes)
@@ -75,19 +89,30 @@ public final class FsEncodedAudioTrack {
             if (track.getState() != AudioTrack.STATE_INITIALIZED) {
                 Log.w(TAG, "AudioTrack not initialized encoding=" + encoding);
                 track.release();
+                FsPassthroughLog.note("audio open encoding=" + encoding
+                        + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                        + " buffer=" + buffer + " not-initialized");
                 return null;
             }
             Log.i(TAG, "opened encoded AudioTrack encoding=" + encoding
                     + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
                     + " buffer=" + buffer);
+            FsPassthroughLog.note("audio open encoding=" + encoding
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                    + " buffer=" + buffer + " ok");
             return track;
         } catch (Throwable error) {
             Log.w(TAG, "AudioTrack.Builder failed encoding=" + encoding, error);
+            FsPassthroughLog.note("audio open encoding=" + encoding
+                    + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                    + " builder-failed");
             return null;
         }
     }
 
-    private static boolean isEncoded(int encoding) {
-        return encoding == ENCODING_AC3 || encoding == ENCODING_E_AC3 || encoding == ENCODING_E_AC3_JOC;
+    private static boolean isOpenable(int encoding) {
+        return encoding == ENCODING_PCM_16BIT || encoding == ENCODING_AC3
+                || encoding == ENCODING_E_AC3 || encoding == ENCODING_E_AC3_JOC
+                || encoding == ENCODING_IEC61937;
     }
 }

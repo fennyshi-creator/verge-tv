@@ -90,11 +90,15 @@ int main(void)
     {
         int order[2] = {0, 0};
         expect_int("atmos order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 1, order, 2), 2);
-        expect_int("joc is the first try", order[0], FS_ENCODING_E_AC3_JOC);
-        expect_int("eac3 is the second try", order[1], FS_ENCODING_E_AC3);
-        expect_int("plain order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, order, 2), 1);
-        expect_int("plain stays eac3", order[0], FS_ENCODING_E_AC3);
+        expect_int("iec is the first try", order[0], FS_ENCODING_IEC61937);
+        expect_int("4x pcm is the second try", order[1], FS_ENCODING_IEC61937_PCM);
+        expect_int("plain order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, order, 2), 2);
+        expect_int("plain also opens iec", order[0], FS_ENCODING_IEC61937);
+        expect_int("ac3 stays ac3", fs_passthrough_open_order(FS_ENCODING_AC3, 0, order, 2), 1);
+        expect_int("ac3 encoding", order[0], FS_ENCODING_AC3);
     }
+    expect_int("48k carrier", fs_iec61937_carrier_rate(48000), 192000);
+    expect_int("unknown carrier", fs_iec61937_carrier_rate(0), 192000);
     expect_int("5.1 mask", fs_passthrough_open_channels(6), 6);
     expect_int("stereo container still opens 5.1", fs_passthrough_open_channels(2), 6);
     expect_int("7.1 mask", fs_passthrough_open_channels(8), 8);
@@ -131,6 +135,50 @@ int main(void)
         packet[0] = 0x00;
         n = fs_eac3_passthrough_payload(packet, 8, out, 16);
         expect_int("non sync is dropped", n, 0);
+    }
+
+    {
+        FsIec61937Eac3 *st = fs_iec61937_eac3_new();
+        uint8_t independent[8];
+        uint8_t dependent[8];
+        uint8_t next[8];
+        uint8_t burst[FS_IEC61937_EAC3_BURST_BYTES];
+        int i;
+        memset(independent, 0, sizeof(independent));
+        memset(dependent, 0, sizeof(dependent));
+        memset(next, 0, sizeof(next));
+        /* 8-byte 6-block frames. bsid 16 so numblkscod is honored. */
+        independent[0] = dependent[0] = next[0] = 0x0B;
+        independent[1] = dependent[1] = next[1] = 0x77;
+        independent[2] = 0x00;
+        dependent[2] = 0x40;
+        next[2] = 0x00;
+        independent[3] = dependent[3] = next[3] = 0x03;
+        independent[4] = dependent[4] = next[4] = 0x30; /* numblkscod = 3, 6 blocks */
+        independent[5] = dependent[5] = next[5] = 0x80; /* bsid 16 */
+        expect_int("hold independent", fs_iec61937_eac3_push(st, independent, 8, burst, sizeof(burst)), 0);
+        expect_int("hold dependent in the same burst", fs_iec61937_eac3_push(st, dependent, 8, burst, sizeof(burst)), 0);
+        expect_int("next independent emits the burst", fs_iec61937_eac3_push(st, next, 8, burst, sizeof(burst)), FS_IEC61937_EAC3_BURST_BYTES);
+        expect_int("Pa0", burst[0], 0x72);
+        expect_int("Pa1", burst[1], 0xF8);
+        expect_int("Pb0", burst[2], 0x1F);
+        expect_int("Pb1", burst[3], 0x4E);
+        expect_int("Pc data-type", burst[4], 21);
+        expect_int("Pc high", burst[5], 0);
+        expect_int("Pd bytes", burst[6], 16);
+        expect_int("Pd high", burst[7], 0);
+        expect_int("swapped sync0", burst[8], 0x77);
+        expect_int("swapped sync1", burst[9], 0x0B);
+        expect_int("pad after payload", burst[8 + 16], 0);
+        for (i = 8 + 16; i < FS_IEC61937_EAC3_BURST_BYTES; i++) {
+            if (burst[i] != 0) {
+                expect_int("padding is zero", burst[i], 0);
+                break;
+            }
+        }
+        expect_int("flush held frame", fs_iec61937_eac3_flush(st, burst, sizeof(burst)), FS_IEC61937_EAC3_BURST_BYTES);
+        expect_int("flushed pd", burst[6], 8);
+        fs_iec61937_eac3_free(st);
     }
 
     if (g_failed) {

@@ -11,14 +11,27 @@ import coil3.disk.DiskCache
 import okio.Path.Companion.toPath
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import com.debugly.fsplayer.audio.FsPassthroughLog
+import com.xxxx.emby_tv.BuildConfig
+import com.xxxx.emby_tv.data.remote.ClientLogUploader
 import com.xxxx.emby_tv.data.remote.HttpClient
 
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        ClientLogUploader.rotate(this)
+        FsPassthroughLog.attach(this, BuildConfig.VERSION_NAME)
+        ClientLogUploader.uploadPendingAsync(this)
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                FsPassthroughLog.note(
+                    "fatal ${thread.name} ${throwable.javaClass.name}: ${throwable.message}\n" +
+                        Log.getStackTraceString(throwable)
+                )
+            } catch (_: Throwable) {
+            }
             Log.e("App", "Uncaught exception on ${thread.name}", throwable)
             val msg = throwable.message ?: throwable.cause?.message ?: ""
             val prefs = com.xxxx.emby_tv.data.local.PreferencesManager(this)

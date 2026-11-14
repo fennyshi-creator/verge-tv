@@ -65,6 +65,9 @@ typedef uint16_t SDL_AudioFormat;
 #define AUDIO_AC3       0x1505
 #define AUDIO_EAC3      0x1506
 #define AUDIO_EAC3_JOC  0x1512
+/* App-packed IEC 61937 bursts. AUDIO_IEC61937_PCM is the 4× PCM carrier. */
+#define AUDIO_IEC61937      0x150D
+#define AUDIO_IEC61937_PCM  0x150E
 
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
 #define AUDIO_U16SYS    AUDIO_U16LSB

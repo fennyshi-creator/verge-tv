@@ -603,6 +603,8 @@ typedef struct FFPlayer {
     int audio_passthrough_on;
     int audio_passthrough_encoding;
     int audio_passthrough_fallback;
+    /* FsIec61937Eac3 *, owned here. Null unless the open is an IEC carrier. */
+    void *audio_iec;
 
     char *iformat_name;
 
@@ -778,6 +780,7 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->audio_passthrough_on           = 0;
     ffp->audio_passthrough_encoding     = 0;
     ffp->audio_passthrough_fallback     = 0;
+    ffp->audio_iec                      = NULL;
 
     /*
      * 字幕偏好必须有初值：ffp_apply_subtitle_preference 会把它推给字幕组件，

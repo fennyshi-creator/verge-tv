@@ -25,7 +25,17 @@
 #define FS_ENCODING_PCM_16BIT  2
 #define FS_ENCODING_AC3        5
 #define FS_ENCODING_E_AC3      6
+#define FS_ENCODING_IEC61937   13 /* AudioFormat.ENCODING_IEC61937, API 24+ */
 #define FS_ENCODING_E_AC3_JOC  18
+/*
+ * Not an Android encoding. Legacy carrier: PCM 16-bit stereo at 4× the
+ * bitstream rate, with the same IEC 61937 bursts. Tried only after
+ * ENCODING_IEC61937 is rejected. It is still passthrough, not a decode.
+ */
+#define FS_ENCODING_IEC61937_PCM 1002
+
+/* E-AC-3 data-burst repetition period, in bytes. 6144 IEC frames × 4. */
+#define FS_IEC61937_EAC3_BURST_BYTES 24576
 
 typedef struct FsPassthroughDecision {
     int encoding;     /* 0 = do not passthrough; else AudioFormat.ENCODING_* */
@@ -44,12 +54,27 @@ int fs_eac3_frame_bytes(const uint8_t *data, int size);
 
 /*
  * Copy exactly one E-AC-3 syncframe, independent or dependent.
- * AudioTrack / the HDMI HAL is given that frame alone. Bytes that are not
- * a syncframe return 0. IEC 61937 is not added here: ENCODING_E_AC3 and
- * ENCODING_E_AC3_JOC are wrapped by AudioFlinger, and a second preamble
- * is what kills this HAL.
+ * Returns 0 when [data] is not a syncframe.
  */
 int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap);
+
+/*
+ * IEC 61937-3 E-AC-3 packer. Matches FFmpeg's spdif muxer: data-type 21,
+ * Pd is the payload length in bytes, 16-bit words are little-endian
+ * (payload byte-swapped), and the burst is padded to 24576 bytes.
+ * Dependent frames (strmtyp == 1) are appended to the open burst.
+ * A burst is emitted when the next independent frame arrives, or on flush.
+ * Returns the burst size, 0 if the frame was held, or -1 if it is not a syncframe.
+ */
+typedef struct FsIec61937Eac3 FsIec61937Eac3;
+FsIec61937Eac3 *fs_iec61937_eac3_new(void);
+void fs_iec61937_eac3_free(FsIec61937Eac3 *st);
+int fs_iec61937_eac3_push(FsIec61937Eac3 *st, const uint8_t *data, int size,
+                          uint8_t *out, int cap);
+int fs_iec61937_eac3_flush(FsIec61937Eac3 *st, uint8_t *out, int cap);
+
+/* 192000 for a 48 kHz bitstream. Unknown rates use 48 kHz. */
+int fs_iec61937_carrier_rate(int content_rate);
 
 /*
  * Next syncframe at or after [start]. Returns its size, or 0.
@@ -59,9 +84,8 @@ int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int
 int fs_eac3_next_frame(const uint8_t *data, int size, int start, int *at);
 
 /*
- * Channel count AudioTrack should open with. 6 and 8 are trusted.
- * Anything else (including a container that claims stereo for 5.1 E-AC-3)
- * opens as 5.1. Stereo remains a later retry in the caller, not the first mask.
+ * Channel count for a raw compressed open (AC-3). E-AC-3 IEC 61937 does
+ * not use this: its carrier is stereo at 4× the bitstream rate.
  */
 int fs_passthrough_open_channels(int container_channels);
 
@@ -79,8 +103,9 @@ int fs_eac3_extradata_has_dependent(const uint8_t *data, int size);
  * endpoint_open_ok: 1 opened, 0 open failed, -1 not attempted yet
  */
 /*
- * Encodings to try. Atmos opens as ENCODING_E_AC3_JOC first, the same
- * AudioFormat ExoPlayer uses, then plain E-AC-3. Returns how many were written.
+ * Encodings to try. E-AC-3 / Atmos opens as ENCODING_IEC61937, then the
+ * 4× PCM carrier. [joc] does not change that: JOC rides inside the burst.
+ * AC-3 stays ENCODING_AC3. Returns how many were written.
  */
 int fs_passthrough_open_order(int encoding, int joc, int *out, int cap);
 

@@ -73,8 +73,10 @@ typedef struct SDL_Android_AudioTrack_Spec {
         ENCODING_PCM_FLOAT = 4, // single-precision floating-point per sample
         ENCODING_AC3 = 5,
         ENCODING_E_AC3 = 6,
+        ENCODING_IEC61937 = 13, // API 24+. App supplies the IEC 61937 burst.
         ENCODING_E_AC3_JOC = 18, // API 28+. JOC objects stay inside the E-AC-3 bitstream.
     } audio_format;
+    int burst; /* 1: write IEC 61937 bursts, including the PCM 4× carrier. */
     int buffer_size_in_bytes;
 
     enum Mode {
@@ -109,6 +111,7 @@ void SDL_Android_AudioTrack_set_volume(JNIEnv *env, SDL_Android_AudioTrack *atra
 void SDL_Android_AudioTrack_stop(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 void SDL_Android_AudioTrack_release(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, uint8_t *data, int size_in_byte);
+void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line);
 
 int  SDL_Android_AudioTrack_getAudioSessionId(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 void SDL_Android_AudioTrack_setSpeed(JNIEnv *env, SDL_Android_AudioTrack *atrack, float speed);

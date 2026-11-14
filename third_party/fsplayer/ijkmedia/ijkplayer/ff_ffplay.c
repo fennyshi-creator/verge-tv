@@ -285,15 +285,54 @@ static int fs_speed_is_one(FFPlayer *ffp)
     return fabsf(rate) < 0.00001f || fabsf(rate - 1.0f) < 0.001f;
 }
 
-/* One E-AC-3 syncframe per AVFrame. A dependent Atmos frame is its own
- * frame and does not advance the clock; the independent frame owns the 32 ms. */
+static int fs_passthrough_is_iec(FFPlayer *ffp)
+{
+    return ffp->audio_passthrough_encoding == FS_ENCODING_IEC61937
+        || ffp->audio_passthrough_encoding == FS_ENCODING_IEC61937_PCM;
+}
+
+static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int size,
+                                  int64_t pkt_pts, int advance_clock)
+{
+    int sample_rate = d->avctx->sample_rate > 0 ? d->avctx->sample_rate : 48000;
+    memset(buf + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    av_frame_unref(frame);
+    frame->buf[0] = av_buffer_create(buf, (size_t) size + AV_INPUT_BUFFER_PADDING_SIZE,
+                                     av_buffer_default_free, NULL, 0);
+    if (!frame->buf[0]) {
+        av_free(buf);
+        return AVERROR(ENOMEM);
+    }
+    frame->data[0] = frame->buf[0]->data;
+    frame->linesize[0] = size;
+    frame->format = AV_SAMPLE_FMT_U8;
+    frame->sample_rate = sample_rate;
+    frame->nb_samples = advance_clock ? 1536 : 0;
+    av_channel_layout_default(&frame->ch_layout, 2);
+    frame->opaque = FS_PASSTHROUGH_FRAME_MAGIC;
+    {
+        AVRational tb = (AVRational){1, frame->sample_rate};
+        if (advance_clock && pkt_pts != AV_NOPTS_VALUE)
+            frame->pts = av_rescale_q(pkt_pts, d->avctx->pkt_timebase, tb);
+        else if (d->next_pts != AV_NOPTS_VALUE)
+            frame->pts = av_rescale_q(d->next_pts, d->next_pts_tb, tb);
+        else
+            frame->pts = AV_NOPTS_VALUE;
+        if (frame->pts != AV_NOPTS_VALUE && advance_clock) {
+            d->next_pts = frame->pts + frame->nb_samples;
+            d->next_pts_tb = tb;
+        }
+    }
+    return 1;
+}
+
+/* IEC mode packs syncframes into one 24576-byte burst. Otherwise one raw syncframe. */
 static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
 {
     for (;;) {
         int at = 0;
         int size;
         int dependent;
-        int channels;
         uint8_t *buf;
         int64_t pkt_pts;
 
@@ -316,6 +355,16 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
             if (!d->pkt->data || d->pkt->size <= 0) {
                 d->finished = d->pkt_serial;
                 av_packet_unref(d->pkt);
+                if (fs_passthrough_is_iec(ffp) && ffp->audio_iec) {
+                    uint8_t *burst = av_malloc(FS_IEC61937_EAC3_BURST_BYTES + AV_INPUT_BUFFER_PADDING_SIZE);
+                    int n;
+                    if (!burst)
+                        return AVERROR(ENOMEM);
+                    n = fs_iec61937_eac3_flush(ffp->audio_iec, burst, FS_IEC61937_EAC3_BURST_BYTES);
+                    if (n > 0)
+                        return fs_passthrough_publish(d, frame, burst, n, AV_NOPTS_VALUE, 1);
+                    av_free(burst);
+                }
                 continue;
             }
             d->passthrough_off = 0;
@@ -327,52 +376,40 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
             d->passthrough_off = 0;
             continue;
         }
-        buf = av_malloc((size_t) size + AV_INPUT_BUFFER_PADDING_SIZE);
-        if (!buf) {
-            av_packet_unref(d->pkt);
-            d->passthrough_off = 0;
-            return AVERROR(ENOMEM);
-        }
-        memcpy(buf, d->pkt->data + at, (size_t) size);
-        memset(buf + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
-        dependent = fs_eac3_frame_is_dependent(buf, size);
         pkt_pts = d->pkt->pts;
+        if (fs_passthrough_is_iec(ffp)) {
+            int n;
+            if (!ffp->audio_iec)
+                ffp->audio_iec = fs_iec61937_eac3_new();
+            if (!ffp->audio_iec)
+                return AVERROR(ENOMEM);
+            buf = av_malloc(FS_IEC61937_EAC3_BURST_BYTES + AV_INPUT_BUFFER_PADDING_SIZE);
+            if (!buf)
+                return AVERROR(ENOMEM);
+            n = fs_iec61937_eac3_push(ffp->audio_iec, d->pkt->data + at, size,
+                                      buf, FS_IEC61937_EAC3_BURST_BYTES);
+            d->passthrough_off = at + size;
+            if (d->passthrough_off >= d->pkt->size) {
+                av_packet_unref(d->pkt);
+                d->passthrough_off = 0;
+            }
+            if (n <= 0) {
+                av_free(buf);
+                continue;
+            }
+            return fs_passthrough_publish(d, frame, buf, n, pkt_pts, 1);
+        }
+        buf = av_malloc((size_t) size + AV_INPUT_BUFFER_PADDING_SIZE);
+        if (!buf)
+            return AVERROR(ENOMEM);
+        memcpy(buf, d->pkt->data + at, (size_t) size);
+        dependent = fs_eac3_frame_is_dependent(buf, size);
         d->passthrough_off = at + size;
         if (d->passthrough_off >= d->pkt->size) {
             av_packet_unref(d->pkt);
             d->passthrough_off = 0;
         }
-        av_frame_unref(frame);
-        frame->buf[0] = av_buffer_create(buf, (size_t) size + AV_INPUT_BUFFER_PADDING_SIZE,
-                                         av_buffer_default_free, NULL, 0);
-        if (!frame->buf[0]) {
-            av_free(buf);
-            return AVERROR(ENOMEM);
-        }
-        frame->data[0] = frame->buf[0]->data;
-        frame->linesize[0] = size;
-        frame->format = AV_SAMPLE_FMT_U8;
-        frame->sample_rate = d->avctx->sample_rate > 0 ? d->avctx->sample_rate : 48000;
-        frame->nb_samples = dependent ? 0 : 1536;
-        channels = d->avctx->ch_layout.nb_channels;
-        if (channels != 6 && channels != 8)
-            channels = 6;
-        av_channel_layout_default(&frame->ch_layout, channels);
-        frame->opaque = FS_PASSTHROUGH_FRAME_MAGIC;
-        {
-            AVRational tb = (AVRational){1, frame->sample_rate};
-            if (!dependent && pkt_pts != AV_NOPTS_VALUE)
-                frame->pts = av_rescale_q(pkt_pts, d->avctx->pkt_timebase, tb);
-            else if (d->next_pts != AV_NOPTS_VALUE)
-                frame->pts = av_rescale_q(d->next_pts, d->next_pts_tb, tb);
-            else
-                frame->pts = AV_NOPTS_VALUE;
-            if (frame->pts != AV_NOPTS_VALUE && !dependent) {
-                d->next_pts = frame->pts + frame->nb_samples;
-                d->next_pts_tb = tb;
-            }
-        }
-        return 1;
+        return fs_passthrough_publish(d, frame, buf, size, pkt_pts, !dependent);
     }
 }
 
@@ -818,6 +855,8 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
         SDL_AoutCloseAudio(ffp->aout);
 
         decoder_destroy(&is->auddec);
+        fs_iec61937_eac3_free(ffp->audio_iec);
+        ffp->audio_iec = NULL;
         swr_free(&is->swr_ctx);
         av_freep(&is->audio_buf1);
         is->audio_buf1_size = 0;
@@ -3495,6 +3534,7 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
             pt_wanted.freq = 48000;
         pt_wanted.samples = 1536;
         {
+            int content_rate = pt_wanted.freq;
             int channel_try[2];
             int nchannel = 0;
             int opened_channels = 0;
@@ -3504,13 +3544,33 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 channel_try[nchannel++] = 2;
             for (ti = 0; ti < norder && !opened; ti++) {
                 int encoding = order[ti];
+                int iec = encoding == FS_ENCODING_IEC61937 || encoding == FS_ENCODING_IEC61937_PCM;
+                if (iec) {
+                    /* IEC 61937 carrier is stereo at 4× the bitstream rate. */
+                    pt_wanted.freq = fs_iec61937_carrier_rate(content_rate);
+                    pt_wanted.channels = 2;
+                    pt_wanted.format = encoding == FS_ENCODING_IEC61937
+                        ? AUDIO_IEC61937 : AUDIO_IEC61937_PCM;
+                    memset(&pt_spec, 0, sizeof(pt_spec));
+                    if (SDL_AoutOpenAudio(ffp->aout, &pt_wanted, &pt_spec) == 0) {
+                        opened = 1;
+                        opened_encoding = encoding;
+                        opened_channels = 2;
+                    } else {
+                        av_log(NULL, AV_LOG_WARNING,
+                               "audio passthrough IEC encoding %d rate %d rejected\n",
+                               encoding, pt_wanted.freq);
+                    }
+                    continue;
+                }
+                pt_wanted.freq = content_rate;
                 if (encoding == FS_ENCODING_AC3)
                     pt_wanted.format = AUDIO_AC3;
                 else if (encoding == FS_ENCODING_E_AC3_JOC)
                     pt_wanted.format = AUDIO_EAC3_JOC;
                 else
                     pt_wanted.format = AUDIO_EAC3;
-                for (ci = 0; ci < nchannel; ci++) {
+                for (ci = 0; ci < nchannel && !opened; ci++) {
                     memset(&pt_spec, 0, sizeof(pt_spec));
                     pt_wanted.channels = channel_try[ci];
                     if (SDL_AoutOpenAudio(ffp->aout, &pt_wanted, &pt_spec) == 0) {
@@ -3531,6 +3591,11 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 av_log(NULL, AV_LOG_INFO,
                        "audio passthrough opened encoding=%d channels=%d rate=%d\n",
                        opened_encoding, opened_channels, pt_spec.freq);
+                if (opened_encoding == FS_ENCODING_IEC61937
+                    || opened_encoding == FS_ENCODING_IEC61937_PCM) {
+                    fs_iec61937_eac3_free(ffp->audio_iec);
+                    ffp->audio_iec = fs_iec61937_eac3_new();
+                }
                 av_channel_layout_uninit(wanted_channel_layout);
                 av_channel_layout_default(wanted_channel_layout, opened_channels > 0 ? opened_channels : 6);
                 audio_hw_params->fmt = AV_SAMPLE_FMT_S16;

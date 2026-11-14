@@ -1,5 +1,6 @@
 #include "fs_passthrough.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static int fs_bit_get(const uint8_t *data, int size, int *bitpos, int nbits)
@@ -78,8 +79,149 @@ int fs_passthrough_open_channels(int container_channels)
 {
     if (container_channels == 8)
         return 8;
-    /* 5.1 is the HDMI layout for this E-AC-3 / Atmos item. */
+    /* 5.1 is the HDMI layout for a raw compressed open. IEC 61937 does not use it. */
     return 6;
+}
+
+int fs_iec61937_carrier_rate(int content_rate)
+{
+    if (content_rate != 32000 && content_rate != 44100 && content_rate != 48000)
+        content_rate = 48000;
+    return content_rate * 4;
+}
+
+struct FsIec61937Eac3 {
+    uint8_t payload[FS_IEC61937_EAC3_BURST_BYTES - 8];
+    int payload_bytes;
+    int units;
+    int units_needed;
+    int active;
+};
+
+FsIec61937Eac3 *fs_iec61937_eac3_new(void)
+{
+    return (FsIec61937Eac3 *) calloc(1, sizeof(FsIec61937Eac3));
+}
+
+void fs_iec61937_eac3_free(FsIec61937Eac3 *st)
+{
+    free(st);
+}
+
+/* FFmpeg spdifenc.c eac3_repeat[]: how many frames fill one 1536-sample period. */
+static int fs_eac3_repeat_count(const uint8_t *frame, int size)
+{
+    static const int repeat_for_blocks[4] = {6, 3, 2, 1};
+    int bsid;
+    int numblkscod;
+    if (!frame || size < 6)
+        return 1;
+    bsid = frame[5] >> 3;
+    if (bsid <= 10)
+        return 1;
+    /* fscod == 3: numblkscod is not in this field; the frame is 6 blocks. */
+    if ((frame[4] & 0xc0) == 0xc0)
+        return 1;
+    numblkscod = (frame[4] >> 4) & 0x3;
+    return repeat_for_blocks[numblkscod];
+}
+
+static int fs_iec_append(FsIec61937Eac3 *st, const uint8_t *frame, int size)
+{
+    if (!st || !frame || size < 4)
+        return 0;
+    if (st->payload_bytes + size > (int) sizeof(st->payload))
+        return 0;
+    memcpy(st->payload + st->payload_bytes, frame, (size_t) size);
+    st->payload_bytes += size;
+    return 1;
+}
+
+static int fs_iec_emit(FsIec61937Eac3 *st, uint8_t *out, int cap)
+{
+    int payload;
+    int i;
+    if (!st || !out || cap < FS_IEC61937_EAC3_BURST_BYTES || st->payload_bytes < 4)
+        return -1;
+    payload = st->payload_bytes & ~1;
+    memset(out, 0, FS_IEC61937_EAC3_BURST_BYTES);
+    /* Pa 0xF872, Pb 0x4E1F, little-endian, same as avio_wl16. */
+    out[0] = 0x72;
+    out[1] = 0xF8;
+    out[2] = 0x1F;
+    out[3] = 0x4E;
+    /* Pc: data-type 21 (E-AC-3). Pd: payload length in bytes, not bits. */
+    out[4] = 21;
+    out[5] = 0;
+    out[6] = (uint8_t) (payload & 0xff);
+    out[7] = (uint8_t) ((payload >> 8) & 0xff);
+    for (i = 0; i + 1 < payload; i += 2) {
+        out[8 + i] = st->payload[i + 1];
+        out[8 + i + 1] = st->payload[i];
+    }
+    st->active = 0;
+    st->payload_bytes = 0;
+    st->units = 0;
+    st->units_needed = 0;
+    return FS_IEC61937_EAC3_BURST_BYTES;
+}
+
+static void fs_iec_begin(FsIec61937Eac3 *st, const uint8_t *frame, int size)
+{
+    st->active = 1;
+    st->payload_bytes = 0;
+    st->units = 0;
+    st->units_needed = fs_eac3_repeat_count(frame, size);
+}
+
+int fs_iec61937_eac3_push(FsIec61937Eac3 *st, const uint8_t *data, int size,
+                          uint8_t *out, int cap)
+{
+    int at = 0;
+    int n;
+    int produced = 0;
+    const uint8_t *frame;
+    if (!st)
+        return -1;
+    n = fs_eac3_next_frame(data, size, 0, &at);
+    if (n < 4 || n > 4096)
+        return -1;
+    frame = data + at;
+    if (fs_eac3_frame_is_dependent(frame, n)) {
+        if (!st->active)
+            return 0;
+        fs_iec_append(st, frame, n);
+        return 0;
+    }
+    if (st->active && st->units >= st->units_needed && st->payload_bytes >= 4) {
+        produced = fs_iec_emit(st, out, cap);
+        if (produced < 0)
+            return produced;
+    }
+    if (!st->active)
+        fs_iec_begin(st, frame, n);
+    if (!fs_iec_append(st, frame, n)) {
+        if (produced == 0 && st->payload_bytes >= 4) {
+            produced = fs_iec_emit(st, out, cap);
+            if (produced < 0)
+                return produced;
+            fs_iec_begin(st, frame, n);
+            if (!fs_iec_append(st, frame, n))
+                return produced > 0 ? produced : -1;
+            st->units = 1;
+            return produced;
+        }
+        return produced > 0 ? produced : -1;
+    }
+    st->units++;
+    return produced;
+}
+
+int fs_iec61937_eac3_flush(FsIec61937Eac3 *st, uint8_t *out, int cap)
+{
+    if (!st || !st->active || st->payload_bytes < 4)
+        return 0;
+    return fs_iec_emit(st, out, cap);
 }
 
 static int fs_dec3_payload_has_dependent(const uint8_t *data, int size)
@@ -161,21 +303,19 @@ int fs_passthrough_open_order(int encoding, int joc, int *out, int cap)
 {
     if (!out || cap <= 0 || encoding == 0)
         return 0;
+    (void) joc;
     if (encoding == FS_ENCODING_AC3) {
         out[0] = FS_ENCODING_AC3;
         return 1;
     }
     if (encoding != FS_ENCODING_E_AC3 && encoding != FS_ENCODING_E_AC3_JOC)
         return 0;
-    if (joc) {
-        out[0] = FS_ENCODING_E_AC3_JOC;
-        if (cap < 2)
-            return 1;
-        out[1] = FS_ENCODING_E_AC3;
-        return 2;
-    }
-    out[0] = FS_ENCODING_E_AC3;
-    return 1;
+    /* Path A (ENCODING_E_AC3 / JOC, raw syncframes) killed the Dune. */
+    out[0] = FS_ENCODING_IEC61937;
+    if (cap < 2)
+        return 1;
+    out[1] = FS_ENCODING_IEC61937_PCM;
+    return 2;
 }
 
 FsPassthroughDecision fs_passthrough_decide(
