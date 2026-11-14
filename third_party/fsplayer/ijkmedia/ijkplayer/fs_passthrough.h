@@ -77,6 +77,12 @@ int fs_iec61937_eac3_flush(FsIec61937Eac3 *st, uint8_t *out, int cap);
 int fs_iec61937_carrier_rate(int content_rate);
 
 /*
+ * Sample rate to open. ENCODING_IEC61937 uses the bitstream rate (48 kHz).
+ * The 4× PCM carrier uses 192 kHz. 13 @ 192 kHz is not an open we try.
+ */
+int fs_iec61937_open_rate(int encoding, int content_rate);
+
+/*
  * Next syncframe at or after [start]. Returns its size, or 0.
  * *at receives the byte offset. Independent and dependent frames are
  * both returned, one at a time, so a glued Atmos packet is not one write.

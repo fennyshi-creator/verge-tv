@@ -111,21 +111,24 @@ object ClientLogUploader {
     }
 
     private fun readLogcat(): String? {
+        val crash = dumpLogcat("crash")
+        val main = dumpLogcat("main")
+        val combined = listOf(crash, main).filter { it.isNotEmpty() }.joinToString("\n")
+        if (combined.isEmpty()) return null
+        val sliced = ClientLogText.sliceCrashLog(combined)
+        return sliced.ifEmpty { null }
+    }
+
+    private fun dumpLogcat(buffer: String): String {
         return try {
-            val process = ProcessBuilder("logcat", "-d", "-t", "400", "-v", "time")
+            val process = ProcessBuilder("logcat", "-d", "-b", buffer, "-v", "time", "-t", "800")
                 .redirectErrorStream(true)
                 .start()
             val text = process.inputStream.bufferedReader().use { it.readText() }
             process.waitFor(2, TimeUnit.SECONDS)
-            text.lineSequence().filter { line ->
-                line.contains("FsPassthrough") ||
-                    line.contains("FATAL") ||
-                    line.contains("Fatal signal") ||
-                    line.contains("tombstone") ||
-                    (line.contains("DEBUG") && (line.contains("signal") || line.contains("backtrace")))
-            }.take(200).joinToString("\n")
+            text
         } catch (_: Throwable) {
-            null
+            ""
         }
     }
 }

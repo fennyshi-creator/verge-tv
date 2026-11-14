@@ -26,9 +26,11 @@ object PlaybackReport {
 
         if (!naturalEnd) {
             if (fileMs > 0L) {
-                if (fromPlayer <= 0L || fromPlayer >= fileMs) {
-                    return saved.coerceAtMost(fileMs - 1_000L).coerceAtLeast(0L)
-                }
+                // A resume already past the file (the stored ~120s) is not a
+                // position. Start at the beginning instead of inventing one
+                // near the end. A resume inside the file is kept.
+                val kept = if (saved in 1 until fileMs) saved else 0L
+                if (fromPlayer <= 0L || fromPlayer >= fileMs) return kept
                 return fromPlayer.coerceAtMost(fileMs - 1_000L)
             }
             if (fromPlayer <= 0L) return saved

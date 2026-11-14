@@ -63,6 +63,7 @@ static jclass g_encoded_audiotrack_class;
 static jmethodID g_encoded_audiotrack_open;
 static jclass g_passthrough_log_class;
 static jmethodID g_passthrough_log_note;
+static jmethodID g_write_burst;
 
 static int audiotrack_format_is_encoded(int format)
 {
@@ -134,6 +135,14 @@ void SDL_Android_AudioTrack_global_init(JNIEnv *env)
         (*env)->ExceptionClear(env);
         ALOGE("FsEncodedAudioTrack.open not found");
         g_encoded_audiotrack_open = NULL;
+    }
+    g_write_burst = (*env)->GetStaticMethodID(
+        env, g_encoded_audiotrack_class, "writeBurst",
+        "(Landroid/media/AudioTrack;[BI)I");
+    if ((*env)->ExceptionCheck(env) || !g_write_burst) {
+        (*env)->ExceptionClear(env);
+        ALOGE("FsEncodedAudioTrack.writeBurst not found");
+        g_write_burst = NULL;
     }
     local = (*env)->FindClass(env, "com/debugly/fsplayer/audio/FsPassthroughLog");
     if ((*env)->ExceptionCheck(env) || !local) {
@@ -418,6 +427,8 @@ int SDL_Android_AudioTrack_get_min_buffer_size(SDL_Android_AudioTrack* atrack)
 void SDL_Android_AudioTrack_play(JNIEnv *env, SDL_Android_AudioTrack *atrack)
 {
     SDLTRACE("%s", __func__);
+    if (!env || !atrack || !atrack->thiz)
+        return;
     J4AC_AudioTrack__play__catchAll(env, atrack->thiz);
 }
 
@@ -470,6 +481,20 @@ int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, ui
     (*env)->SetByteArrayRegion(env, atrack->byte_buffer, 0, (int)size_in_byte, (jbyte*) data);
     if (J4A_ExceptionCheck__catchAll(env))
         return -1;
+
+    if (atrack->spec.burst && g_encoded_audiotrack_class && g_write_burst) {
+        /* short[] write. AudioTrack.write(short[]) returns a sample count. */
+        int samples = (*env)->CallStaticIntMethod(
+            env, g_encoded_audiotrack_class, g_write_burst,
+            atrack->thiz, atrack->byte_buffer, (int) size_in_byte);
+        if (J4A_ExceptionCheck__catchAll(env))
+            return -1;
+        if (samples < 0)
+            return samples;
+        if (samples == size_in_byte / 2)
+            return samples * 2;
+        return samples;
+    }
 
     int retval = J4AC_AudioTrack__write(env, atrack->thiz, atrack->byte_buffer, 0, (int)size_in_byte);
     if (J4A_ExceptionCheck__catchAll(env))

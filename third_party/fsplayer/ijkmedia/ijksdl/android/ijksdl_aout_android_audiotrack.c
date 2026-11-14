@@ -71,6 +71,7 @@ typedef struct SDL_Aout_Opaque {
     volatile bool speed_changed;
     int encoded;
     int encoded_stop;
+    int callback_noted;
 } SDL_Aout_Opaque;
 
 /* One E-AC-3 syncframe: 0x0B77 and frmsiz covering this buffer and nothing else. */
@@ -126,8 +127,14 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
 
     SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
 
-    if (!opaque->abort_request && !opaque->pause_on)
+    if (!opaque->abort_request && !opaque->pause_on) {
+        char line[128];
+        snprintf(line, sizeof(line), "audio play format=0x%x rate=%d channels=%d",
+                 (unsigned) opaque->spec.format, opaque->spec.freq, opaque->spec.channels);
+        SDL_Android_AudioTrack_log(env, line);
         SDL_Android_AudioTrack_play(env, atrack);
+        SDL_Android_AudioTrack_log(env, "audio play returned");
+    }
 
     while (!opaque->abort_request) {
         SDL_LockMutex(opaque->wakeup_mutex);
@@ -141,7 +148,9 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     opaque->need_flush = 0;
                     SDL_Android_AudioTrack_flush(env, atrack);
                 }
+                SDL_Android_AudioTrack_log(env, "audio play resume");
                 SDL_Android_AudioTrack_play(env, atrack);
+                SDL_Android_AudioTrack_log(env, "audio play resume returned");
             }
         }
         if (opaque->need_flush) {
@@ -164,6 +173,14 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
          * a preamble on that encoding would be wrapped twice.
          */
         int request = opaque->encoded ? opaque->buffer_size : copy_size;
+        if (opaque->encoded && !opaque->callback_noted && audio_cblk) {
+            SDL_Android_AudioTrack_log(env, "audio callback entered");
+            opaque->callback_noted = 1;
+        }
+        if (!audio_cblk || !buffer) {
+            SDL_Delay(10);
+            continue;
+        }
         audio_cblk(userdata, buffer, request);
         if (opaque->need_flush) {
             SDL_Android_AudioTrack_flush(env, atrack);

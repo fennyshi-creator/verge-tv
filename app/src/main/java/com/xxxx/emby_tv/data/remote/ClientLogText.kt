@@ -20,6 +20,42 @@ object ClientLogText {
         return cleaned
     }
 
+    /**
+     * Keep FATAL / tombstone context and the frames that follow "backtrace:".
+     * A filter that stops on the header drops every "#00 pc" line.
+     */
+    fun sliceCrashLog(raw: String): String {
+        val kept = ArrayList<String>()
+        var framesLeft = 0
+        for (line in raw.lineSequence()) {
+            if (framesLeft > 0) {
+                val frameLine = line.contains(" pc ") || line.trimStart().startsWith("#")
+                if (frameLine) {
+                    kept.add(line)
+                    framesLeft--
+                    continue
+                }
+                framesLeft = 0
+            }
+            val backtrace = line.contains("backtrace:")
+            val interesting = line.contains("FsPassthrough") ||
+                line.contains("FATAL") ||
+                line.contains("Fatal signal") ||
+                line.contains("tombstone") ||
+                line.contains("crash_dump") ||
+                (line.contains("DEBUG") &&
+                    (line.contains("signal") || line.contains("backtrace") || line.contains(" pc "))) ||
+                (line.contains("#") && line.contains(" pc "))
+            if (backtrace) {
+                kept.add(line)
+                framesLeft = 48
+                continue
+            }
+            if (interesting) kept.add(line)
+        }
+        return kept.take(300).joinToString("\n")
+    }
+
     fun jsonBody(log: String, logcat: String?): String {
         var fileLog = redact(log)
         var cat = logcat?.let { redact(it) } ?: ""

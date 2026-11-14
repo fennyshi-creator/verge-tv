@@ -294,7 +294,10 @@ static int fs_passthrough_is_iec(FFPlayer *ffp)
 static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int size,
                                   int64_t pkt_pts, int advance_clock)
 {
-    int sample_rate = d->avctx->sample_rate > 0 ? d->avctx->sample_rate : 48000;
+    int sample_rate;
+    if (!d || !d->avctx || !frame || !buf || size <= 0)
+        return AVERROR(EINVAL);
+    sample_rate = d->avctx->sample_rate > 0 ? d->avctx->sample_rate : 48000;
     memset(buf + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
     av_frame_unref(frame);
     frame->buf[0] = av_buffer_create(buf, (size_t) size + AV_INPUT_BUFFER_PADDING_SIZE,
@@ -329,6 +332,8 @@ static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int 
 /* IEC mode packs syncframes into one 24576-byte burst. Otherwise one raw syncframe. */
 static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
 {
+    if (!ffp || !d || !d->avctx || !d->pkt || !d->queue || !frame)
+        return -1;
     for (;;) {
         int at = 0;
         int size;
@@ -3039,6 +3044,14 @@ reload:
 #endif
         if (!(af = frame_queue_peek_readable(&is->sampq)))
             return -1;
+        if (ffp->audio_passthrough_on) {
+            /* An empty frame here is a null deref if it falls into swr. */
+            if (!af->frame || af->frame->opaque != FS_PASSTHROUGH_FRAME_MAGIC ||
+                !af->frame->data[0] || af->frame->linesize[0] <= 0) {
+                frame_queue_next(&is->sampq);
+                goto reload;
+            }
+        }
         if (ffp->audio_passthrough_on && af->frame &&
             af->frame->opaque == FS_PASSTHROUGH_FRAME_MAGIC) {
             int bytes = af->frame->linesize[0];
@@ -3308,7 +3321,7 @@ static double consume_audio_buffer(FFPlayer *ffp, double diff)
 static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 {
     FFPlayer *ffp = opaque;
-    if (!ffp) {
+    if (!ffp || !stream || len <= 0) {
         return;
     }
     int audio_size, rest_len = 0;
@@ -3546,8 +3559,9 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 int encoding = order[ti];
                 int iec = encoding == FS_ENCODING_IEC61937 || encoding == FS_ENCODING_IEC61937_PCM;
                 if (iec) {
-                    /* IEC 61937 carrier is stereo at 4× the bitstream rate. */
-                    pt_wanted.freq = fs_iec61937_carrier_rate(content_rate);
+                    /* IEC61937 at the bitstream rate. 192 kHz is the PCM
+                     * carrier only. 13 @ 192 kHz is not opened. */
+                    pt_wanted.freq = fs_iec61937_open_rate(encoding, content_rate);
                     pt_wanted.channels = 2;
                     pt_wanted.format = encoding == FS_ENCODING_IEC61937
                         ? AUDIO_IEC61937 : AUDIO_IEC61937_PCM;
@@ -3603,6 +3617,9 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                 if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0)
                     return -1;
                 audio_hw_params->frame_size = audio_hw_params->ch_layout.nb_channels * 2;
+                /* One E-AC-3 burst is 1536 content samples (32 ms) on the
+                 * frame clock. bytes_per_sec follows the track rate so a
+                 * latency estimate matches what AudioTrack consumes. */
                 audio_hw_params->bytes_per_sec = audio_hw_params->freq * audio_hw_params->frame_size;
                 if (audio_hw_params->bytes_per_sec <= 0)
                     return -1;

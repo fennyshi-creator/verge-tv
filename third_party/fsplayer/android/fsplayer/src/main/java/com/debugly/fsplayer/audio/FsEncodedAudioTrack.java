@@ -6,6 +6,9 @@ import android.media.AudioTrack;
 import android.os.Build;
 import android.util.Log;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 /**
  * Opens an AudioTrack that writes compressed AC-3 / E-AC-3 / E-AC-3 JOC
  * packets. The stock FSPlayer wrapper only knows the PCM constructor.
@@ -21,8 +24,43 @@ public final class FsEncodedAudioTrack {
     public static final int ENCODING_E_AC3 = 6;
     public static final int ENCODING_IEC61937 = 13;
     public static final int ENCODING_E_AC3_JOC = 18;
+    public static final int IEC_BURST_BYTES = 24576;
+    /** Four bursts. 2.0.50's 65568 was not a multiple of the burst. */
+    public static final int IEC_BUFFER_BYTES = IEC_BURST_BYTES * 4;
+
+    private static short[] burstShorts;
 
     private FsEncodedAudioTrack() {
+    }
+
+    /** Round up to a whole number of 24576-byte bursts, at least four. */
+    public static int alignedBurstBuffer(int minBytes) {
+        int base = Math.max(minBytes, IEC_BUFFER_BYTES);
+        int periods = (base + IEC_BURST_BYTES - 1) / IEC_BURST_BYTES;
+        return periods * IEC_BURST_BYTES;
+    }
+
+    /**
+     * IEC 61937 is 16-bit little-endian. write(byte[]) on some HALs converts
+     * or rejects that and has faulted inside the client. write(short[]) does not.
+     * @return samples written, or a negative error. Callers compare against byte size / 2.
+     */
+    public static synchronized int writeBurst(AudioTrack track, byte[] data, int sizeBytes) {
+        if (track == null || data == null || sizeBytes < 2 || sizeBytes > data.length)
+            return -1;
+        int samples = sizeBytes / 2;
+        if (burstShorts == null || burstShorts.length < samples)
+            burstShorts = new short[samples];
+        ByteBuffer.wrap(data, 0, samples * 2)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .asShortBuffer()
+                .get(burstShorts, 0, samples);
+        try {
+            return track.write(burstShorts, 0, samples);
+        } catch (Throwable error) {
+            Log.w(TAG, "short write failed", error);
+            return -1;
+        }
     }
 
     /**
@@ -78,7 +116,9 @@ public final class FsEncodedAudioTrack {
                     + " minBuffer=" + min + " fail");
             return null;
         }
-        int buffer = Math.max(min, encoding == ENCODING_IEC61937 || sampleRate >= 128000 ? 49152 : 65536);
+        boolean burst = encoding == ENCODING_IEC61937
+                || (encoding == ENCODING_PCM_16BIT && sampleRate >= 128000);
+        int buffer = burst ? alignedBurstBuffer(min) : Math.max(min, 65536);
         try {
             AudioTrack track = new AudioTrack.Builder()
                     .setAudioAttributes(attributes)

@@ -55,6 +55,26 @@ class PlaybackReportTest {
     }
 
     @Test
+    fun aResumePastTheMeasuredFileStartsAtTheBeginning() {
+        val fromZero = PlaybackReport.safePositionMs(
+            playerPositionMs = 0L,
+            resumeMs = 120_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 115_000L,
+            naturalEnd = false,
+        )
+        val fromPast = PlaybackReport.safePositionMs(
+            playerPositionMs = 120_000L,
+            resumeMs = 120_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 115_000L,
+            naturalEnd = false,
+        )
+        assertEquals(0L, fromZero)
+        assertEquals(0L, fromPast)
+    }
+
+    @Test
     fun aRealPositionInsideTheFileIsKept() {
         val ms = PlaybackReport.safePositionMs(
             playerPositionMs = 70_000L,

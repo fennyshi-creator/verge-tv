@@ -35,6 +35,24 @@ class ClientLogTextTest {
     }
 
     @Test
+    fun tombstoneFramesAfterBacktraceAreKept() {
+        val raw = """
+            I/FsPassthrough: opened encoded AudioTrack encoding=13
+            F/libc: Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0
+            F/DEBUG: signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0
+            F/DEBUG: backtrace:
+            F/DEBUG: #00 pc 000000000001234 libaudioclient.so (android::AudioTrack::start+32)
+            F/DEBUG: #01 pc 00000000000abcd libfsplayer.so (aout_thread_n+80)
+            I/Other: noise that is not a frame
+        """.trimIndent()
+        val slice = ClientLogText.sliceCrashLog(raw)
+        assertTrue(slice.contains("#00 pc 000000000001234 libaudioclient.so"))
+        assertTrue(slice.contains("#01 pc 00000000000abcd libfsplayer.so"))
+        assertTrue(slice.contains("Fatal signal 11"))
+        assertFalse(slice.contains("noise that is not a frame"))
+    }
+
+    @Test
     fun quotesAndNewlinesAreEscaped() {
         val body = ClientLogText.jsonBody("say \"hi\"\nnext", null)
         assertTrue(body.contains("\\\"hi\\\""))

@@ -90,6 +90,18 @@ int fs_iec61937_carrier_rate(int content_rate)
     return content_rate * 4;
 }
 
+int fs_iec61937_open_rate(int encoding, int content_rate)
+{
+    int content = content_rate;
+    if (content != 32000 && content != 44100 && content != 48000)
+        content = 48000;
+    /* 13 @ 192 kHz opened on this HAL and then SIGSEGV'd. The untried
+     * IEC open is the bitstream rate. 192 kHz is only the PCM carrier. */
+    if (encoding == FS_ENCODING_IEC61937_PCM)
+        return fs_iec61937_carrier_rate(content);
+    return content;
+}
+
 struct FsIec61937Eac3 {
     uint8_t payload[FS_IEC61937_EAC3_BURST_BYTES - 8];
     int payload_bytes;

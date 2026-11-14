@@ -99,6 +99,8 @@ int main(void)
     }
     expect_int("48k carrier", fs_iec61937_carrier_rate(48000), 192000);
     expect_int("unknown carrier", fs_iec61937_carrier_rate(0), 192000);
+    expect_int("iec opens at bitstream rate", fs_iec61937_open_rate(FS_ENCODING_IEC61937, 48000), 48000);
+    expect_int("pcm carrier opens at 4x", fs_iec61937_open_rate(FS_ENCODING_IEC61937_PCM, 48000), 192000);
     expect_int("5.1 mask", fs_passthrough_open_channels(6), 6);
     expect_int("stereo container still opens 5.1", fs_passthrough_open_channels(2), 6);
     expect_int("7.1 mask", fs_passthrough_open_channels(8), 8);
