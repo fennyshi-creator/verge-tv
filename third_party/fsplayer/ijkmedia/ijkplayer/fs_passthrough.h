@@ -37,6 +37,19 @@ typedef struct FsPassthroughDecision {
 int fs_eac3_frame_is_dependent(const uint8_t *data, int size);
 
 /*
+ * Bytes of one E-AC-3 syncframe, or 0 if [data] is not a syncframe.
+ * frmsiz counts 16-bit words minus one.
+ */
+int fs_eac3_frame_bytes(const uint8_t *data, int size);
+
+/*
+ * Copy one independent syncframe plus any dependent frames that follow it
+ * in the same packet. A lone dependent frame, or bytes that are not a
+ * syncframe, returns 0 so the HDMI decoder is never handed that buffer.
+ */
+int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap);
+
+/*
  * 1 if ISO/IEC 14496-3 EC3SpecificBox (dec3) or a leading syncframe says a
  * dependent substream is present. A dependent E-AC-3 substream is how JOC
  * objects ride along with the independent frame.

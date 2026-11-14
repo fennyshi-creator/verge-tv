@@ -311,13 +311,20 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
         }
 
         size = d->pkt->size;
-        dependent = fs_eac3_frame_is_dependent(d->pkt->data, size);
+        if (size > 48 * 1024)
+            size = 48 * 1024;
         buf = av_malloc((size_t) size + AV_INPUT_BUFFER_PADDING_SIZE);
         if (!buf) {
             av_packet_unref(d->pkt);
             return AVERROR(ENOMEM);
         }
-        memcpy(buf, d->pkt->data, (size_t) size);
+        size = fs_eac3_passthrough_payload(d->pkt->data, d->pkt->size, buf, size);
+        if (size <= 0) {
+            av_free(buf);
+            av_packet_unref(d->pkt);
+            continue;
+        }
+        dependent = 0;
         memset(buf + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
         av_frame_unref(frame);
         frame->buf[0] = av_buffer_create(buf, (size_t) size + AV_INPUT_BUFFER_PADDING_SIZE,

@@ -360,7 +360,15 @@ class FsPlayback(private val appContext: Context) {
     private fun wire(player: FSPlayer) {
         player.setOnPreparedListener {
             if (engine !== player) return@setOnPreparedListener
-            val resume = startMs
+            val mediaDuration = try {
+                player.duration
+            } catch (_: Exception) {
+                0L
+            }
+            // A resume point past the real file (stale Emby runtime, or a
+            // short HLS probe) seeks off the end: one frame, then the player
+            // dies. Stay at the start instead.
+            val resume = if (mediaDuration > 0L && startMs >= mediaDuration - 1_500L) 0L else startMs
             if (resume > 0L) player.seekTo(resume)
             setState(STATE_READY)
             dispatchVideoDecoder("mediacodec")

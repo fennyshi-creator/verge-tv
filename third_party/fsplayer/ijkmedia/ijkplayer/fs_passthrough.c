@@ -1,5 +1,7 @@
 #include "fs_passthrough.h"
 
+#include <string.h>
+
 static int fs_bit_get(const uint8_t *data, int size, int *bitpos, int nbits)
 {
     int value = 0;
@@ -26,6 +28,53 @@ int fs_eac3_frame_is_dependent(const uint8_t *data, int size)
     if (data[0] != 0x0B || data[1] != 0x77)
         return 0;
     return ((data[2] >> 6) & 0x3) == 1;
+}
+
+int fs_eac3_frame_bytes(const uint8_t *data, int size)
+{
+    int frmsiz;
+    int bytes;
+    if (!data || size < 4)
+        return 0;
+    if (data[0] != 0x0B || data[1] != 0x77)
+        return 0;
+    frmsiz = ((data[2] & 0x07) << 8) | data[3];
+    bytes = (frmsiz + 1) * 2;
+    if (bytes < 4 || bytes > size)
+        return 0;
+    return bytes;
+}
+
+int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap)
+{
+    int i;
+    int copied = 0;
+    int saw_independent = 0;
+    if (!data || size < 4 || !out || cap < 4)
+        return 0;
+    for (i = 0; i + 4 <= size; i++) {
+        int n;
+        int dependent;
+        if (data[i] != 0x0B || data[i + 1] != 0x77)
+            continue;
+        n = fs_eac3_frame_bytes(data + i, size - i);
+        if (n <= 0)
+            return copied;
+        dependent = fs_eac3_frame_is_dependent(data + i, n);
+        if (!saw_independent) {
+            if (dependent)
+                return 0;
+            saw_independent = 1;
+        } else if (!dependent) {
+            return copied;
+        }
+        if (copied + n > cap)
+            return copied;
+        memcpy(out + copied, data + i, (size_t) n);
+        copied += n;
+        i += n - 1;
+    }
+    return copied;
 }
 
 static int fs_dec3_payload_has_dependent(const uint8_t *data, int size)

@@ -626,6 +626,17 @@ fun PlayerScreen(
 
     val player = remember { FsPlayback(context.applicationContext) }
 
+    fun safeReportMs(rawMs: Long, naturalEnd: Boolean = false): Long {
+        val runtimeMs = (media.mediaSources?.firstOrNull()?.runTimeTicks ?: 0L) / 10_000L
+        return com.xxxx.emby_tv.ui.player.PlaybackReport.safePositionMs(
+            playerPositionMs = rawMs,
+            resumeMs = playbackPositionTicks / 10_000L,
+            runtimeMs = runtimeMs,
+            playerDurationMs = duration,
+            naturalEnd = naturalEnd,
+        )
+    }
+
     fun playbackHeaders(): Map<String, String> {
         return mapOf(
             "User-Agent" to "${EmbyApi.CLIENT}/${CLIENT_VERSION}",
@@ -1237,7 +1248,7 @@ fun PlayerScreen(
                         playerViewModel.reportProgress(
                             mediaId = mediaId,
                             media = media,
-                            position = position,
+                            position = safeReportMs(position),
                             selectedSubtitleIndex = selectedSubtitleIndex,
                             selectedAudioIndex = selectedAudioIndex
                         )
@@ -1258,7 +1269,7 @@ fun PlayerScreen(
                 playerViewModel.reportPlaying(
                     mediaId = mediaId,
                     media = media,
-                    position = position,
+                    position = safeReportMs(position),
                     selectedSubtitleIndex = selectedSubtitleIndex,
                     selectedAudioIndex = selectedAudioIndex,
                     playbackRate = playbackSpeed
@@ -1445,24 +1456,17 @@ fun PlayerScreen(
                     FsPlayback.STATE_ENDED -> {
                         isBuffering = false
                         onPlaybackStateChanged(false)
-                        // A passthrough failure can look like an immediate end.
-                        // Reopen on the PCM decoder instead of leaving the title.
-                        if (position < 2_500L && audioRecoveryStage == 0 && player.passthroughEnabled) {
-                            audioRecoveryStage = 1
-                            Log.w(AUDIO_RECOVERY_TAG, "播放刚结束，改为 PCM 重开而不是退出")
-                            player.forcePcm(0L)
-                            return
-                        }
                         if (playMode == 1) {
                             player.seekTo(0)
                             player.play()
                         } else if (playMode == 0 && mediaInfo.seriesId != null) {
                             if (!endedHandled) endedHandled = true
                         } else {
+                            val finished = duration > 0L && position >= duration - 5_000L
                             playerViewModel.reportStopped(
                                 mediaId = mediaId,
                                 media = media,
-                                position = position,
+                                position = safeReportMs(position, naturalEnd = finished),
                                 selectedSubtitleIndex = selectedSubtitleIndex,
                                 selectedAudioIndex = selectedAudioIndex,
                                 playbackRate = playbackSpeed
@@ -1515,7 +1519,7 @@ fun PlayerScreen(
             playerViewModel.reportStopped(
                 mediaId = mediaId,
                 media = media,
-                position = position,
+                position = safeReportMs(position),
                 selectedSubtitleIndex = selectedSubtitleIndex,
                 selectedAudioIndex = selectedAudioIndex,
                 playbackRate = playbackSpeed

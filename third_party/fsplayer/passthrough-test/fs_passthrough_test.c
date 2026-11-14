@@ -95,6 +95,30 @@ int main(void)
     d = fs_passthrough_decide(1, 1, FS_CODEC_ID_TRUEHD, 0, 0, 0, NULL, 0);
     expect_int("truehd reject is not a fallback", d.fallback_pcm, 0);
 
+    {
+        uint8_t packet[16];
+        uint8_t out[16];
+        int n;
+        memset(packet, 0, sizeof(packet));
+        /* 8-byte independent frame: frmsiz = 3 -> (3+1)*2 = 8. */
+        packet[0] = 0x0B;
+        packet[1] = 0x77;
+        packet[2] = 0x00;
+        packet[3] = 0x03;
+        /* 8-byte dependent frame glued on. strmtyp = 1. */
+        packet[8] = 0x0B;
+        packet[9] = 0x77;
+        packet[10] = 0x40;
+        packet[11] = 0x03;
+        n = fs_eac3_passthrough_payload(packet, 16, out, 16);
+        expect_int("independent plus dependent", n, 16);
+        n = fs_eac3_passthrough_payload(packet + 8, 8, out, 16);
+        expect_int("lone dependent is dropped", n, 0);
+        packet[0] = 0x00;
+        n = fs_eac3_passthrough_payload(packet, 8, out, 16);
+        expect_int("non sync is dropped", n, 0);
+    }
+
     if (g_failed) {
         fprintf(stderr, "%d assertion(s) failed\n", g_failed);
         return 1;
