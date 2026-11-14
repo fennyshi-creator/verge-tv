@@ -16,6 +16,7 @@
 #define FS_DIAG_SLEEP_BYTE_CAP 1
 #define FS_DIAG_SLEEP_ENOUGH   2
 #define FS_DIAG_SLEEP_BOTH     3
+#define FS_DIAG_SLEEP_HARD_CAP 4
 
 /* About one quarter second of this E-AC-3 stream. Below this, IEC playback
  * does not sleep just because the soft queue cap is full. */
@@ -43,6 +44,9 @@ typedef struct FsDiagSleep {
     int audio_pkts1, audio_qbytes1, video_pkts1, video_qbytes1;
     int cap;
     int sub_added;
+    int64_t queue_sum;
+    int64_t soft_cap;
+    int64_t hard_cap;
 } FsDiagSleep;
 
 typedef struct FsDiagAudio {
@@ -84,7 +88,33 @@ int fs_diag_sleep_observe(FsDiagSleep *st, int session, int64_t epoch_us,
                           int audio_pkts, int audio_qbytes,
                           int video_pkts, int video_qbytes,
                           int cap, int sub_added,
+                          int64_t queue_sum, int64_t soft_cap, int64_t hard_cap,
                           char *out, int out_cap);
+
+/* 1 = the refresh would pin the current picture. IEC playback must not. */
+int fs_video_nan_hold_would(int audio_master, int stepping, int seek_step,
+                            int accurate_seek, int clock_nan, int audio_finished,
+                            double frame_pts, int64_t audio_duration);
+int fs_video_wait_for_audio_clock(int audio_master, int stepping, int seek_step,
+                                  int accurate_seek, int clock_nan, int iec_on,
+                                  int audio_finished, double frame_pts,
+                                  int64_t audio_duration);
+
+/*
+ * burst_end_sec is the content PTS at the end of the burst just removed
+ * from the frame queue and accepted by AudioTrack (start + 1536/48000).
+ * Frames still in that queue are later than this burst, so they are not
+ * subtracted. latency_sec is the configured output latency, an estimate.
+ * A short or failed write does not advance. Returns milliseconds.
+ */
+int fs_iec_clock_anchor_ms(double burst_end_sec, int pts_valid, int written,
+                           int full_bytes, double latency_sec, long long *out_ms);
+/* 1 = no accepted write for longer than the latency plus the 128 ms track buffer. */
+int fs_iec_underrun_hold(int64_t age_us, double latency_sec);
+/* User pause wins. Otherwise freeze only after a real gap with a published clock. */
+int fs_iec_audclk_paused(int user_paused, int have_write, int64_t age_us, double latency_sec);
+int fs_clock_serial_matches(int clock_serial, int queue_serial);
+void fs_iec_audclk_on_write(void *player, int written);
 int fs_diag_sleep_close(FsDiagSleep *st, int session, int64_t epoch_us,
                         int64_t now_us, char *out, int out_cap);
 

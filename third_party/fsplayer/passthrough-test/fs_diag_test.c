@@ -36,11 +36,11 @@ static void test_sleep_chain(void)
     int produced;
     fs_diag_sleep_reset(&st);
     produced = fs_diag_sleep_observe(&st, 7, 1000000, FS_DIAG_SLEEP_BYTE_CAP,
-                                     1000000, 0, 0, 40, 20000000, 28000000, 0,
+                                     1000000, 0, 0, 40, 20000000, 28000000, 0, 0, 0, 0,
                                      line, (int) sizeof(line));
     expect_int("first 10ms sleep is not a line", produced, 0);
     produced = fs_diag_sleep_observe(&st, 7, 1000000, FS_DIAG_SLEEP_BYTE_CAP,
-                                     1010000, 0, 0, 30, 15000000, 28000000, 0,
+                                     1010000, 0, 0, 30, 15000000, 28000000, 0, 0, 0, 0,
                                      line, (int) sizeof(line));
     expect_int("chain does not log yet", produced, 0);
     produced = fs_diag_sleep_close(&st, 7, 1000000, 1020000, line, (int) sizeof(line));
@@ -60,7 +60,7 @@ static void test_short_sleep_dropped(void)
     char line[640];
     fs_diag_sleep_reset(&st);
     fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_ENOUGH, 0,
-                          1, 3080, 1, 1000, 5000000, 0, line, (int) sizeof(line));
+                          1, 3080, 1, 1000, 5000000, 0, 0, 0, 0, line, (int) sizeof(line));
     expect_int("under 20ms", fs_diag_sleep_close(&st, 1, 0, 10000, line, (int) sizeof(line)), 0);
 }
 
@@ -71,11 +71,11 @@ static void test_reason_split(void)
     int produced;
     fs_diag_sleep_reset(&st);
     fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_BYTE_CAP, 0,
-                          0, 0, 10, 100, 50, 0, line, (int) sizeof(line));
+                          0, 0, 10, 100, 50, 0, 0, 0, 0, line, (int) sizeof(line));
     fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_BYTE_CAP, 30000,
-                          0, 0, 10, 100, 50, 0, line, (int) sizeof(line));
+                          0, 0, 10, 100, 50, 0, 0, 0, 0, line, (int) sizeof(line));
     produced = fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_ENOUGH, 40000,
-                                     5, 1000, 10, 100, 50, 0, line, (int) sizeof(line));
+                                     5, 1000, 10, 100, 50, 0, 0, 0, 0, line, (int) sizeof(line));
     expect_int("reason change closes the chain", produced, 1);
     expect_has("closed reason", line, "reason=byte_cap");
     expect_has("both name", fs_diag_sleep_reason(FS_DIAG_SLEEP_BOTH), "both");
@@ -90,12 +90,12 @@ static void test_gap_breaks_chain(void)
     int produced;
     fs_diag_sleep_reset(&st);
     fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_BYTE_CAP, 0,
-                          0, 0, 1, 1, 1, 0, line, (int) sizeof(line));
+                          0, 0, 1, 1, 1, 0, 0, 0, 0, line, (int) sizeof(line));
     fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_BYTE_CAP, 30000,
-                          0, 0, 1, 1, 1, 0, line, (int) sizeof(line));
+                          0, 0, 1, 1, 1, 0, 0, 0, 0, line, (int) sizeof(line));
     produced = fs_diag_sleep_observe(&st, 1, 0, FS_DIAG_SLEEP_BYTE_CAP,
                                      30000 + FS_DIAG_SLEEP_CHAIN_GAP_US + 1,
-                                     0, 0, 1, 1, 1, 0, line, (int) sizeof(line));
+                                     0, 0, 1, 1, 1, 0, 0, 0, 0, line, (int) sizeof(line));
     expect_int("a gap is not one 10ms chain", produced, 1);
     expect_has("old sleeps", line, "sleeps=2");
 }
@@ -189,6 +189,46 @@ static void test_reader_sleep(void)
                fs_reader_should_sleep(1, 0, 0, 0, 1, 0, 0, over, soft, hard, 1), 0);
 }
 
+static void test_video_hold_and_clock(void)
+{
+    long long ms = 0;
+    expect_int("aac nan master still holds",
+               fs_video_wait_for_audio_clock(1, 0, 0, 0, 1, 0, 0, 8.0, 120), 1);
+    expect_int("iec nan master does not hold",
+               fs_video_wait_for_audio_clock(1, 0, 0, 0, 1, 1, 0, 97.6, 120), 0);
+    expect_int("the same situation would have held",
+               fs_video_nan_hold_would(1, 0, 0, 0, 1, 0, 97.6, 120), 1);
+    expect_int("empty audio duration does not hold",
+               fs_video_nan_hold_would(1, 0, 0, 0, 1, 0, 97.6, 1), 0);
+    expect_int("valid clock does not hold",
+               fs_video_nan_hold_would(1, 0, 0, 0, 0, 0, 97.6, 120), 0);
+    expect_int("burst end kept when latency is zero",
+               fs_iec_clock_anchor_ms(119.0, 1, 24576, 24576, 0.0, &ms), 1);
+    expect_int("anchor ms", (int) ms, 119000);
+    expect_int("configured latency is subtracted",
+               fs_iec_clock_anchor_ms(119.0, 1, 24576, 24576, 0.064, &ms), 1);
+    expect_int("about 64 ms earlier", (int) ms > 118930 && (int) ms < 118940, 1);
+    expect_int("short write does not advance",
+               fs_iec_clock_anchor_ms(119.729, 1, 1000, 24576, 0.064, &ms), 0);
+    expect_int("missing pts does not advance",
+               fs_iec_clock_anchor_ms(119.729, 0, 24576, 24576, 0.064, &ms), 0);
+    expect_int("normal gap does not freeze",
+               fs_iec_underrun_hold(50 * 1000, 0.064), 0);
+    expect_int("drained sink freezes",
+               fs_iec_underrun_hold(300 * 1000, 0.064), 1);
+    expect_int("user pause stays paused",
+               fs_iec_audclk_paused(1, 1, 10 * 1000, 0.064), 1);
+    expect_int("resume with fresh writes runs",
+               fs_iec_audclk_paused(0, 1, 10 * 1000, 0.064), 0);
+    expect_int("resume into a drained sink stays held",
+               fs_iec_audclk_paused(0, 1, 300 * 1000, 0.064), 1);
+    expect_int("no clock yet does not hold",
+               fs_iec_audclk_paused(0, 0, 300 * 1000, 0.064), 0);
+    expect_int("old serial is hidden", fs_clock_serial_matches(2, 3), 0);
+    expect_int("current serial is visible", fs_clock_serial_matches(3, 3), 1);
+    expect_has("hard cap name", fs_diag_sleep_reason(FS_DIAG_SLEEP_HARD_CAP), "hard_cap");
+}
+
 static void test_write_stamp(void)
 {
     long long since = 0;
@@ -210,6 +250,7 @@ int main(void)
     test_counters();
     test_clocks_and_read();
     test_reader_sleep();
+    test_video_hold_and_clock();
     test_write_stamp();
     if (failed) {
         fprintf(stderr, "fs_diag_test failed\n");

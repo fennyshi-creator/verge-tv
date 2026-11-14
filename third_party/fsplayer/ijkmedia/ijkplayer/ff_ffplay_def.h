@@ -617,6 +617,8 @@ typedef struct FFPlayer {
     int diag_session;
     int64_t diag_epoch_us;
     int64_t diag_last_snapshot_us;
+    int64_t iec_clock_write_us;
+    int iec_clock_set;
     FsDiagSleep diag_sleep;
     FsDiagAudio diag_audio;
 
@@ -803,6 +805,8 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->diag_session                   = 0;
     ffp->diag_epoch_us                  = 0;
     ffp->diag_last_snapshot_us          = 0;
+    ffp->iec_clock_write_us             = 0;
+    ffp->iec_clock_set                  = 0;
     fs_diag_sleep_reset(&ffp->diag_sleep);
     fs_diag_audio_reset(&ffp->diag_audio);
 

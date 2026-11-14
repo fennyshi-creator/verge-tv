@@ -365,6 +365,8 @@ static int fs_passthrough_is_iec(FFPlayer *ffp)
 }
 
 static double get_clock(Clock *c);
+static void set_clock(Clock *c, double pts, int serial);
+static int get_master_sync_type(VideoState *is);
 
 static int fs_diag_iec_on(FFPlayer *ffp)
 {
@@ -444,6 +446,30 @@ static void fs_diag_log_snapshot(FFPlayer *ffp, const char *kind)
             snprintf(line + used, sizeof(line) - used, " sampq_frames=%d %s", sampq, clocks);
     }
     fs_passthrough_log_line(line);
+    if (!ffp->is)
+        return;
+    {
+        char video[512];
+        int pictq = frame_queue_nb_remaining(&ffp->is->pictq);
+        int vpkt = 0;
+        int vbytes = 0;
+        int hold;
+        double frame_pts = pictq > 0 ? 1.0 : 0.0;
+        packet_queue_peek_stats(&ffp->is->videoq, &vpkt, &vbytes);
+        hold = fs_video_nan_hold_would(
+            get_master_sync_type(ffp->is) == AV_SYNC_AUDIO_MASTER,
+            0, 0, ffp->is->audio_accurate_seek_req,
+            !aud_valid,
+            ffp->is->auddec.finished == ffp->is->audioq.serial,
+            frame_pts, ffp->is->audioq.duration);
+        snprintf(video, sizeof(video),
+                 "diag session=%d t=%lld epoch=session kind=video hold_would=%d pictq=%d "
+                 "video_pkts=%d video_qbytes=%d drop_early=%d drop_late=%d aud_serial=%d %s",
+                 ffp->diag_session, (long long) fs_diag_session_ms(now), hold, pictq,
+                 vpkt, vbytes, ffp->is->frame_drops_early, ffp->is->frame_drops_late,
+                 ffp->is->audclk.clock_serial, clocks);
+        fs_passthrough_log_line(video);
+    }
 }
 
 static void fs_diag_maybe_second(FFPlayer *ffp)
@@ -456,6 +482,40 @@ static void fs_diag_maybe_second(FFPlayer *ffp)
         return;
     ffp->diag_last_snapshot_us = now;
     fs_diag_log_snapshot(ffp, "sec");
+}
+
+void fs_iec_audclk_on_write(void *player, int written)
+{
+    FFPlayer *ffp = (FFPlayer *) player;
+    VideoState *is;
+    double latency;
+    long long anchor_ms;
+    if (!fs_diag_iec_on(ffp) || !ffp->is)
+        return;
+    is = ffp->is;
+    latency = ffp->aout ? SDL_AoutGetLatencySeconds(ffp->aout) : 0.0;
+    if (!fs_iec_clock_anchor_ms(is->audio_clock, !isnan(is->audio_clock), written,
+                                FS_IEC61937_EAC3_BURST_BYTES, latency, &anchor_ms))
+        return;
+    set_clock(&is->audclk, anchor_ms / 1000.0, is->audioq.serial);
+    is->audclk.paused = is->paused ? 1 : 0;
+    ffp->iec_clock_write_us = fs_diag_mono_us();
+    ffp->iec_clock_set = 1;
+}
+
+static void fs_iec_hold_drained_clock(FFPlayer *ffp)
+{
+    VideoState *is;
+    double latency;
+    int64_t age;
+    if (!fs_diag_iec_on(ffp) || !ffp->is)
+        return;
+    is = ffp->is;
+    if (is->paused || !ffp->iec_clock_set)
+        return;
+    latency = ffp->aout ? SDL_AoutGetLatencySeconds(ffp->aout) : 0.0;
+    age = fs_diag_mono_us() - ffp->iec_clock_write_us;
+    is->audclk.paused = fs_iec_audclk_paused(0, 1, age, latency);
 }
 
 static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int size,
@@ -1628,12 +1688,16 @@ retry:
              video and audio pts are NAN,usually video is firstly display,at this time video picture delay is zero, so we wait until audio clock right,because we need use auido sync video.
              check audioq.duration avoid video picture wait audio forever.
              */
-            if (!is->step_on_seeking && !is->step && get_master_sync_type(is) == AV_SYNC_AUDIO_MASTER && !is->audio_accurate_seek_req) {
-                if (is->audio_stream >= 0 && isnan(get_master_clock(is)) && is->auddec.finished != is->audioq.serial && vp->pts > 0 && is->audioq.duration > 1) {
-                    av_usleep(1000);
-                    av_log(NULL,AV_LOG_DEBUG,"wait master clock,video pts is:%0.3f,serial:%d\n", vp->pts, vp->frame_serial);
-                    goto display;
-                }
+            fs_iec_hold_drained_clock(ffp);
+            if (fs_video_wait_for_audio_clock(
+                    get_master_sync_type(is) == AV_SYNC_AUDIO_MASTER,
+                    is->step, is->step_on_seeking, is->audio_accurate_seek_req,
+                    isnan(get_master_clock(is)), fs_diag_iec_on(ffp),
+                    is->audio_stream >= 0 && is->auddec.finished == is->audioq.serial,
+                    vp->pts, is->audioq.duration)) {
+                av_usleep(1000);
+                av_log(NULL,AV_LOG_DEBUG,"wait master clock,video pts is:%0.3f,serial:%d\n", vp->pts, vp->frame_serial);
+                goto display;
             }
             
             /* compute nominal last_duration */
@@ -5179,6 +5243,7 @@ static int read_thread(void *arg)
                             media = 0;
                         fs_diag_audio_add_seek_flush(&ffp->diag_audio, nb, media);
                     }
+                    ffp->iec_clock_set = 0;
                     packet_queue_flush(&is->audioq);
                 }
                 if (is->video_stream >= 0) {
@@ -5298,15 +5363,16 @@ static int read_thread(void *arg)
             if (should_sleep) {
                 if (fs_diag_iec_on(ffp)) {
                     int ap = 0, ab = 0, vp = 0, vb = 0;
-                    int cap_hit = byte_over || queue_sum >= MAX_QUEUE_SIZE;
-                    int reason = (cap_hit && enough) ? FS_DIAG_SLEEP_BOTH
-                        : cap_hit ? FS_DIAG_SLEEP_BYTE_CAP : FS_DIAG_SLEEP_ENOUGH;
+                    int reason = queue_sum >= MAX_QUEUE_SIZE ? FS_DIAG_SLEEP_HARD_CAP
+                        : (byte_over && enough) ? FS_DIAG_SLEEP_BOTH
+                        : byte_over ? FS_DIAG_SLEEP_BYTE_CAP : FS_DIAG_SLEEP_ENOUGH;
                     char line[640];
                     packet_queue_peek_stats(&is->audioq, &ap, &ab);
                     packet_queue_peek_stats(&is->videoq, &vp, &vb);
                     if (fs_diag_sleep_observe(&ffp->diag_sleep, ffp->diag_session, ffp->diag_epoch_us,
                                               reason, fs_diag_mono_us(),
                                               ap, ab, vp, vb, cap_bytes, sub_added,
+                                              queue_sum, cap_bytes, MAX_QUEUE_SIZE,
                                               line, (int) sizeof(line)))
                         fs_passthrough_log_line_buffered(line);
                 }

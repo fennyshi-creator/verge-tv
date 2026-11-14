@@ -279,6 +279,10 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     if (written > 0) {
                         opaque->cum_bytes += written;
                         fs_diag_mark_write(begin_us, opaque->gap_end_us, written);
+                        if (written == payload &&
+                            (opaque->spec.format == AUDIO_IEC61937 ||
+                             opaque->spec.format == AUDIO_IEC61937_PCM))
+                            fs_iec_audclk_on_write(userdata, written);
                     }
                 }
                 if (sample || written < 0 || written != payload) {

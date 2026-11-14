@@ -65,8 +65,70 @@ const char *fs_diag_sleep_reason(int reason)
     case FS_DIAG_SLEEP_BYTE_CAP: return "byte_cap";
     case FS_DIAG_SLEEP_ENOUGH: return "enough_packets";
     case FS_DIAG_SLEEP_BOTH: return "both";
+    case FS_DIAG_SLEEP_HARD_CAP: return "hard_cap";
     default: return "none";
     }
+}
+
+int fs_video_nan_hold_would(int audio_master, int stepping, int seek_step,
+                            int accurate_seek, int clock_nan, int audio_finished,
+                            double frame_pts, int64_t audio_duration)
+{
+    if (seek_step || stepping || !audio_master || accurate_seek)
+        return 0;
+    if (clock_nan && !audio_finished && frame_pts > 0.0 && audio_duration > 1)
+        return 1;
+    return 0;
+}
+
+int fs_video_wait_for_audio_clock(int audio_master, int stepping, int seek_step,
+                                  int accurate_seek, int clock_nan, int iec_on,
+                                  int audio_finished, double frame_pts,
+                                  int64_t audio_duration)
+{
+    if (iec_on)
+        return 0;
+    return fs_video_nan_hold_would(audio_master, stepping, seek_step, accurate_seek,
+                                   clock_nan, audio_finished, frame_pts, audio_duration);
+}
+
+int fs_iec_clock_anchor_ms(double burst_end_sec, int pts_valid, int written,
+                           int full_bytes, double latency_sec, long long *out_ms)
+{
+    double played;
+    if (!out_ms || !pts_valid || full_bytes <= 0 || written != full_bytes)
+        return 0;
+    if (latency_sec < 0.0 || latency_sec > 1.0)
+        latency_sec = 0.0;
+    played = burst_end_sec - latency_sec;
+    *out_ms = (long long) (played * 1000.0);
+    return 1;
+}
+
+int fs_iec_underrun_hold(int64_t age_us, double latency_sec)
+{
+    double limit;
+    if (age_us < 0)
+        return 0;
+    if (latency_sec < 0.0)
+        latency_sec = 0.0;
+    /* Configured latency plus the 98304-byte track (4 bursts at 768000 B/s). */
+    limit = latency_sec + (4.0 * 24576.0 / 768000.0);
+    return age_us > (int64_t) (limit * 1000000.0);
+}
+
+int fs_iec_audclk_paused(int user_paused, int have_write, int64_t age_us, double latency_sec)
+{
+    if (user_paused)
+        return 1;
+    if (!have_write)
+        return 0;
+    return fs_iec_underrun_hold(age_us, latency_sec);
+}
+
+int fs_clock_serial_matches(int clock_serial, int queue_serial)
+{
+    return clock_serial == queue_serial;
 }
 
 void fs_diag_sleep_reset(FsDiagSleep *st)
@@ -89,19 +151,21 @@ static int fs_diag_sleep_format(const FsDiagSleep *st, int session, int64_t epoc
     snprintf(out, (size_t) out_cap,
              "diag session=%d t=%lld epoch=session read_sleep reason=%s span_ms=%lld sleeps=%d "
              "audio_pkts=%d->%d audio_qbytes=%d->%d video_pkts=%d->%d video_qbytes=%d->%d "
-             "cap=%d sub_added=%d",
+             "cap=%d sub_added=%d sum=%lld soft=%lld hard=%lld",
              session, (long long) t_ms, fs_diag_sleep_reason(st->reason),
              (long long) (span_us / 1000), st->sleeps,
              st->audio_pkts0, st->audio_pkts1, st->audio_qbytes0, st->audio_qbytes1,
              st->video_pkts0, st->video_pkts1, st->video_qbytes0, st->video_qbytes1,
-             st->cap, st->sub_added);
+             st->cap, st->sub_added,
+             (long long) st->queue_sum, (long long) st->soft_cap, (long long) st->hard_cap);
     return 1;
 }
 
 static void fs_diag_sleep_begin(FsDiagSleep *st, int reason, int64_t now_us,
                                 int audio_pkts, int audio_qbytes,
                                 int video_pkts, int video_qbytes,
-                                int cap, int sub_added)
+                                int cap, int sub_added,
+                                int64_t queue_sum, int64_t soft_cap, int64_t hard_cap)
 {
     memset(st, 0, sizeof(*st));
     st->active = 1;
@@ -115,6 +179,9 @@ static void fs_diag_sleep_begin(FsDiagSleep *st, int reason, int64_t now_us,
     st->video_qbytes0 = st->video_qbytes1 = video_qbytes;
     st->cap = cap;
     st->sub_added = sub_added;
+    st->queue_sum = queue_sum;
+    st->soft_cap = soft_cap;
+    st->hard_cap = hard_cap;
 }
 
 int fs_diag_sleep_observe(FsDiagSleep *st, int session, int64_t epoch_us,
@@ -122,6 +189,7 @@ int fs_diag_sleep_observe(FsDiagSleep *st, int session, int64_t epoch_us,
                           int audio_pkts, int audio_qbytes,
                           int video_pkts, int video_qbytes,
                           int cap, int sub_added,
+                          int64_t queue_sum, int64_t soft_cap, int64_t hard_cap,
                           char *out, int out_cap)
 {
     int produced = 0;
@@ -133,7 +201,8 @@ int fs_diag_sleep_observe(FsDiagSleep *st, int session, int64_t epoch_us,
     }
     if (!st->active) {
         fs_diag_sleep_begin(st, reason, now_us, audio_pkts, audio_qbytes,
-                            video_pkts, video_qbytes, cap, sub_added);
+                            video_pkts, video_qbytes, cap, sub_added,
+                            queue_sum, soft_cap, hard_cap);
         return produced;
     }
     st->sleeps++;
@@ -144,6 +213,9 @@ int fs_diag_sleep_observe(FsDiagSleep *st, int session, int64_t epoch_us,
     st->video_qbytes1 = video_qbytes;
     st->cap = cap;
     st->sub_added = sub_added;
+    st->queue_sum = queue_sum;
+    st->soft_cap = soft_cap;
+    st->hard_cap = hard_cap;
     return produced;
 }
 
