@@ -158,6 +158,37 @@ static void test_clocks_and_read(void)
     expect_lacks("no url", line, "http");
 }
 
+static void test_reader_sleep(void)
+{
+    const int64_t soft = 5 * 1024 * 1024;
+    const int64_t hard = 50 * 1024 * 1024;
+    const int64_t over = soft + 1024;
+    expect_int("eight audio packets still sleep",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 8, over, soft, hard, 0), 1);
+    expect_int("seven audio packets do not sleep under 50MB",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 7, over, soft, hard, 0), 0);
+    expect_int("empty audio does not sleep on the soft cap",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 0, over, soft, hard, 0), 0);
+    expect_int("50MB sleeps with an empty audio queue",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 0, hard, soft, hard, 0), 1);
+    expect_int("pause keeps the soft cap",
+               fs_reader_should_sleep(0, 0, 1, 1, 1, 0, 0, over, soft, hard, 0), 1);
+    expect_int("finished audio keeps the soft cap",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 1, 0, over, soft, hard, 0), 1);
+    expect_int("no audio stream keeps the soft cap",
+               fs_reader_should_sleep(0, 0, 0, 1, 0, 0, 0, over, soft, hard, 0), 1);
+    expect_int("AAC soft cap still sleeps",
+               fs_reader_should_sleep(0, 0, 0, 0, 1, 0, 0, over, soft, hard, 0), 1);
+    expect_int("seek does not sleep",
+               fs_reader_should_sleep(0, 1, 0, 1, 1, 0, 0, hard, soft, hard, 1), 0);
+    expect_int("enough_packets still sleeps",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 0, soft, soft, hard, 1), 1);
+    expect_int("under the soft cap does not sleep",
+               fs_reader_should_sleep(0, 0, 0, 1, 1, 0, 0, soft, soft, hard, 0), 0);
+    expect_int("infinite buffer does not sleep",
+               fs_reader_should_sleep(1, 0, 0, 0, 1, 0, 0, over, soft, hard, 1), 0);
+}
+
 static void test_write_stamp(void)
 {
     long long since = 0;
@@ -178,6 +209,7 @@ int main(void)
     test_gap_breaks_chain();
     test_counters();
     test_clocks_and_read();
+    test_reader_sleep();
     test_write_stamp();
     if (failed) {
         fprintf(stderr, "fs_diag_test failed\n");

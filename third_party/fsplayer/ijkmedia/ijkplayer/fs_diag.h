@@ -17,6 +17,22 @@
 #define FS_DIAG_SLEEP_ENOUGH   2
 #define FS_DIAG_SLEEP_BOTH     3
 
+/* About one quarter second of this E-AC-3 stream. Below this, IEC playback
+ * does not sleep just because the soft queue cap is full. */
+#define FS_READER_AUDIO_LOW_PACKETS 8
+
+/*
+ * 1 = the demuxer waits. Seeking never waits. A full soft cap still waits
+ * for AAC, for pause, when audio is absent or finished, and when IEC already
+ * has 8 audio packets. Fewer than 8 packets during IEC playback waits only
+ * at the hard cap, or for the enough_packets branch.
+ */
+int fs_reader_should_sleep(int infinite_buffer, int seek_req, int paused,
+                           int iec_on, int has_audio, int audio_finished,
+                           int audio_packets, int64_t queue_sum,
+                           int64_t soft_cap, int64_t hard_cap,
+                           int enough_packets);
+
 typedef struct FsDiagSleep {
     int active;
     int reason;

@@ -5277,15 +5277,30 @@ static int read_thread(void *arg)
         {
             int sub_added = ff_sub_frame_cache_remaining(is->ffSub);
             int cap_bytes = (int) max_buffer_size(ffp);
-            int byte_over = is->audioq.size + is->videoq.size + sub_added > cap_bytes;
+            int64_t queue_sum = (int64_t) is->audioq.size + is->videoq.size + sub_added;
+            int byte_over = queue_sum > cap_bytes;
             int enough = stream_has_enough_packets(is->audio_st, is->audio_stream, &is->audioq, MIN_FRAMES)
                 && stream_has_enough_packets(is->video_st, is->video_stream, &is->videoq, MIN_FRAMES)
                 && ff_sub_has_enough_packets(is->ffSub, MIN_FRAMES);
-            if (ffp->infinite_buffer < 1 && !is->seek_req && (byte_over || enough)) {
+            int has_audio = is->audio_stream >= 0;
+            int audio_finished = has_audio && is->auddec.finished == is->audioq.serial;
+            int iec_on = fs_diag_iec_on(ffp);
+            int audio_packets = 0;
+            int should_sleep;
+            if (iec_on && byte_over && queue_sum < MAX_QUEUE_SIZE && !is->paused
+                && !is->seek_req && has_audio && !audio_finished && ffp->infinite_buffer < 1) {
+                int audio_qbytes = 0;
+                packet_queue_peek_stats(&is->audioq, &audio_packets, &audio_qbytes);
+            }
+            should_sleep = fs_reader_should_sleep(
+                ffp->infinite_buffer, is->seek_req, is->paused, iec_on, has_audio,
+                audio_finished, audio_packets, queue_sum, cap_bytes, MAX_QUEUE_SIZE, enough);
+            if (should_sleep) {
                 if (fs_diag_iec_on(ffp)) {
                     int ap = 0, ab = 0, vp = 0, vb = 0;
-                    int reason = (byte_over && enough) ? FS_DIAG_SLEEP_BOTH
-                        : byte_over ? FS_DIAG_SLEEP_BYTE_CAP : FS_DIAG_SLEEP_ENOUGH;
+                    int cap_hit = byte_over || queue_sum >= MAX_QUEUE_SIZE;
+                    int reason = (cap_hit && enough) ? FS_DIAG_SLEEP_BOTH
+                        : cap_hit ? FS_DIAG_SLEEP_BYTE_CAP : FS_DIAG_SLEEP_ENOUGH;
                     char line[640];
                     packet_queue_peek_stats(&is->audioq, &ap, &ab);
                     packet_queue_peek_stats(&is->videoq, &vp, &vb);

@@ -39,6 +39,26 @@ int64_t fs_diag_session_ms(int64_t now_us)
     return (now_us - epoch) / 1000;
 }
 
+int fs_reader_should_sleep(int infinite_buffer, int seek_req, int paused,
+                           int iec_on, int has_audio, int audio_finished,
+                           int audio_packets, int64_t queue_sum,
+                           int64_t soft_cap, int64_t hard_cap,
+                           int enough_packets)
+{
+    int playing_low;
+    if (infinite_buffer >= 1 || seek_req)
+        return 0;
+    if (enough_packets)
+        return 1;
+    if (hard_cap > 0 && queue_sum >= hard_cap)
+        return 1;
+    if (queue_sum <= soft_cap)
+        return 0;
+    playing_low = iec_on && !paused && has_audio && !audio_finished
+        && audio_packets < FS_READER_AUDIO_LOW_PACKETS;
+    return playing_low ? 0 : 1;
+}
+
 const char *fs_diag_sleep_reason(int reason)
 {
     switch (reason) {
