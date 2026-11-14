@@ -178,6 +178,19 @@ int main(void)
                 break;
             }
         }
+        {
+            uint8_t gather[64];
+            int glen = 0;
+            uint8_t got[16];
+            /* The same 8-byte syncframe, split 3 + 5 the way an HLS packet can. */
+            expect_int("partial append", fs_eac3_gather_append(gather, &glen, 64, independent, 3), 0);
+            expect_int("partial is not a frame yet", fs_eac3_gather_next(gather, &glen, got, 16), 0);
+            expect_int("rest append", fs_eac3_gather_append(gather, &glen, 64, independent + 3, 5), 0);
+            expect_int("split frame reassembled", fs_eac3_gather_next(gather, &glen, got, 16), 8);
+            expect_int("reassembled sync", got[0], 0x0B);
+            expect_int("reassembled frmsiz", got[3], 0x03);
+            expect_int("gather drained", glen, 0);
+        }
         expect_int("flush held frame", fs_iec61937_eac3_flush(st, burst, sizeof(burst)), FS_IEC61937_EAC3_BURST_BYTES);
         expect_int("flushed pd", burst[6], 8);
         fs_iec61937_eac3_free(st);

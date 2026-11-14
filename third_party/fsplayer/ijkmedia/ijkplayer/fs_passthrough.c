@@ -62,6 +62,77 @@ int fs_eac3_next_frame(const uint8_t *data, int size, int start, int *at)
     return 0;
 }
 
+int fs_eac3_gather_append(uint8_t *buf, int *len, int cap, const uint8_t *data, int size)
+{
+    int have;
+    int copy;
+    if (!buf || !len || cap <= 0 || size < 0)
+        return -1;
+    if (!data || size == 0)
+        return 0;
+    have = *len;
+    if (have < 0 || have > cap)
+        have = 0;
+    /* Keep the tail that can still start a syncframe. */
+    if (have + size > cap) {
+        int drop = have + size - cap;
+        if (drop >= have) {
+            have = 0;
+        } else {
+            memmove(buf, buf + drop, (size_t) (have - drop));
+            have -= drop;
+        }
+    }
+    copy = size;
+    if (have + copy > cap)
+        copy = cap - have;
+    if (copy > 0)
+        memcpy(buf + have, data + (size - copy), (size_t) copy);
+    *len = have + copy;
+    return 0;
+}
+
+int fs_eac3_gather_next(uint8_t *buf, int *len, uint8_t *out, int out_cap)
+{
+    int size;
+    int i;
+    if (!buf || !len || !out || out_cap < 4)
+        return 0;
+    size = *len;
+    if (size < 4)
+        return 0;
+    for (i = 0; i + 4 <= size; i++) {
+        int n;
+        if (buf[i] != 0x0B || buf[i + 1] != 0x77)
+            continue;
+        n = fs_eac3_frame_bytes(buf + i, size - i);
+        if (n < 4) {
+            /* Syncword is here but the frame continues into the next packet. */
+            if (i > 0) {
+                memmove(buf, buf + i, (size_t) (size - i));
+                *len = size - i;
+            }
+            return 0;
+        }
+        if (n > out_cap)
+            return -1;
+        memcpy(out, buf + i, (size_t) n);
+        {
+            int rest = size - (i + n);
+            if (rest > 0)
+                memmove(buf, buf + i + n, (size_t) rest);
+            *len = rest > 0 ? rest : 0;
+        }
+        return n;
+    }
+    /* No syncword. Keep one byte in case it is the first half of 0x0B77. */
+    if (size > 1) {
+        buf[0] = buf[size - 1];
+        *len = 1;
+    }
+    return 0;
+}
+
 int fs_eac3_passthrough_payload(const uint8_t *data, int size, uint8_t *out, int cap)
 {
     int at = 0;

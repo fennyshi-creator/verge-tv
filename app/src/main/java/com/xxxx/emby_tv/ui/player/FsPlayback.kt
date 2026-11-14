@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Surface
+import com.debugly.fsplayer.audio.FsPassthroughLog
 import com.debugly.fsplayer.player.FSPlayer
 import com.debugly.fsplayer.player.FSSubtitlePreference
 import com.debugly.fsplayer.player.IMediaPlayer
@@ -152,6 +153,7 @@ class FsPlayback(private val appContext: Context) {
     fun forcePcm(resumeMs: Long) {
         val currentUrl = url ?: return
         passthroughEnabled = false
+        FsPassthroughLog.note("audio format switch to pcm reason=player-reopen")
         open(currentUrl, headers, resumeMs, passthrough = false, joc = false)
     }
 

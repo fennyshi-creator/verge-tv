@@ -72,6 +72,7 @@ typedef struct SDL_Aout_Opaque {
     int encoded;
     int encoded_stop;
     int callback_noted;
+    int empty_logs;
 } SDL_Aout_Opaque;
 
 /* One E-AC-3 syncframe: 0x0B77 and frmsiz covering this buffer and nothing else. */
@@ -173,8 +174,11 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
          * a preamble on that encoding would be wrapped twice.
          */
         int request = opaque->encoded ? opaque->buffer_size : copy_size;
-        if (opaque->encoded && !opaque->callback_noted && audio_cblk) {
-            SDL_Android_AudioTrack_log(env, "audio callback entered");
+        if (opaque->encoded && !opaque->callback_noted) {
+            if (audio_cblk)
+                SDL_Android_AudioTrack_log(env, "audio callback entered");
+            else
+                SDL_Android_AudioTrack_log(env, "audio drop reason=callback-missing");
             opaque->callback_noted = 1;
         }
         if (!audio_cblk || !buffer) {
@@ -231,6 +235,10 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 SDL_Android_AudioTrack_log(env, line);
                 ALOGW("AudioTrack: refuse mispacked encoded buffer %d", payload);
             } else {
+                if (opaque->empty_logs < 4) {
+                    opaque->empty_logs++;
+                    SDL_Android_AudioTrack_log(env, "audio callback bytes=0");
+                }
                 SDL_Delay(5);
             }
         } else {
@@ -302,6 +310,9 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
 
     opaque->pause_on = 1;
     opaque->abort_request = 0;
+    opaque->callback_noted = 0;
+    opaque->encoded_stop = 0;
+    opaque->empty_logs = 0;
     opaque->audio_tid = SDL_CreateThreadEx(&opaque->_audio_tid, aout_thread, aout, "ff_aout_android");
     if (!opaque->audio_tid) {
         ALOGE("aout_open_audio_n: failed to create audio thread");

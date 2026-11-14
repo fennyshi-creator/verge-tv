@@ -285,6 +285,18 @@ static int fs_speed_is_one(FFPlayer *ffp)
     return fabsf(rate) < 0.00001f || fabsf(rate - 1.0f) < 0.001f;
 }
 
+extern void fs_passthrough_log_line(const char *line);
+
+static void fs_log_drop(FFPlayer *ffp, const char *reason)
+{
+    char line[160];
+    if (!ffp || !reason || ffp->audio_drop_logs >= 12)
+        return;
+    ffp->audio_drop_logs++;
+    snprintf(line, sizeof(line), "audio drop reason=%s", reason);
+    fs_passthrough_log_line(line);
+}
+
 static int fs_passthrough_is_iec(FFPlayer *ffp)
 {
     return ffp->audio_passthrough_encoding == FS_ENCODING_IEC61937
@@ -329,26 +341,54 @@ static int fs_passthrough_publish(Decoder *d, AVFrame *frame, uint8_t *buf, int 
     return 1;
 }
 
+static int fs_passthrough_emit(FFPlayer *ffp, Decoder *d, AVFrame *frame,
+                               const uint8_t *syncframe, int sync_bytes, int64_t pkt_pts)
+{
+    uint8_t *buf;
+    int dependent;
+    if (sync_bytes < 4 || sync_bytes > 4096)
+        return 0;
+    if (fs_passthrough_is_iec(ffp)) {
+        int n;
+        if (!ffp->audio_iec)
+            ffp->audio_iec = fs_iec61937_eac3_new();
+        if (!ffp->audio_iec)
+            return AVERROR(ENOMEM);
+        buf = av_malloc(FS_IEC61937_EAC3_BURST_BYTES + AV_INPUT_BUFFER_PADDING_SIZE);
+        if (!buf)
+            return AVERROR(ENOMEM);
+        n = fs_iec61937_eac3_push(ffp->audio_iec, syncframe, sync_bytes,
+                                  buf, FS_IEC61937_EAC3_BURST_BYTES);
+        if (n <= 0) {
+            av_free(buf);
+            return 0;
+        }
+        return fs_passthrough_publish(d, frame, buf, n, pkt_pts, 1);
+    }
+    buf = av_malloc((size_t) sync_bytes + AV_INPUT_BUFFER_PADDING_SIZE);
+    if (!buf)
+        return AVERROR(ENOMEM);
+    memcpy(buf, syncframe, (size_t) sync_bytes);
+    dependent = fs_eac3_frame_is_dependent(buf, sync_bytes);
+    return fs_passthrough_publish(d, frame, buf, sync_bytes, pkt_pts, !dependent);
+}
+
 /* IEC mode packs syncframes into one 24576-byte burst. Otherwise one raw syncframe. */
 static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
 {
     if (!ffp || !d || !d->avctx || !d->pkt || !d->queue || !frame)
         return -1;
     for (;;) {
-        int at = 0;
-        int size;
-        int dependent;
-        uint8_t *buf;
-        int64_t pkt_pts;
+        uint8_t syncframe[4096];
+        int nframe;
+        int64_t pkt_pts = AV_NOPTS_VALUE;
 
         if (d->queue->abort_request)
             return -1;
-        if (d->passthrough_off > 0 &&
-            (d->queue->serial != d->pkt_serial || !d->pkt->data || d->passthrough_off >= d->pkt->size)) {
-            av_packet_unref(d->pkt);
-            d->passthrough_off = 0;
-        }
-        if (d->passthrough_off <= 0) {
+
+        nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
+                                     syncframe, (int) sizeof(syncframe));
+        if (nframe <= 0) {
             if (d->queue->nb_packets == 0)
                 SDL_CondSignal(d->empty_queue_cond);
             if (packet_queue_get_or_buffering(ffp, d->queue, d->pkt, &d->pkt_serial, &d->finished) < 0)
@@ -360,6 +400,8 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
             if (!d->pkt->data || d->pkt->size <= 0) {
                 d->finished = d->pkt_serial;
                 av_packet_unref(d->pkt);
+                if (d->passthrough_gather_len >= 2)
+                    fs_log_drop(ffp, "incomplete-syncframe");
                 if (fs_passthrough_is_iec(ffp) && ffp->audio_iec) {
                     uint8_t *burst = av_malloc(FS_IEC61937_EAC3_BURST_BYTES + AV_INPUT_BUFFER_PADDING_SIZE);
                     int n;
@@ -372,49 +414,25 @@ static int fs_passthrough_take_packet(FFPlayer *ffp, Decoder *d, AVFrame *frame)
                 }
                 continue;
             }
-            d->passthrough_off = 0;
-        }
-
-        size = fs_eac3_next_frame(d->pkt->data, d->pkt->size, d->passthrough_off, &at);
-        if (size <= 0 || size > 48 * 1024) {
+            pkt_pts = d->pkt->pts;
+            fs_eac3_gather_append(d->passthrough_gather, &d->passthrough_gather_len,
+                                  (int) sizeof(d->passthrough_gather),
+                                  d->pkt->data, d->pkt->size);
             av_packet_unref(d->pkt);
             d->passthrough_off = 0;
-            continue;
-        }
-        pkt_pts = d->pkt->pts;
-        if (fs_passthrough_is_iec(ffp)) {
-            int n;
-            if (!ffp->audio_iec)
-                ffp->audio_iec = fs_iec61937_eac3_new();
-            if (!ffp->audio_iec)
-                return AVERROR(ENOMEM);
-            buf = av_malloc(FS_IEC61937_EAC3_BURST_BYTES + AV_INPUT_BUFFER_PADDING_SIZE);
-            if (!buf)
-                return AVERROR(ENOMEM);
-            n = fs_iec61937_eac3_push(ffp->audio_iec, d->pkt->data + at, size,
-                                      buf, FS_IEC61937_EAC3_BURST_BYTES);
-            d->passthrough_off = at + size;
-            if (d->passthrough_off >= d->pkt->size) {
-                av_packet_unref(d->pkt);
-                d->passthrough_off = 0;
-            }
-            if (n <= 0) {
-                av_free(buf);
+            nframe = fs_eac3_gather_next(d->passthrough_gather, &d->passthrough_gather_len,
+                                         syncframe, (int) sizeof(syncframe));
+            if (nframe <= 0) {
+                if (d->passthrough_gather_len >= 2)
+                    fs_log_drop(ffp, "incomplete-syncframe");
                 continue;
             }
-            return fs_passthrough_publish(d, frame, buf, n, pkt_pts, 1);
         }
-        buf = av_malloc((size_t) size + AV_INPUT_BUFFER_PADDING_SIZE);
-        if (!buf)
-            return AVERROR(ENOMEM);
-        memcpy(buf, d->pkt->data + at, (size_t) size);
-        dependent = fs_eac3_frame_is_dependent(buf, size);
-        d->passthrough_off = at + size;
-        if (d->passthrough_off >= d->pkt->size) {
-            av_packet_unref(d->pkt);
-            d->passthrough_off = 0;
+        {
+            int emitted = fs_passthrough_emit(ffp, d, frame, syncframe, nframe, pkt_pts);
+            if (emitted != 0)
+                return emitted;
         }
-        return fs_passthrough_publish(d, frame, buf, size, pkt_pts, !dependent);
     }
 }
 
@@ -3532,6 +3550,13 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
         next_sample_rate_idx--;
     wanted_spec.format = AUDIO_S16SYS;
     wanted_spec.silence = 0;
+    /*
+     * The passthrough open copies this spec and returns. The callback has
+     * to be installed first. 2.0.51 set it only on the PCM path below, so
+     * the IEC thread called play() and then had no callback and no writes.
+     */
+    wanted_spec.callback = sdl_audio_callback;
+    wanted_spec.userdata = opaque;
     if (ffp->audio_passthrough_encoding && ffp->audio_passthrough && fs_speed_is_one(ffp)) {
         SDL_AudioSpec pt_wanted = wanted_spec;
         SDL_AudioSpec pt_spec;
@@ -3632,6 +3657,7 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
         ffp->audio_passthrough_fallback = 1;
         av_log(NULL, AV_LOG_WARNING,
                "audio passthrough rejected; decoding to stereo PCM\n");
+        fs_passthrough_log_line("audio format switch to pcm reason=iec-open-rejected");
         /*
          * A 5.1 PCM AudioTrack open hangs some Android TV HALs. Passthrough
          * was the multichannel path. The decode fallback stays stereo so

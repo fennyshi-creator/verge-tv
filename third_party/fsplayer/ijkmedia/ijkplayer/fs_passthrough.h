@@ -90,6 +90,15 @@ int fs_iec61937_open_rate(int encoding, int content_rate);
 int fs_eac3_next_frame(const uint8_t *data, int size, int start, int *at);
 
 /*
+ * Reassemble E-AC-3 syncframes that HLS splits across packets.
+ * append copies bytes into buf. next copies one complete syncframe to out
+ * and removes it. A trailing partial frame stays in buf. Returns the frame
+ * size, or 0 when more bytes are needed.
+ */
+int fs_eac3_gather_append(uint8_t *buf, int *len, int cap, const uint8_t *data, int size);
+int fs_eac3_gather_next(uint8_t *buf, int *len, uint8_t *out, int out_cap);
+
+/*
  * Channel count for a raw compressed open (AC-3). E-AC-3 IEC 61937 does
  * not use this: its carrier is stereo at 4× the bitstream rate.
  */

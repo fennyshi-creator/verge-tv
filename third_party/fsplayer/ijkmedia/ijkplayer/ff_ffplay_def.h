@@ -243,6 +243,9 @@ typedef struct Decoder {
     int packet_pending;
     /* Byte offset into pkt while an E-AC-3 access unit still has syncframes. */
     int passthrough_off;
+    /* Bytes waiting for the rest of an E-AC-3 syncframe split across packets. */
+    uint8_t passthrough_gather[8192];
+    int passthrough_gather_len;
     int bfsc_ret;
     uint8_t *bfsc_data;
 
@@ -605,6 +608,7 @@ typedef struct FFPlayer {
     int audio_passthrough_fallback;
     /* FsIec61937Eac3 *, owned here. Null unless the open is an IEC carrier. */
     void *audio_iec;
+    int audio_drop_logs;
 
     char *iformat_name;
 
@@ -781,6 +785,7 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->audio_passthrough_encoding     = 0;
     ffp->audio_passthrough_fallback     = 0;
     ffp->audio_iec                      = NULL;
+    ffp->audio_drop_logs                = 0;
 
     /*
      * 字幕偏好必须有初值：ffp_apply_subtitle_preference 会把它推给字幕组件，

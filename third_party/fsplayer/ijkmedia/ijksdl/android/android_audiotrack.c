@@ -161,6 +161,16 @@ void SDL_Android_AudioTrack_global_init(JNIEnv *env)
     }
 }
 
+void fs_passthrough_log_line(const char *line)
+{
+    JNIEnv *env = NULL;
+    if (!line)
+        return;
+    if (JNI_OK != SDL_JNI_SetupThreadEnv(&env))
+        return;
+    SDL_Android_AudioTrack_log(env, line);
+}
+
 void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line)
 {
     jstring text;
