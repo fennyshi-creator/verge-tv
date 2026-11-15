@@ -8,7 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +98,7 @@ fun LoginScreen(
     var port by remember { mutableStateOf(initialParsed.third) }
     var username by remember { mutableStateOf(loginViewModel.savedUsername) }
     var password by remember { mutableStateOf(loginViewModel.savedPassword) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     // Server & QR Code State
     var qrCodeBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
@@ -241,22 +247,35 @@ fun LoginScreen(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(ConnectForm.PAGE), Color(0xFF131826), Color(0xFF0B0E16)),
-                ),
-            ),
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(ConnectForm.PAGE))) {
+        Box(
+            Modifier
+                .size(520.dp)
+                .align(Alignment.TopStart)
+                .offset(x = (-80).dp, y = (-60).dp)
+                .background(Brush.radialGradient(listOf(Color(0x66306E86), Color.Transparent))),
+        )
+        Box(
+            Modifier
+                .size(560.dp)
+                .align(Alignment.BottomEnd)
+                .offset(x = 80.dp, y = 80.dp)
+                .background(Brush.radialGradient(listOf(Color(0x55A86A38), Color.Transparent))),
+        )
+        Box(
+            Modifier
+                .size(420.dp)
+                .align(Alignment.CenterEnd)
+                .offset(x = 40.dp)
+                .background(Brush.radialGradient(listOf(Color(0x332E6A62), Color.Transparent))),
+        )
         Box(
             Modifier
                 .fillMaxSize()
                 .padding(horizontal = 56.dp, vertical = 40.dp)
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0x851C2230), Color(0xA8141210)),
+                        listOf(Color(0xD01C2C34), Color(0xE8141612)),
                     ),
                     RoundedCornerShape(32.dp),
                 )
@@ -272,22 +291,42 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 if (qrCodeBitmap != null) {
-                    Image(
-                        bitmap = qrCodeBitmap!!,
-                        contentDescription = stringResource(R.string.scan_qr_hint),
-                        modifier = Modifier
-                            .size(232.dp)
+                    Box(
+                        Modifier
+                            .size(248.dp)
                             .background(Color.White, RoundedCornerShape(28.dp))
-                            .padding(18.dp)
-                    )
-                    Spacer(modifier = Modifier.height(28.dp))
+                            .padding(18.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            bitmap = qrCodeBitmap!!,
+                            contentDescription = stringResource(R.string.scan_qr_hint),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(
+                            Modifier
+                                .size(42.dp)
+                                .background(Color(0xFF52B54B), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(22.dp))
                     Text(
                         text = stringResource(R.string.scan_qr_hint),
-                        color = Color.White.copy(alpha = 0.92f),
+                        color = Color.White.copy(alpha = 0.94f),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.4.sp,
                     )
+                    if (discoveredServers.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "已发现局域网服务器，选中后会填入右侧",
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 14.sp,
+                        )
+                    }
                 } else {
                     CircularProgressIndicator(
                         color = Color.White.copy(alpha = 0.8f),
@@ -314,58 +353,114 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Server URL Input
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.8f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ProtocolButton(
-                        protocol = protocol,
-                        onClick = {
-                            val next = if (protocol == "http") "https" else "http"
-                            port = ConnectForm.portFor(next, port)
-                            protocol = next
-                        },
-                        modifier = Modifier.width(88.dp),
-                    )
-                    TvInputButton(
-                        value = host,
-                        label = stringResource(R.string.host),
-                        onClick = { showHostDialog = true },
-                        showMenu = { showMenu = true },
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .background(Color(0xFF52B54B), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("EMBY 服务器信息", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text("连接您的私人媒体中心", color = Color.White.copy(0.55f), fontSize = 12.sp)
+                    }
+                    Text(
+                        "${protocol.uppercase()} · $port",
+                        color = Color(0xFFB7F0C2),
+                        fontSize = 12.sp,
                         modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(hostFocusRequester)
+                            .background(Color.White.copy(0.08f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                TvInputButton(
+                    value = host,
+                    label = stringResource(R.string.host),
+                    onClick = { showHostDialog = true },
+                    showMenu = { showMenu = true },
+                    widthFraction = 1f,
+                    modifier = Modifier.focusRequester(hostFocusRequester),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("传输协议", color = Color.White.copy(0.55f), fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .background(Color(0x760F131C), RoundedCornerShape(14.dp))
+                                .padding(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            ProtocolChoice("HTTPS", protocol == "https", Modifier.weight(1f)) {
+                                port = ConnectForm.portFor("https", port)
+                                protocol = "https"
+                            }
+                            ProtocolChoice("HTTP", protocol == "http", Modifier.weight(1f)) {
+                                port = ConnectForm.portFor("http", port)
+                                protocol = "http"
+                            }
+                        }
+                    }
                     TvInputButton(
                         value = port,
                         label = stringResource(R.string.port),
                         onClick = { showPortDialog = true },
                         showMenu = { showMenu = true },
-                        modifier = Modifier.width(80.dp)
+                        widthFraction = 1f,
+                        modifier = Modifier.width(120.dp),
                     )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Username Input
                 TvInputButton(
                     value = username,
                     label = stringResource(R.string.username),
                     showMenu = { showMenu = true },
+                    widthFraction = 1f,
                     onClick = { showUsernameDialog = true }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Password Input
-                TvInputButton(
-                    value = password,
-                    label = stringResource(R.string.password),
-                    visualTransformation = PasswordVisualTransformation(),
-                    showMenu = { showMenu = true },
-                    onClick = { showPasswordDialog = true }
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TvInputButton(
+                        value = password,
+                        label = stringResource(R.string.password),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        showMenu = { showMenu = true },
+                        widthFraction = 1f,
+                        modifier = Modifier.weight(1f),
+                        onClick = { showPasswordDialog = true },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        onClick = { passwordVisible = !passwordVisible },
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color(0x760F131C),
+                            contentColor = Color(0xFFF4F1EA),
+                            focusedContainerColor = Color.White,
+                            focusedContentColor = Color(ConnectForm.INK),
+                        ),
+                        modifier = Modifier.size(64.dp),
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = null,
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -373,7 +468,7 @@ fun LoginScreen(
                     onClick = { onLoginClick() },
                     enabled = !loginViewModel.isLoading,
                     modifier = Modifier
-                        .fillMaxWidth(0.8f)
+                        .fillMaxWidth()
                         .height(56.dp)
                         //兼容移动端点击  TODO：移除
                         //  .clickable(true, onClick = { onLoginClick() })
@@ -445,7 +540,7 @@ fun LoginScreen(
                         contentColor = Color.White.copy(alpha = 0.55f),
                         focusedContentColor = Color(0xFFF4F1EA),
                     ),
-                    modifier = Modifier.fillMaxWidth(0.8f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(40.dp),
@@ -558,6 +653,7 @@ fun TvInputButton(
     label: String,
     showMenu: () -> Unit,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    widthFraction: Float = 0.8f,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -575,7 +671,7 @@ fun TvInputButton(
             focusedContentColor = Color(0xFFF4F1EA),
         ),
         modifier = modifier
-            .fillMaxWidth(0.8f)
+            .fillMaxWidth(widthFraction)
             .height(64.dp)
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
@@ -611,6 +707,26 @@ fun TvInputButton(
     }
 }
 
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ProtocolChoice(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxHeight(),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (selected) Color.White else Color.Transparent,
+            contentColor = if (selected) Color(ConnectForm.INK) else Color.White.copy(0.7f),
+            focusedContainerColor = if (selected) Color.White else Color.White.copy(0.16f),
+            focusedContentColor = if (selected) Color(ConnectForm.INK) else Color.White,
+        ),
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(label, fontWeight = FontWeight.Medium)
+        }
+    }
+}
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

@@ -167,8 +167,9 @@ fun OfficialHome(
     val scroll = rememberScrollState()
     val stage = rememberStageScroll(scroll)
     val scope = rememberCoroutineScope()
+    var heroBottomPx by remember { mutableIntStateOf(0) }
     fun focusRow(requester: FocusRequester, index: Int, pin: Boolean) {
-        stage.dock(if (pin) 0 else index)
+        if (pin || index <= 0) stage.dock(0) else stage.dockAtLeast(index, heroBottomPx)
         scope.launch {
             withFrameNanos { }
             try {
@@ -244,6 +245,7 @@ fun OfficialHome(
             val heroHeight = with(density) {
                 (viewport.toDp() - 176.dp).coerceAtLeast(280.dp)
             }
+            heroBottomPx = with(density) { heroHeight.roundToPx() }
             val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
             var columnRoot by remember { mutableIntStateOf(0) }
             var washUrl by remember { mutableStateOf<String?>(null) }
@@ -283,16 +285,8 @@ fun OfficialHome(
                                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                                 .drawWithContent {
                                     drawContent()
-                                    val keep = HomeMask.stillKeepUntil(
-                                        size.height.toInt(),
-                                        HomeMask.seam.toPx().toInt(),
-                                    )
                                     drawRect(
-                                        brush = Brush.verticalGradient(
-                                            0f to Color.Black,
-                                            keep to Color.Black,
-                                            1f to Color.Transparent,
-                                        ),
+                                        brush = HomeMask.fadeBrush(size.height, HomeMask.seam.toPx()),
                                         blendMode = BlendMode.DstIn,
                                     )
                                 },
@@ -370,7 +364,7 @@ fun OfficialHome(
                                 onResume(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { stage.dock(continueIndex) },
+                            onFocused = { focusRow(continueFocus, continueIndex, pin = false) },
                             onFocusedIndex = { washUrl = thumbUrl(serverUrl, resumeItems[it]) },
                             onExitUp = {
                                 if (heroItem != null) focusRow(heroFocus, 0, pin = true)
@@ -411,7 +405,7 @@ fun OfficialHome(
                                 onOpenLibrary(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { stage.dock(libraryIndex) },
+                            onFocused = { focusRow(libraryFocus, libraryIndex, pin = false) },
                             onFocusedIndex = { washUrl = primaryUrl(serverUrl, libraries[it]) },
                             onExitUp = {
                                 if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
@@ -455,7 +449,7 @@ fun OfficialHome(
                                 onOpenItem(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { stage.dock(posterIndex[index]) },
+                            onFocused = { focusRow(posterFocus[index], posterIndex[index], pin = false) },
                             onFocusedIndex = { itemIndex ->
                                 library.latestItems.orEmpty().getOrNull(itemIndex)?.let { washUrl = primaryUrl(serverUrl, it) }
                             },
@@ -594,10 +588,18 @@ private fun HomeHero(
         Box(
             Modifier
                 .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = HomeMask.fadeBrush(size.height, HomeMask.seam.toPx()),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
                 .background(
                     Brush.horizontalGradient(
-                        0f to Color.Black.copy(0.72f),
-                        0.46f to Color.Black.copy(0.28f),
+                        0f to Color.Black.copy(0.55f),
+                        0.42f to Color.Black.copy(0.22f),
                         1f to Color.Transparent,
                     ),
                 ),

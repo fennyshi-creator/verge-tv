@@ -323,6 +323,10 @@ fun PlayerScreen(
     val transportButtons = remember { List(4) { FocusRequester() } }
     var showDiagnostics by remember { mutableStateOf(false) }
     var decodeAudio by remember { mutableStateOf(false) }
+    var routeAllowsBitstream by remember {
+        mutableStateOf(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
+    }
+    var appliedBitstream by remember { mutableStateOf<Boolean?>(null) }
     var subtitleScale by remember { mutableFloatStateOf(1f) }
     var subtitleInk by remember { mutableStateOf(Color.White) }
     var showStats by remember { mutableStateOf(false) }
@@ -800,6 +804,8 @@ fun PlayerScreen(
     // ===== 音频故障自动恢复（全程自动，无用户交互）=====
     // 0: 正常；1: 已用立体声安全模式重建过播放器；2: 已降级为无声播放
     var audioRecoveryStage by remember { mutableIntStateOf(0) }
+    fun bitstreamAllowed(): Boolean =
+        !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0 && routeAllowsBitstream
     // 当前播放器实例是否出现过音频输出错误（播放器重建时自动重置）
     var currentPlayerAudioError by remember { mutableStateOf(false) }
 
@@ -958,7 +964,7 @@ fun PlayerScreen(
                             url = newVideoUrl,
                             headers = playbackHeaders(),
                             startMs = position,
-                            passthrough = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0,
+                            passthrough = bitstreamAllowed(),
                             joc = DolbyPassthrough.wantsJoc(audio),
                             speed = playbackSpeed,
                         )
@@ -1190,7 +1196,7 @@ fun PlayerScreen(
                 url = playbackUrl,
                 headers = playbackHeaders(),
                 startMs = startPositionMs,
-                passthrough = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0,
+                passthrough = bitstreamAllowed(),
                 joc = DolbyPassthrough.wantsJoc(audio),
                 speed = playbackSpeed,
             )
@@ -1572,6 +1578,40 @@ fun PlayerScreen(
         player.seekTo(target)
         delay(SEEK_READOUT_HOLD_MS)
         if (seekTarget == null && overlayEpoch == generation) seekFeedback = false
+    }
+
+    fun applyRoute(allow: Boolean) {
+        val changed = allow != routeAllowsBitstream
+        routeAllowsBitstream = allow
+        val next = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0 && allow
+        val url = player.url
+        if (!changed || url == null || appliedBitstream == next) {
+            appliedBitstream = next
+            return
+        }
+        appliedBitstream = next
+        player.open(
+            url = url,
+            headers = playbackHeaders(),
+            startMs = player.currentPosition,
+            passthrough = next,
+            joc = DolbyPassthrough.wantsJoc(audioTracks.firstOrNull { it.index == selectedAudioIndex }),
+            speed = playbackSpeed,
+        )
+    }
+
+    DisposableEffect(context) {
+        val manager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+        val callback = object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                applyRoute(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
+            }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                applyRoute(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
+            }
+        }
+        manager?.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
+        onDispose { manager?.unregisterAudioDeviceCallback(callback) }
     }
 
     fun hideOverlay() {
@@ -2058,7 +2098,7 @@ fun PlayerScreen(
                                 url = url,
                                 headers = playbackHeaders(),
                                 startMs = player.currentPosition,
-                                passthrough = !enabled && playbackSpeed == 1f,
+                                passthrough = !enabled && playbackSpeed == 1f && routeAllowsBitstream,
                                 joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
                                     audioTracks.firstOrNull { it.index == selectedAudioIndex }
                                 ),

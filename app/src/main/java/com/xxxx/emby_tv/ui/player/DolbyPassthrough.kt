@@ -87,3 +87,93 @@ object DolbyPassthrough {
 
     data class Decision(val encoding: Int, val joc: Boolean, val fallbackPcm: Boolean)
 }
+
+/**
+ * Whether the active output should receive an E-AC-3 bitstream.
+ * IEC 61937 (encoding 13) is still packed bitstream, not a PCM fallback.
+ * A missing device list does not turn passthrough off: the Dune query is
+ * unreliable, and a failed probe must not silence a working AVR.
+ */
+object PassthroughRoute {
+    const val TYPE_BUILTIN_SPEAKER = 2
+    const val TYPE_WIRED_HEADSET = 3
+    const val TYPE_WIRED_HEADPHONES = 4
+    const val TYPE_BUILTIN_EARPIECE = 1
+    const val TYPE_BLUETOOTH_A2DP = 8
+    const val TYPE_HDMI = 9
+    const val TYPE_HDMI_ARC = 10
+    const val TYPE_USB_DEVICE = 11
+    const val TYPE_USB_HEADSET = 22
+    const val TYPE_BLE_HEADSET = 26
+    const val TYPE_BLE_SPEAKER = 27
+    const val TYPE_HDMI_EARC = 29
+    const val ENCODING_IEC61937 = 13
+
+    const val MASK_HDMI = 0x400
+    const val MASK_HDMI_ARC = 0x40000
+    const val MASK_SPDIF = 0x80000
+    const val MASK_SPEAKER = 0x2
+    const val MASK_WIRED_HEADSET = 0x4
+    const val MASK_WIRED_HEADPHONE = 0x8
+    const val MASK_A2DP = 0x80
+
+    private val digitalMasks = MASK_HDMI or MASK_HDMI_ARC or MASK_SPDIF
+    private val localMasks = MASK_SPEAKER or MASK_WIRED_HEADSET or MASK_WIRED_HEADPHONE or MASK_A2DP
+
+    fun isHdmiFamily(type: Int): Boolean =
+        type == TYPE_HDMI || type == TYPE_HDMI_ARC || type == TYPE_HDMI_EARC
+
+    fun isLocalSink(type: Int): Boolean = when (type) {
+        TYPE_BUILTIN_SPEAKER, TYPE_WIRED_HEADSET, TYPE_WIRED_HEADPHONES,
+        TYPE_BUILTIN_EARPIECE, TYPE_BLUETOOTH_A2DP, TYPE_USB_HEADSET,
+        TYPE_BLE_HEADSET, TYPE_BLE_SPEAKER -> true
+        else -> false
+    }
+
+    fun encodingsCarryBitstream(encodings: Set<Int>): Boolean =
+        encodings.any {
+            it == DolbyPassthrough.ENCODING_AC3 ||
+                it == DolbyPassthrough.ENCODING_E_AC3 ||
+                it == DolbyPassthrough.ENCODING_E_AC3_JOC ||
+                it == ENCODING_IEC61937
+        }
+
+    /**
+     * Empty [encodings] means the sink did not report a list. On HDMI that is
+     * not treated as "PCM only", because some boxes omit E-AC-3 there while
+     * the AVR still accepts the stream. A non-empty list with no Dolby or
+     * IEC encoding is an endpoint that said it cannot take the bitstream.
+     */
+    fun allowBitstream(type: Int, encodings: Set<Int>, directQuery: Boolean): Boolean {
+        if (isLocalSink(type)) return false
+        if (!isHdmiFamily(type)) {
+            return directQuery && encodingsCarryBitstream(encodings)
+        }
+        if (directQuery || encodings.isEmpty()) return true
+        return encodingsCarryBitstream(encodings)
+    }
+
+    data class Device(val type: Int, val encodings: Set<Int>)
+
+    /** Null when the route cannot be told apart. Callers keep the current mode. */
+    fun selectActive(devices: List<Device>, streamMask: Int): Device? {
+        if (devices.isEmpty()) return null
+        if (streamMask and digitalMasks != 0) {
+            return devices.firstOrNull { isHdmiFamily(it.type) }
+        }
+        if (streamMask and localMasks != 0) {
+            return devices.firstOrNull { isLocalSink(it.type) }
+        }
+        val digital = devices.filter { isHdmiFamily(it.type) }
+        val local = devices.filter { isLocalSink(it.type) }
+        if (digital.isNotEmpty() && local.isEmpty()) return digital.first()
+        if (local.isNotEmpty() && digital.isEmpty()) return local.first()
+        return null
+    }
+
+    /** Unknown route stays on bitstream so a probe miss does not drop a working AVR. */
+    fun allowActive(devices: List<Device>, streamMask: Int, directQuery: Boolean): Boolean {
+        val active = selectActive(devices, streamMask) ?: return true
+        return allowBitstream(active.type, active.encodings, directQuery)
+    }
+}

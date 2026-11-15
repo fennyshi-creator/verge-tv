@@ -56,13 +56,47 @@ object PageLayers {
  * poster rows do not paint their own fill.
  */
 object HomeMask {
-    val seam = 120.dp
+    val seam = 240.dp
     private const val TITLE_SHIFT_DP = 36f
 
     fun shiftDp(target: String): Float = if (target == "hero-title") TITLE_SHIFT_DP else 0f
 
-    /** 1 keeps the still. 0 lets the shared wash show through. */
-    fun stillAlpha(alongSeam: Float): Float = 1f - alongSeam.coerceIn(0f, 1f)
+    /**
+     * 1 keeps the still. The drop is slow at first and reaches 0 at the hero
+     * edge, so the landing color is whatever sits under the page, not a line.
+     */
+    fun stillAlpha(alongSeam: Float): Float {
+        val t = alongSeam.coerceIn(0f, 1f)
+        return 1f - t * t
+    }
+
+    fun seamStops(): List<Pair<Float, Float>> =
+        listOf(0f, 0.22f, 0.5f, 0.78f, 1f).map { it to stillAlpha(it) }
+
+    /** DstIn mask. Black keeps the picture; transparent reveals the wash. */
+    fun fadeBrush(heightPx: Float, seamPx: Float): Brush {
+        val keep = if (heightPx <= 0f) 1f else stillKeepUntil(heightPx.toInt(), seamPx.toInt())
+        val stops = ArrayList<Pair<Float, Color>>(seamStops().size + 1)
+        stops += 0f to Color.Black
+        stops += keep to Color.Black
+        for ((t, alpha) in seamStops()) {
+            if (t <= 0f) continue
+            stops += (keep + (1f - keep) * t) to Color.Black.copy(alpha = alpha)
+        }
+        return Brush.verticalGradient(*stops.toTypedArray())
+    }
+
+    /**
+     * Scroll that puts [index] on the stage and, once the hero is left behind,
+     * pushes the still fully above the viewport.
+     */
+    fun homeScroll(rowTop: Int, index: Int, stagePx: Int, heroBottom: Int, maxScroll: Int): Int {
+        if (index <= 0) return 0
+        val limit = maxScroll.coerceAtLeast(0)
+        val docked = (rowTop - stagePx).coerceIn(0, limit)
+        val clearStill = heroBottom.coerceIn(0, limit)
+        return maxOf(docked, clearStill)
+    }
 
     /**
      * Fraction of the hero that stays fully opaque before the seam begins.

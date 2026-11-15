@@ -551,50 +551,6 @@ class LocalServer private constructor(
     }
 
     private fun serveSuccessPage(enTitle: String, enDesc: String, zhTitle: String, zhDesc: String): Response {
-        val successHtml = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Success</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <meta charset="UTF-8">
-                <style>
-                    :root { --theme-primary: $themePrimary; --theme-secondary: $themeSecondary; }
-                    body {
-                        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                        padding: 0; margin: 0;
-                        background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
-                        color: white;
-                        display: flex; justify-content: center; align-items: center;
-                        min-height: 100vh;
-                    }
-                    .container {
-                        background: rgba(255, 255, 255, 0.1);
-                        padding: 40px; border-radius: 16px;
-                        backdrop-filter: blur(10px);
-                        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-                        width: 90%; max-width: 400px; text-align: center;
-                    }
-                    h2 { margin-bottom: 20px; font-weight: 300; }
-                    p { color: #ccc; margin-bottom: 30px; }
-                    .icon { font-size: 64px; margin-bottom: 20px; color: var(--theme-primary); }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="icon">✓</div>
-                    <h2 id="success-title">$enTitle</h2>
-                    <p id="success-desc">$enDesc</p>
-                </div>
-                <script>
-                    if (navigator.language.startsWith('zh')) {
-                        document.getElementById('success-title').innerText = '$zhTitle';
-                        document.getElementById('success-desc').innerText = '$zhDesc';
-                    }
-                </script>
-            </body>
-            </html>
-        """.trimIndent()
-        return newFixedLengthResponse(successHtml)
+        return newFixedLengthResponse(PairingPage.successDocument(enTitle, enDesc, zhTitle, zhDesc))
     }
 }

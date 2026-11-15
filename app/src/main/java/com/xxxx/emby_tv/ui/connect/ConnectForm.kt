@@ -102,6 +102,50 @@ object PairingPage {
         .server-addr { font-size: 12px; color: rgba(244, 241, 234, 0.55); }
     """.trimIndent()
 
+    fun successDocument(enTitle: String, enDesc: String, zhTitle: String, zhDesc: String): String = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Success</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    padding: 0; margin: 0;
+                    background: $background;
+                    color: #f4f1ea;
+                    display: flex; justify-content: center; align-items: center;
+                    min-height: 100vh;
+                }
+                .container {
+                    background: rgba(20, 18, 16, 0.78);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    padding: 36px 24px; border-radius: 24px;
+                    width: 90%; max-width: 420px; text-align: center;
+                    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+                }
+                h2 { margin: 0 0 12px; font-weight: 500; }
+                p { color: rgba(244, 241, 234, 0.72); margin: 0; }
+                .icon { font-size: 48px; margin-bottom: 12px; color: $buttonBackground; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">✓</div>
+                <h2 id="success-title">$enTitle</h2>
+                <p id="success-desc">$enDesc</p>
+            </div>
+            <script>
+                if (navigator.language.startsWith('zh')) {
+                    document.getElementById('success-title').innerText = '$zhTitle';
+                    document.getElementById('success-desc').innerText = '$zhDesc';
+                }
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+
     fun usesLegacyPurple(css: String): Boolean {
         val lower = css.lowercase()
         return lower.contains("--theme-primary") ||

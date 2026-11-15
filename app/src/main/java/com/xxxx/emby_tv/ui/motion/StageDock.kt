@@ -107,7 +107,17 @@ class StageScroll(
     )
 
     fun dock(index: Int) {
-        val dest = target(index)
+        dockTo(index, target(index))
+    }
+
+    /** Same as [dock], but never stops above [minScroll]. Used to clear the hero still. */
+    fun dockAtLeast(index: Int, minScroll: Int) {
+        val limit = scroll.maxValue.coerceAtLeast(0)
+        val dest = maxOf(target(index), minScroll.coerceAtLeast(0)).coerceAtMost(limit)
+        dockTo(index, dest)
+    }
+
+    private fun dockTo(index: Int, dest: Int) {
         val now = System.currentTimeMillis()
         val repeating = now - lastAt in 1..159
         lastAt = now

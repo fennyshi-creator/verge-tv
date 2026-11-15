@@ -17,7 +17,7 @@ class Release259Test {
         val hero = 900
         val seam = HomeMask.seam.value.toInt()
         val bands = HomeMask.bands(hero, seam)
-        assertTrue(HomeMask.seam.value in 80f..160f)
+        assertTrue(HomeMask.seam.value in 200f..320f)
         assertEquals(hero, bands.stillBottom)
         assertEquals(hero, bands.opaqueTop)
         assertEquals(hero - seam, bands.seamTop)
