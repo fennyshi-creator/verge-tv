@@ -256,30 +256,6 @@ fun OfficialHome(
             val seamPx = with(density) { 640.dp.roundToPx() }.coerceAtLeast(1)
             val heroVisible = 1f - (scroll.value / seamPx.toFloat()).coerceIn(0f, 1f)
             val pinnedBackdrop = if (heroItem == null || serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, heroItem, 1280)
-            if (pinnedBackdrop.isNotBlank()) {
-                FadeInImage(
-                    url = pinnedBackdrop,
-                    widthPx = 1280,
-                    heightPx = 720,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = heroVisible },
-                )
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.52f)
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer { alpha = heroVisible }
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                0.28f to Color.Black.copy(0.18f),
-                                0.62f to Color.Black.copy(0.62f),
-                                1f to Color.Black.copy(0.84f),
-                            ),
-                        ),
-                )
-            }
             AmbientWash(
                 url = washUrl,
                 strength = ArtworkWash.blend(heroVisible, !washUrl.isNullOrBlank()),
@@ -295,6 +271,22 @@ fun OfficialHome(
                     .onGloballyPositioned { columnRoot = it.positionInRoot().y.toInt() }
                     .verticalScroll(scroll),
             ) {
+                Box(Modifier.fillMaxWidth()) {
+                    if (pinnedBackdrop.isNotBlank()) {
+                        FadeInImage(
+                            url = pinnedBackdrop,
+                            widthPx = 1280,
+                            heightPx = 720,
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .background(HomeScrim.brush(HomeStyle.background)),
+                        )
+                    }
+                    Column(Modifier.fillMaxWidth()) {
                 if (heroItem != null) {
                         HomeHero(
                         item = heroItem,
@@ -371,6 +363,8 @@ fun OfficialHome(
                         ) { item ->
                             ContinueArt(item, serverUrl)
                         }
+                    }
+                }
                     }
                 }
                 if (libraries.isNotEmpty()) {

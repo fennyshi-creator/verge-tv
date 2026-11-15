@@ -47,6 +47,9 @@ typedef struct FsDiagSleep {
     int64_t queue_sum;
     int64_t soft_cap;
     int64_t hard_cap;
+    int closed_reason;
+    int closed_audio_end;
+    int closed_span_ms;
 } FsDiagSleep;
 
 typedef struct FsDiagAudio {
@@ -114,6 +117,14 @@ int fs_iec_underrun_hold(int64_t age_us, double latency_sec);
 /* User pause wins. Otherwise freeze only after a real gap with a published clock. */
 int fs_iec_audclk_paused(int user_paused, int have_write, int64_t age_us, double latency_sec);
 int fs_clock_serial_matches(int clock_serial, int queue_serial);
+/* 1 = a full burst may publish the clock. Pause and a stale serial must not. */
+int fs_iec_should_publish_clock(int user_paused, int written, int full_bytes,
+                                int pts_valid, int burst_serial, int queue_serial);
+/* eof when playback has finished and the queues are empty. starvation is a live gap. */
+const char *fs_iec_drain_label(int audio_finished, int audio_packets, int pictq, int holding);
+/* Routine soft-cap backpressure. Anomalies stay as their own lines. */
+int fs_diag_sleep_is_routine(int reason, int audio_packets_end);
+int64_t fs_diag_wall_s(void);
 void fs_iec_audclk_on_write(void *player, int written);
 int fs_diag_sleep_close(FsDiagSleep *st, int session, int64_t epoch_us,
                         int64_t now_us, char *out, int out_cap);

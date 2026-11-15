@@ -229,6 +229,44 @@ static void test_video_hold_and_clock(void)
     expect_has("hard cap name", fs_diag_sleep_reason(FS_DIAG_SLEEP_HARD_CAP), "hard_cap");
 }
 
+static void test_pause_seek_and_drain(void)
+{
+    expect_int("playing full write publishes",
+               fs_iec_should_publish_clock(0, 24576, 24576, 1, 2, 2), 1);
+    expect_int("pause blocks the in-flight write",
+               fs_iec_should_publish_clock(1, 24576, 24576, 1, 2, 2), 0);
+    expect_int("resume publishes the next burst",
+               fs_iec_should_publish_clock(0, 24576, 24576, 1, 2, 2), 1);
+    expect_int("seek hides the old serial",
+               fs_iec_should_publish_clock(0, 24576, 24576, 1, 2, 3), 0);
+    expect_int("seek during pause still hides",
+               fs_iec_should_publish_clock(1, 24576, 24576, 1, 2, 3), 0);
+    expect_int("short write does not publish",
+               fs_iec_should_publish_clock(0, 1000, 24576, 1, 3, 3), 0);
+    expect_int("failed write does not publish",
+               fs_iec_should_publish_clock(0, -1, 24576, 1, 3, 3), 0);
+    expect_int("missing pts does not publish",
+               fs_iec_should_publish_clock(0, 24576, 24576, 0, 3, 3), 0);
+    expect_int("stop is another pause",
+               fs_iec_should_publish_clock(1, 24576, 24576, 1, 3, 3), 0);
+    expect_int("a 30 ms gap is not a drain", fs_iec_underrun_hold(30 * 1000, 0.064), 0);
+    expect_int("past 192 ms the clock holds", fs_iec_underrun_hold(200 * 1000, 0.064), 1);
+    expect_int("the next burst clears the hold",
+               fs_iec_audclk_paused(0, 1, 20 * 1000, 0.064), 0);
+    expect_has("eof is not live starvation",
+               fs_iec_drain_label(1, 0, 0, 1), "eof");
+    expect_has("a live gap is starvation",
+               fs_iec_drain_label(0, 0, 2, 1), "starvation");
+    expect_has("ordinary play stays live",
+               fs_iec_drain_label(0, 8, 2, 0), "live");
+    expect_int("stocked soft-cap sleep is routine",
+               fs_diag_sleep_is_routine(FS_DIAG_SLEEP_BYTE_CAP, 8), 1);
+    expect_int("empty audio is not routine",
+               fs_diag_sleep_is_routine(FS_DIAG_SLEEP_BYTE_CAP, 0), 0);
+    expect_int("hard cap is not routine",
+               fs_diag_sleep_is_routine(FS_DIAG_SLEEP_HARD_CAP, 40), 0);
+}
+
 static void test_write_stamp(void)
 {
     long long since = 0;
@@ -251,6 +289,7 @@ int main(void)
     test_clocks_and_read();
     test_reader_sleep();
     test_video_hold_and_clock();
+    test_pause_seek_and_drain();
     test_write_stamp();
     if (failed) {
         fprintf(stderr, "fs_diag_test failed\n");

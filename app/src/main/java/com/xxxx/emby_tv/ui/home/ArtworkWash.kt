@@ -49,6 +49,22 @@ object PageLayers {
     }
 }
 
+/**
+ * One gradient for the lower first screen. The last stop is the page color,
+ * fully opaque, so the rows below are not a window onto the still.
+ */
+object HomeScrim {
+    fun stops(page: Color): List<Pair<Float, Color>> = listOf(
+        0f to Color.Transparent,
+        0.46f to Color.Transparent,
+        0.62f to page.copy(alpha = 0.55f),
+        0.78f to page.copy(alpha = 0.92f),
+        1f to page,
+    )
+
+    fun brush(page: Color): Brush = Brush.verticalGradient(*stops(page).toTypedArray())
+}
+
 object ArtworkWash {
     /**
      * 1 once a poster row is on screen and has art. 0 on the hero, where the

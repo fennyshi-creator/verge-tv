@@ -131,13 +131,40 @@ int fs_clock_serial_matches(int clock_serial, int queue_serial)
     return clock_serial == queue_serial;
 }
 
+int fs_iec_should_publish_clock(int user_paused, int written, int full_bytes,
+                                int pts_valid, int burst_serial, int queue_serial)
+{
+    if (user_paused || !pts_valid || full_bytes <= 0 || written != full_bytes)
+        return 0;
+    return fs_clock_serial_matches(burst_serial, queue_serial);
+}
+
+const char *fs_iec_drain_label(int audio_finished, int audio_packets, int pictq, int holding)
+{
+    if (audio_finished && audio_packets <= 0 && pictq <= 0)
+        return "eof";
+    if (holding && !audio_finished)
+        return "starvation";
+    return "live";
+}
+
+int fs_diag_sleep_is_routine(int reason, int audio_packets_end)
+{
+    return reason == FS_DIAG_SLEEP_BYTE_CAP && audio_packets_end >= FS_READER_AUDIO_LOW_PACKETS;
+}
+
+int64_t fs_diag_wall_s(void)
+{
+    return (int64_t) time(NULL);
+}
+
 void fs_diag_sleep_reset(FsDiagSleep *st)
 {
     if (st)
         memset(st, 0, sizeof(*st));
 }
 
-static int fs_diag_sleep_format(const FsDiagSleep *st, int session, int64_t epoch_us,
+static int fs_diag_sleep_format(FsDiagSleep *st, int session, int64_t epoch_us,
                                 int64_t end_us, char *out, int out_cap)
 {
     int64_t span_us;
@@ -145,6 +172,9 @@ static int fs_diag_sleep_format(const FsDiagSleep *st, int session, int64_t epoc
     if (!st || !out || out_cap < 32 || !st->active)
         return 0;
     span_us = end_us - st->start_us;
+    st->closed_span_ms = span_us > 0 ? (int) (span_us / 1000) : 0;
+    st->closed_reason = st->reason;
+    st->closed_audio_end = st->audio_pkts1;
     if (span_us < FS_DIAG_SLEEP_MIN_US)
         return 0;
     t_ms = epoch_us > 0 && end_us >= epoch_us ? (end_us - epoch_us) / 1000 : 0;
@@ -167,7 +197,13 @@ static void fs_diag_sleep_begin(FsDiagSleep *st, int reason, int64_t now_us,
                                 int cap, int sub_added,
                                 int64_t queue_sum, int64_t soft_cap, int64_t hard_cap)
 {
+    int closed_reason = st->closed_reason;
+    int closed_audio_end = st->closed_audio_end;
+    int closed_span_ms = st->closed_span_ms;
     memset(st, 0, sizeof(*st));
+    st->closed_reason = closed_reason;
+    st->closed_audio_end = closed_audio_end;
+    st->closed_span_ms = closed_span_ms;
     st->active = 1;
     st->reason = reason;
     st->start_us = now_us;

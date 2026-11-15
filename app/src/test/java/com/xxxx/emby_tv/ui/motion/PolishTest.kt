@@ -11,6 +11,7 @@ import com.xxxx.emby_tv.data.remote.libraryItemsPath
 import com.xxxx.emby_tv.data.remote.parseItemListJson
 import com.xxxx.emby_tv.data.remote.seriesAddedPath
 import com.xxxx.emby_tv.ui.home.ArtworkWash
+import com.xxxx.emby_tv.ui.home.HomeScrim
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.motion.FocusLift
 import com.xxxx.emby_tv.ui.motion.FocusRestore
@@ -234,6 +235,12 @@ class PolishTest {
         assertEquals(0f, ArtworkWash.strength(onHero = true, hasArtwork = true))
         assertEquals(1f, ArtworkWash.strength(onHero = false, hasArtwork = true))
         assertEquals(0f, ArtworkWash.strength(onHero = false, hasArtwork = false))
+        val scrim = HomeScrim.stops(HomeStyle.background)
+        assertEquals(0f, scrim.first().first)
+        assertEquals(1f, scrim.last().first)
+        assertEquals(0f, scrim.first().second.alpha)
+        assertEquals(HomeStyle.background, scrim.last().second)
+        assertTrue(scrim.zipWithNext().all { (a, b) -> b.first > a.first })
         val darkRed = ArtworkWash.sampleMuted(intArrayOf(0xFF401810.toInt(), 0xFF502018.toInt()))
         assertTrue(darkRed != null)
         assertTrue(ArtworkWash.needsSoftwareCopy("HARDWARE"))
