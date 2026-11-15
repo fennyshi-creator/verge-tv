@@ -190,7 +190,7 @@ class PolishTest {
         assertEquals(0f, StageDock.bringIntoViewDistance())
         assertEquals(0, StageDock.offset(rowTop = 900, index = 0, stagePx = 80, maxScroll = 2000))
         assertEquals(820, StageDock.offset(rowTop = 900, index = 1, stagePx = 80, maxScroll = 2000))
-        assertEquals(Motion.pageMs, 300)
+        assertEquals(Motion.pageMs, 380)
     }
 
     @Test

@@ -9,6 +9,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -35,6 +36,8 @@ import androidx.compose.ui.input.key.key
 import com.xxxx.emby_tv.ui.components.KeyPhase
 import com.xxxx.emby_tv.ui.components.OkLatch
 import com.xxxx.emby_tv.ui.components.CenterGlyph
+import com.xxxx.emby_tv.ui.components.PlayerBack
+import com.xxxx.emby_tv.ui.components.PlayerBackAction
 import com.xxxx.emby_tv.ui.components.PlayerKey
 import com.xxxx.emby_tv.ui.components.PlayerPauseMark
 import com.xxxx.emby_tv.ui.components.PlayerSeekReadout
@@ -294,6 +297,8 @@ fun PlayerScreen(
     var playMode by remember { mutableStateOf(0) } // 0: list loop, 1: single loop, 2: no loop
     var endedHandled by remember { mutableStateOf(false) }
     var chromeVisible by remember { mutableStateOf(false) }
+    var exitHintAt by remember { mutableStateOf<Long?>(null) }
+    var lastBackMs by remember { mutableLongStateOf(0L) }
     var playerSheet by remember { mutableStateOf(com.xxxx.emby_tv.ui.components.PlayerSheet.None) }
     var chromeTick by remember { mutableLongStateOf(0L) }
     var restoreButton by remember { mutableIntStateOf(-1) }
@@ -1638,6 +1643,61 @@ fun PlayerScreen(
         hideOverlay()
     }
 
+    LaunchedEffect(exitHintAt) {
+        val armed = exitHintAt ?: return@LaunchedEffect
+        delay(PlayerBack.WINDOW_MS)
+        if (exitHintAt == armed) exitHintAt = null
+    }
+
+    fun dispatchPlayerBack(phase: KeyPhase) {
+        val now = System.currentTimeMillis()
+        if (phase == KeyPhase.Down) {
+            if (now - lastBackMs < 80L) return
+            lastBackMs = now
+        }
+        val readoutVisible = seekFeedback && (seekTarget != null || positionLatch?.targetMs != null)
+        val overlay = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None ||
+            episodeStrip ||
+            showNextEpisode ||
+            (showResumeButtons && playbackPositionTicks > 0) ||
+            (chromeVisible && !episodeStrip) ||
+            readoutVisible ||
+            showSkipIntroButton
+        val step = PlayerBack.step(phase, overlay, exitHintAt, now)
+        when (step.action) {
+            PlayerBackAction.DismissOverlay -> {
+                exitHintAt = null
+                when {
+                    showNextEpisode -> dismissNextEpisode = true
+                    episodeStrip -> {
+                        episodeStrip = false
+                        restoreButton = -1
+                    }
+                    playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None -> {
+                        playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
+                    }
+                    showResumeButtons && playbackPositionTicks > 0 -> {
+                        showResumeButtons = false
+                        resumeButtonsShownOnce = true
+                    }
+                    showSkipIntroButton -> showSkipIntroButton = false
+                    else -> hideOverlay()
+                }
+            }
+            PlayerBackAction.ShowHint -> {
+                if (seekFeedback && !readoutVisible) seekFeedback = false
+                exitHintAt = step.hintAtMs
+            }
+            PlayerBackAction.ExitPlayer -> {
+                exitHintAt = null
+                onExit()
+            }
+            PlayerBackAction.Ignore -> Unit
+        }
+    }
+
+    BackHandler { dispatchPlayerBack(KeyPhase.Down) }
+
     LaunchedEffect(episodeStrip, playerSheet, showResumeButtons) {
         if (episodeStrip || showResumeButtons ||
             playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None
@@ -1656,7 +1716,10 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { event ->
-                if (remoteKey(event) == PlayerKey.Back) return@onPreviewKeyEvent false
+                if (remoteKey(event) == PlayerKey.Back) {
+                    dispatchPlayerBack(remotePhase(event))
+                    return@onPreviewKeyEvent true
+                }
                 val decision = decideRemote(
                     RemoteContext(
                         controlsVisible = chromeVisible,
@@ -1690,29 +1753,6 @@ fun PlayerScreen(
                     RemoteCommand.HideOverlay -> hideOverlay()
                 }
                 true
-            }
-            .onKeyEvent { event ->
-                if (event.key != Key.Back || event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when {
-                    showNextEpisode -> {
-                        dismissNextEpisode = true
-                        true
-                    }
-                    episodeStrip -> {
-                        episodeStrip = false
-                        restoreButton = -1
-                        true
-                    }
-                    playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None -> {
-                        playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
-                        true
-                    }
-                    chromeVisible || seekFeedback -> {
-                        hideOverlay()
-                        true
-                    }
-                    else -> false
-                }
             }
     ) {
         Box(
@@ -1941,6 +1981,17 @@ fun PlayerScreen(
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = if (chromeVisible) 120.dp else 28.dp),
             )
 
+            if (exitHintAt != null) {
+                Text(
+                    text = PlayerBack.HINT,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 48.dp)
+                        .background(Color(0xCC141210), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                )
+            }
             PlayerSideSheet(
                 visible = playerSheet != com.xxxx.emby_tv.ui.components.PlayerSheet.None,
                 title = when (playerSheet) {

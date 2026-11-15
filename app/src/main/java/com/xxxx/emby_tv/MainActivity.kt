@@ -570,7 +570,8 @@ fun EmbyTvApp() {
                                 val nextPos = newPosition * 10000
                                 navController.popBackStack()
                                 navController.navigate("player/$nextId?position=$nextPos")
-                            }
+                            },
+                            onExit = { navController.popBackStack() },
                         )
                     }
                 }

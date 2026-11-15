@@ -7,16 +7,17 @@ import androidx.compose.animation.core.tween
 
 /**
  * Shared motion for the TV shell. One ease, a few durations.
- * Cubic (0.2, 0, 0, 1) settles quickly and then glides, closer to tvOS than a bounce.
+ * The curve starts with a small slope so the first frames are readable,
+ * then settles. Repeat steps stay short and linear.
  */
 object Motion {
-    val ease = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+    val ease = CubicBezierEasing(0.22f, 0.12f, 0.16f, 1f)
 
-    const val focusMs = 200
-    const val rowMs = 280
-    const val pageMs = 300
-    const val fadeMs = 240
-    const val imageMs = 180
+    const val focusMs = 240
+    const val rowMs = 340
+    const val pageMs = 380
+    const val fadeMs = 280
+    const val imageMs = 210
 
     fun <T> row(): TweenSpec<T> = tween(durationMillis = rowMs, easing = ease)
 

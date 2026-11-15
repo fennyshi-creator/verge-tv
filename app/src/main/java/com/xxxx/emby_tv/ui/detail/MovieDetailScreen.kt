@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -102,6 +103,8 @@ import com.xxxx.emby_tv.ui.home.HomeImage
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.focus.ProvideTvBringIntoView
+import com.xxxx.emby_tv.ui.focus.navigationSound
+import com.xxxx.emby_tv.ui.focus.playNavigationSound
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
@@ -714,6 +717,7 @@ private fun VersionMark(label: String, focused: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .height(42.dp)
+            .animateContentSize(com.xxxx.emby_tv.ui.motion.Motion.focus())
             .clip(RoundedCornerShape(50))
             .background(if (focused) Color.White else Color.White.copy(0.16f))
             .clickable(onClick = onClick)
@@ -911,6 +915,7 @@ internal fun DetailSlotRow(
     art: @Composable BoxScope.(Int) -> Unit,
 ) {
     if (count == 0) return
+    val soundView = androidx.compose.ui.platform.LocalView.current
     val shape: Shape = if (cornerIsCircle) CircleShape else RoundedCornerShape(14.dp)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stride = cardWidth + gap
@@ -955,21 +960,28 @@ internal fun DetailSlotRow(
                     if (it.isFocused) onFocused()
                 }
                 .focusable()
+                .navigationSound()
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
                         Key.DirectionRight -> {
+                            val before = windowStart to slot
                             val more = count - windowStart - fullSlots
                             val end = (min(fullSlots, count - windowStart) - 1).coerceAtLeast(0)
                             if (slot == 0 && more > 0) windowStart++ else if (slot < end) slot++
+                            if (before != windowStart to slot) playNavigationSound(soundView)
                             true
                         }
                         Key.DirectionLeft -> {
+                            val before = windowStart to slot
                             if (slot > 0) slot-- else if (windowStart > 0) windowStart-- else return@onKeyEvent false
+                            if (before != windowStart to slot) playNavigationSound(soundView)
                             true
                         }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            onActivate(focusIndex)
+                            if (com.xxxx.emby_tv.ui.library.LibraryActivation.opensOn(event.type, event.key)) {
+                                onActivate(focusIndex)
+                            }
                             true
                         }
                         else -> false

@@ -139,10 +139,20 @@ object EmbyPresentation {
      * is never an episode title.
      */
     fun personWorks(items: List<BaseItemDto>): Pair<List<BaseItemDto>, List<BaseItemDto>> {
-        val shown = favoritesForDisplay(items)
-        val movies = shown.filter { it.type.equals("Movie", true) }
-        val series = shown.filter { it.type.equals("Series", true) }
-        return movies to series
+        val movies = LinkedHashMap<String, BaseItemDto>()
+        for (item in items) {
+            if (!item.type.equals("Movie", true)) continue
+            val id = item.id ?: continue
+            movies.putIfAbsent(id, item)
+        }
+        val series = coalesceSeriesCards(
+            items.filter {
+                it.type.equals("Series", true) ||
+                    it.type.equals("Episode", true) ||
+                    it.type.equals("Season", true)
+            },
+        )
+        return movies.values.toList() to series
     }
 
     fun personFactLine(

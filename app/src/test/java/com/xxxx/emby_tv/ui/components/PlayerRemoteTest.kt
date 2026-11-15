@@ -210,4 +210,25 @@ class PlayerRemoteTest {
         assertNull(latchedDisplayMs(playerMs = 110_400L, latch, nowMs = 8_000L))
         assertNull(latchedDisplayMs(playerMs = 60_000L, latch, nowMs = 10_000L))
     }
+
+    @Test
+    fun clearBackShowsAHintAndTheNextPressInsideTheWindowExits() {
+        val first = PlayerBack.step(KeyPhase.Down, overlayVisible = false, hintAtMs = null, nowMs = 1_000L)
+        assertEquals(PlayerBackAction.ShowHint, first.action)
+        assertEquals(1_000L, first.hintAtMs)
+        val repeat = PlayerBack.step(KeyPhase.Repeat, overlayVisible = false, hintAtMs = 1_000L, nowMs = 1_100L)
+        assertEquals(PlayerBackAction.Ignore, repeat.action)
+        assertEquals(1_000L, repeat.hintAtMs)
+        val up = PlayerBack.step(KeyPhase.Up, overlayVisible = false, hintAtMs = 1_000L, nowMs = 1_200L)
+        assertEquals(PlayerBackAction.Ignore, up.action)
+        val exit = PlayerBack.step(KeyPhase.Down, overlayVisible = false, hintAtMs = 1_000L, nowMs = 2_500L)
+        assertEquals(PlayerBackAction.ExitPlayer, exit.action)
+        val expired = PlayerBack.step(KeyPhase.Down, overlayVisible = false, hintAtMs = 1_000L, nowMs = 3_500L)
+        assertEquals(PlayerBackAction.ShowHint, expired.action)
+        assertEquals(3_500L, expired.hintAtMs)
+        val overlay = PlayerBack.step(KeyPhase.Down, overlayVisible = true, hintAtMs = 1_000L, nowMs = 1_200L)
+        assertEquals(PlayerBackAction.DismissOverlay, overlay.action)
+        assertNull(overlay.hintAtMs)
+        assertEquals("再按返回退出", PlayerBack.HINT)
+    }
 }

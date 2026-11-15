@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.ui.focus.navigationSound
+import com.xxxx.emby_tv.ui.focus.playNavigationSound
 import com.xxxx.emby_tv.ui.home.AmbientWash
 import com.xxxx.emby_tv.ui.home.ArtworkWash
 import com.xxxx.emby_tv.ui.home.ArtRole
@@ -199,7 +201,7 @@ fun LibraryGridPage(
                 }
             } else {
                 rows.forEachIndexed { index, row ->
-                    GridRow(
+                    LibraryPosterRow(
                         cells = row,
                         selectedCol = if (gridRow == index) gridCol.coerceAtMost(row.lastIndex) else 0,
                         focused = gridRow == index,
@@ -286,6 +288,7 @@ private fun HeaderPill(
             }
             .onFocusChanged { focused = it.isFocused }
             .focusable()
+            .navigationSound()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 if (event.key == Key.DirectionCenter || event.key == Key.Enter) {
@@ -303,7 +306,7 @@ private fun HeaderPill(
 }
 
 @Composable
-private fun GridRow(
+internal fun LibraryPosterRow(
     cells: List<BaseItemDto>,
     selectedCol: Int,
     focused: Boolean,
@@ -318,6 +321,7 @@ private fun GridRow(
     onWash: (String) -> Unit,
 ) {
     val col = selectedCol.coerceIn(0, cells.lastIndex)
+    val soundView = androidx.compose.ui.platform.LocalView.current
     LaunchedEffect(focused, col, cells) {
         if (!focused || serverUrl.isBlank()) return@LaunchedEffect
         val item = cells.getOrNull(col) ?: return@LaunchedEffect
@@ -337,15 +341,22 @@ private fun GridRow(
                 }
             }
             .focusable()
+            .navigationSound()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionRight -> {
-                        if (col < cells.lastIndex) onCol(col + 1)
+                        if (col < cells.lastIndex) {
+                            onCol(col + 1)
+                            playNavigationSound(soundView)
+                        }
                         true
                     }
                     Key.DirectionLeft -> {
-                        if (col > 0) onCol(col - 1) else false
+                        if (col > 0) {
+                            onCol(col - 1)
+                            playNavigationSound(soundView)
+                        }
                         col > 0
                     }
                     Key.DirectionDown -> {
@@ -372,7 +383,7 @@ private fun GridRow(
                         }
                     }
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        onOpen(cells[col])
+                        if (LibraryActivation.opensOn(event.type, event.key)) onOpen(cells[col])
                         true
                     }
                     else -> false

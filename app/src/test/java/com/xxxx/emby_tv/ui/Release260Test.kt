@@ -61,12 +61,16 @@ class Release260Test {
             seriesId = "s",
             seriesName = "我们与恶的距离",
             productionYear = 2019,
+            seriesPrimaryImageTag = "series-poster",
         )
         val series = BaseItemDto(id = "s2", name = "饮食男女", type = "Series", productionYear = 1994)
         val (movies, shows) = EmbyPresentation.personWorks(listOf(movie, episode, series))
         assertEquals(listOf("影后"), movies.map { it.name })
         assertEquals(setOf("我们与恶的距离", "饮食男女"), shows.map { it.name }.toSet())
         assertTrue(shows.none { it.name == "S1:E2" })
+        val collapsed = shows.first { it.id == "s" }
+        assertEquals("series-poster", collapsed.seriesPrimaryImageTag)
+        assertEquals("series-poster", collapsed.imageTags?.get("Primary"))
         assertEquals("series/s", EmbyPresentation.detailRoute(shows.first { it.id == "s" }))
         assertEquals("media/m", EmbyPresentation.detailRoute(movies.first()))
         val line = EmbyPresentation.personFactLine(

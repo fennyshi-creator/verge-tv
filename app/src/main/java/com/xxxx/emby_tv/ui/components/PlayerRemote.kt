@@ -12,7 +12,7 @@ package com.xxxx.emby_tv.ui.components
  * - OK up: pause and show the bar. Focus stays off the progress bar.
  * - Left / Right: seek immediately and show the compact center readout.
  * - Down or Menu: show the bar. Playback keeps running.
- * - Back: leave playback.
+ * - Back: two presses leave playback. The first clear-screen press only shows a hint.
  *
  * Hidden, paused:
  * - OK up: resume. No center glyph is shown.
@@ -43,6 +43,35 @@ enum class PlayerKey {
 }
 
 enum class KeyPhase { Down, Repeat, Up }
+
+enum class PlayerBackAction { DismissOverlay, ShowHint, ExitPlayer, Ignore }
+
+data class PlayerBackStep(val action: PlayerBackAction, val hintAtMs: Long?)
+
+object PlayerBack {
+    const val WINDOW_MS = 2_000L
+    const val HINT = "再按返回退出"
+
+    /**
+     * A fresh press while chrome is up dismisses it. A fresh press on a clear
+     * screen arms the hint. The next fresh press inside the window leaves the
+     * player. Repeats and key-up do not count as that second press.
+     */
+    fun step(
+        phase: KeyPhase,
+        overlayVisible: Boolean,
+        hintAtMs: Long?,
+        nowMs: Long,
+        windowMs: Long = WINDOW_MS,
+    ): PlayerBackStep {
+        if (phase != KeyPhase.Down) return PlayerBackStep(PlayerBackAction.Ignore, hintAtMs)
+        if (overlayVisible) return PlayerBackStep(PlayerBackAction.DismissOverlay, null)
+        if (hintAtMs != null && nowMs - hintAtMs in 0..windowMs) {
+            return PlayerBackStep(PlayerBackAction.ExitPlayer, null)
+        }
+        return PlayerBackStep(PlayerBackAction.ShowHint, nowMs)
+    }
+}
 
 enum class RemoteCommand {
     Ignore,

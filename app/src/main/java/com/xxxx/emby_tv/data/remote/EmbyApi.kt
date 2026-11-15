@@ -216,7 +216,7 @@ internal fun boxSetItemsPath(
 internal fun personWorksPath(userId: String, personId: String, apiKey: String): String {
     return "/Users/$userId/Items?PersonIds=$personId&IncludeItemTypes=Movie,Series,Episode&Recursive=true" +
             "&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=200" +
-            "&Fields=ProductionYear,SeriesId,SeriesName,ImageTags,BackdropImageTags,Type" +
+            "&Fields=ProductionYear,SeriesId,SeriesName,SeriesPrimaryImageTag,ImageTags,BackdropImageTags,Type" +
             "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }

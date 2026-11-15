@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxxx.emby_tv.Utils
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.ui.focus.navigationSound
 import com.xxxx.emby_tv.ui.home.AmbientWash
 import com.xxxx.emby_tv.ui.home.ArtRole
 import com.xxxx.emby_tv.ui.home.ArtworkWash
@@ -44,6 +50,7 @@ import com.xxxx.emby_tv.ui.home.PosterRowFit
 import com.xxxx.emby_tv.ui.motion.TvLeadingRow
 import com.xxxx.emby_tv.util.EmbyPresentation
 import java.util.Calendar
+import kotlinx.coroutines.launch
 
 @Composable
 fun PersonDetailPage(
@@ -54,8 +61,12 @@ fun PersonDetailPage(
     onOpenItem: (BaseItemDto) -> Unit,
 ) {
     var restoreKey by rememberSaveable(person?.id) { mutableStateOf<String?>(null) }
+    val headerFocus = remember { FocusRequester() }
     val movieFocus = remember { FocusRequester() }
     val seriesFocus = remember { FocusRequester() }
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val firstWorks = if (movies.isNotEmpty()) movieFocus else seriesFocus
     val portrait = if (person == null || serverUrl.isBlank()) "" else EmbyPresentation.viewPrimaryImageUrl(serverUrl, person, 400)
     val today = Calendar.getInstance()
     val facts = EmbyPresentation.personFactLine(
@@ -75,13 +86,20 @@ fun PersonDetailPage(
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(top = 36.dp, bottom = 28.dp),
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = HomeStyle.gutter),
+                    .padding(horizontal = HomeStyle.gutter)
+                    .focusRequester(headerFocus)
+                    .focusProperties { if (movies.isNotEmpty() || series.isNotEmpty()) down = firstWorks }
+                    .onFocusChanged {
+                        if (it.isFocused) scope.launch { scroll.animateScrollTo(0) }
+                    }
+                    .focusable()
+                    .navigationSound(),
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f).padding(end = 28.dp)) {
@@ -106,7 +124,7 @@ fun PersonDetailPage(
                             text = bio,
                             fontSize = 15.sp,
                             color = HomeStyle.meta,
-                            maxLines = 4,
+                            maxLines = 3,
                             modifier = Modifier.padding(top = 14.dp),
                         )
                     }
@@ -136,7 +154,7 @@ fun PersonDetailPage(
                         items = movies,
                         serverUrl = serverUrl,
                         focus = movieFocus,
-                        up = null,
+                        up = headerFocus,
                         down = if (series.isNotEmpty()) seriesFocus else null,
                         restoreKey = restoreKey,
                         rowKey = "movie",
@@ -152,7 +170,7 @@ fun PersonDetailPage(
                         items = series,
                         serverUrl = serverUrl,
                         focus = seriesFocus,
-                        up = if (movies.isNotEmpty()) movieFocus else null,
+                        up = if (movies.isNotEmpty()) movieFocus else headerFocus,
                         down = null,
                         restoreKey = restoreKey,
                         rowKey = "series",

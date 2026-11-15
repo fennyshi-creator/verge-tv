@@ -42,7 +42,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.ui.focus.navigationSound
+import com.xxxx.emby_tv.ui.focus.playNavigationSound
 import com.xxxx.emby_tv.ui.home.ArtRole
+import com.xxxx.emby_tv.ui.library.LibraryActivation
 import com.xxxx.emby_tv.ui.home.ArtworkPrefetch
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import kotlin.math.min
@@ -100,6 +103,7 @@ fun TvLeadingRow(
         if (windowStart > maxStart) windowStart = maxStart
         val lastSlot = (min(fullSlots, total - windowStart) - 1).coerceAtLeast(0)
         if (slot > lastSlot) slot = lastSlot
+        val soundView = androidx.compose.ui.platform.LocalView.current
 
         fun noteRepeat() {
             val now = System.currentTimeMillis()
@@ -108,13 +112,17 @@ fun TvLeadingRow(
         }
 
         fun moveRight() {
+            val before = windowStart to slot
             val moreRight = total - windowStart - fullSlots
             val endSlot = (min(fullSlots, total - windowStart) - 1).coerceAtLeast(0)
             if (slot == 0 && moreRight > 0) windowStart++ else if (slot < endSlot) slot++
+            if (before != windowStart to slot) playNavigationSound(soundView)
         }
 
         fun moveLeft() {
+            val before = windowStart to slot
             if (slot > 0) slot-- else if (windowStart > 0) windowStart--
+            if (before != windowStart to slot) playNavigationSound(soundView)
         }
 
         val density = LocalDensity.current
@@ -169,6 +177,7 @@ fun TvLeadingRow(
                     if (it.isFocused) onFocused?.invoke()
                 }
                 .focusable()
+                .navigationSound()
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
@@ -177,7 +186,9 @@ fun TvLeadingRow(
                         Key.DirectionRight -> { noteRepeat(); moveRight(); true }
                         Key.DirectionLeft -> if (slot == 0 && windowStart == 0) false else { noteRepeat(); moveLeft(); true }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            if (focusedIndex >= items.size) onTrailing?.invoke() else onActivate(items[focusedIndex])
+                            if (LibraryActivation.opensOn(event.type, event.key)) {
+                                if (focusedIndex >= items.size) onTrailing?.invoke() else onActivate(items[focusedIndex])
+                            }
                             true
                         }
                         Key.Menu, Key.Bookmark -> { onMenu(); true }
