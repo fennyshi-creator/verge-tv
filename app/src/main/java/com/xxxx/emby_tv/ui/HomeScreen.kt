@@ -112,10 +112,10 @@ fun HomeScreen(
         val id = item.id ?: return
         val title = android.net.Uri.encode(item.name ?: "")
         val type = libraryType(item)
-        if (type == "Movie" || type == "Series") {
-            navController.navigate("browse/$id?libraryName=$title&type=$type")
-        } else {
-            navController.navigate("library/$id?libraryName=$title&type=$type")
+        when (EmbyPresentation.libraryDestination(item)) {
+            "browse" -> navController.navigate("browse/$id?libraryName=$title&type=$type")
+            "collections" -> navController.navigate("collections/$id?libraryName=$title")
+            else -> navController.navigate("library/$id?libraryName=$title&type=$type")
         }
     }
 

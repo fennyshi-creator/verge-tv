@@ -5,7 +5,6 @@ import com.xxxx.emby_tv.data.remote.favoriteItemsPath
 import com.xxxx.emby_tv.ui.connect.ConnectForm
 import com.xxxx.emby_tv.ui.connect.PairingPage
 import com.xxxx.emby_tv.ui.home.HomeMask
-import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.util.EmbyPresentation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,9 +21,10 @@ class Release259Test {
         assertEquals(hero, bands.stillBottom)
         assertEquals(hero, bands.opaqueTop)
         assertEquals(hero - seam, bands.seamTop)
-        assertEquals(2, HomeMask.stops(HomeStyle.background).size)
-        assertEquals(0f, HomeMask.stops(HomeStyle.background).first().second.alpha)
-        assertEquals(HomeStyle.background, HomeMask.stops(HomeStyle.background).last().second)
+        assertEquals(0f, HomeMask.stillAlpha(1f))
+        assertFalse(HomeMask.paintsOwnFill("continue"))
+        assertTrue(HomeMask.sharesWash("continue"))
+        assertTrue(HomeMask.sharesWash("library"))
         assertFalse(HomeMask.stillBehindContinue(bands, continueTitleTop = hero))
         assertTrue(HomeMask.opaqueFromContinue(bands, continueTitleTop = hero))
         assertTrue(HomeMask.emptyHistoryMeetsLibrary(bands, libraryTop = hero))

@@ -53,6 +53,7 @@ fun MediaDetailScreen(
     onNavigateToPlayer: (BaseItemDto) -> Unit,
     onOpenMovie: (String) -> Unit = {},
     onPlayMovie: (BaseItemDto, String?) -> Unit = { item, _ -> onNavigateToPlayer(item) },
+    onOpenPerson: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val repository = remember { EmbyRepository.getInstance(context) }
@@ -117,6 +118,7 @@ fun MediaDetailScreen(
             onPlay = onNavigateToPlayer,
             onOpenSeries = onNavigateToSeries,
             onOpenMovie = onOpenMovie,
+            onOpenPerson = onOpenPerson,
         )
     } else if (mediaInfo.type == "Movie") {
         MovieDetailConnected(
@@ -128,6 +130,7 @@ fun MediaDetailScreen(
                 val id = similar.id ?: return@MovieDetailConnected
                 if (similar.isSeries) onNavigateToSeries(id) else onOpenMovie(id)
             },
+            onOpenPerson = onOpenPerson,
         )
     } else {
         // Construct Backdrop URL

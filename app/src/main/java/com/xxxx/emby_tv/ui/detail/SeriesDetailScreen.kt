@@ -93,6 +93,7 @@ fun SeriesDetailConnected(
     onPlay: (BaseItemDto) -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenMovie: (String) -> Unit,
+    onOpenPerson: (String) -> Unit = {},
 ) {
     val item = detailViewModel.mediaInfo ?: return
     LaunchedEffect(item.id) {
@@ -139,6 +140,7 @@ fun SeriesDetailConnected(
             val id = similar.id ?: return@SeriesDetailPage
             if (similar.isSeries || similar.type == "Series") onOpenSeries(id) else onOpenMovie(id)
         },
+        onOpenPerson = onOpenPerson,
     )
 }
 
@@ -159,6 +161,7 @@ fun SeriesDetailPage(
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
+    onOpenPerson: (String) -> Unit = {},
     scrollOffset: Dp = 0.dp,
     expandBelowHero: Boolean = true,
     forceFocus: SeriesFocus? = null,
@@ -175,6 +178,8 @@ fun SeriesDetailPage(
     val boxFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun focusFor(id: String): FocusRequester = boxFocus.getOrPut(id) { FocusRequester() }
     val people = series.people.orEmpty().filter { it.name?.isNotBlank() == true }
+    var castReturn by androidx.compose.runtime.saveable.rememberSaveable(series.id) { mutableStateOf<String?>(null) }
+    val castIndex = people.indexOfFirst { it.id != null && it.id == castReturn }.coerceAtLeast(0)
     val season = seasons.getOrNull(selectedSeason)
     val resumeIndex = episodes.indexOfFirst { it.id != null && it.id == resume?.id }
         .let { if (it >= 0) it else episodes.indexOfFirst { ep -> ep.indexNumber == resume?.indexNumber && ep.parentIndexNumber == resume?.parentIndexNumber } }
@@ -204,6 +209,7 @@ fun SeriesDetailPage(
         focusIndex = focusIndex,
     )
     fun revealHero() {
+        castReturn = null
         focusKey = "hero"
         blurBackdrop = false
         stage.dock(0)
@@ -222,7 +228,7 @@ fun SeriesDetailPage(
         if (!requestInitialFocus) return@LaunchedEffect
         yield()
         try {
-            heroFocus.requestFocus()
+            if (castReturn != null) castFocus.requestFocus() else heroFocus.requestFocus()
         } catch (_: IllegalStateException) {
         }
     }
@@ -404,9 +410,14 @@ fun SeriesDetailPage(
                         up = episodeFocus,
                         down = boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
                             ?: if (similar.isNotEmpty()) similarFocus else null,
-                        forceFocused = forceFocus == SeriesFocus.Cast,
+                        forceFocused = castReturn != null || forceFocus == SeriesFocus.Cast,
                         peekPrevious = true,
-                        onActivate = {},
+                        initialWindowStart = if (castReturn != null) castIndex else 0,
+                        onActivate = { index ->
+                            val id = people[index].id ?: return@DetailSlotRow
+                            castReturn = id
+                            onOpenPerson(id)
+                        },
                         onFocused = {
                             focusKey = "cast"
                             dockRow(2)

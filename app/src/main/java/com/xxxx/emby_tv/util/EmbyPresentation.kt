@@ -105,6 +105,80 @@ object EmbyPresentation {
         return order.values.toList()
     }
 
+    /** Homepage library tile: movies and series keep the browse grid; box sets get the collection list. */
+    fun libraryDestination(view: BaseItemDto): String = when (latestIncludeTypes(view)) {
+        "Movie", "Series" -> "browse"
+        "BoxSet" -> "collections"
+        else -> "library"
+    }
+
+    fun detailRoute(item: BaseItemDto): String? {
+        val id = item.id ?: return null
+        return when {
+            item.type.equals("Series", true) || item.isSeries -> "series/$id"
+            item.type.equals("Movie", true) -> "media/$id"
+            item.type.equals("BoxSet", true) -> "collection/$id"
+            item.type.equals("Person", true) -> "person/$id"
+            else -> null
+        }
+    }
+
+    fun collectionMetaLine(genres: List<String>?, rating: String?): String {
+        val names = genres.orEmpty().filter { it.isNotBlank() }.take(3)
+        val head = names.joinToString(" / ")
+        val mark = rating?.takeIf { it.isNotBlank() }
+        return listOf(head, mark).filter { !it.isNullOrBlank() }.joinToString(" · ")
+    }
+
+    /** Movies and series inside a box. An episode is shown as its parent series, once. */
+    fun collectionChildrenForDisplay(items: List<BaseItemDto>): List<BaseItemDto> =
+        favoritesForDisplay(items)
+
+    /**
+     * A person's works. Episodes collapse to the series name so a series row
+     * is never an episode title.
+     */
+    fun personWorks(items: List<BaseItemDto>): Pair<List<BaseItemDto>, List<BaseItemDto>> {
+        val shown = favoritesForDisplay(items)
+        val movies = shown.filter { it.type.equals("Movie", true) }
+        val series = shown.filter { it.type.equals("Series", true) }
+        return movies to series
+    }
+
+    fun personFactLine(
+        premiere: String?,
+        end: String?,
+        places: List<String>?,
+        todayYear: Int,
+        todayMonth: Int,
+        todayDay: Int,
+    ): String {
+        val birth = isoDate(premiere)
+        val place = places.orEmpty().firstOrNull { it.isNotBlank() }
+        if (birth == null) return place.orEmpty()
+        val (year, month, day) = birth
+        val endDate = isoDate(end)
+        val ageYear = endDate?.first ?: todayYear
+        val ageMonth = endDate?.second ?: todayMonth
+        val ageDay = endDate?.third ?: todayDay
+        var age = ageYear - year
+        if (ageMonth < month || (ageMonth == month && ageDay < day)) age--
+        val parts = ArrayList<String>()
+        parts += "${year}年${month}月${day}日"
+        if (age in 0..130) parts += "${age}岁"
+        if (!place.isNullOrBlank()) parts += place
+        return parts.joinToString(" · ")
+    }
+
+    private fun isoDate(value: String?): Triple<Int, Int, Int>? {
+        if (value.isNullOrBlank() || value.length < 10) return null
+        val year = value.substring(0, 4).toIntOrNull() ?: return null
+        val month = value.substring(5, 7).toIntOrNull() ?: return null
+        val day = value.substring(8, 10).toIntOrNull() ?: return null
+        if (month !in 1..12 || day !in 1..31) return null
+        return Triple(year, month, day)
+    }
+
     fun sortFavorites(items: List<BaseItemDto>, byYear: Boolean): List<BaseItemDto> {
         return if (byYear) {
             items.sortedWith(compareByDescending<BaseItemDto> { it.productionYear ?: 0 }.thenBy { it.name.orEmpty() })

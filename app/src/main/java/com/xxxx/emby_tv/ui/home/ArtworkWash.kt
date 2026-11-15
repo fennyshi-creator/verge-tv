@@ -51,9 +51,9 @@ object PageLayers {
 }
 
 /**
- * The cinematic still is the hero only. A short seam, not a long percentage
- * fade, reaches opaque page color at the hero's bottom edge. Continue
- * watching and every row under it are opaque siblings on that color.
+ * The still belongs to the hero. Its bottom seam fades the picture out so the
+ * one page wash shows through. Continue watching, the libraries, and the
+ * poster rows do not paint their own fill.
  */
 object HomeMask {
     val seam = 120.dp
@@ -61,13 +61,23 @@ object HomeMask {
 
     fun shiftDp(target: String): Float = if (target == "hero-title") TITLE_SHIFT_DP else 0f
 
-    /** Two stops across the seam box. The box itself is [seam] tall, not the hero. */
-    fun stops(page: Color): List<Pair<Float, Color>> = listOf(
-        0f to Color.Transparent,
-        1f to page.copy(alpha = 1f),
-    )
+    /** 1 keeps the still. 0 lets the shared wash show through. */
+    fun stillAlpha(alongSeam: Float): Float = 1f - alongSeam.coerceIn(0f, 1f)
 
-    fun brush(page: Color): Brush = Brush.verticalGradient(*stops(page).toTypedArray())
+    /**
+     * Fraction of the hero that stays fully opaque before the seam begins.
+     * The seam itself runs from this point to the hero bottom.
+     */
+    fun stillKeepUntil(heroPx: Int, seamPx: Int): Float {
+        if (heroPx <= 0) return 1f
+        val seam = seamPx.coerceIn(0, heroPx)
+        return (heroPx - seam).toFloat() / heroPx
+    }
+
+    /** Continue, libraries, and poster rows share the wash. None paints a slab. */
+    fun paintsOwnFill(row: String): Boolean = false
+
+    fun sharesWash(row: String): Boolean = row == "continue" || row == "library" || row == "posters"
 
     data class Bands(
         val stillTop: Int,

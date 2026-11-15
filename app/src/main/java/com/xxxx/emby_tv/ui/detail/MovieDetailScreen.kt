@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -119,6 +120,7 @@ fun MovieDetailConnected(
     apiKey: String = "",
     onPlay: (item: BaseItemDto, sourceId: String?) -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
+    onOpenPerson: (String) -> Unit = {},
 ) {
     val item = detailViewModel.mediaInfo ?: return
     LaunchedEffect(item.id) {
@@ -141,6 +143,7 @@ fun MovieDetailConnected(
             detailViewModel.togglePlayed(id, item.userData?.played != true)
         },
         onOpenSimilar = onOpenSimilar,
+        onOpenPerson = onOpenPerson,
     )
 }
 
@@ -156,6 +159,7 @@ fun MovieDetailPage(
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
+    onOpenPerson: (String) -> Unit = {},
     scrollOffset: Dp = 0.dp,
     forceFocus: DetailFocus? = null,
     requestInitialFocus: Boolean = true,
@@ -169,11 +173,13 @@ fun MovieDetailPage(
     val boxFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun focusFor(id: String): FocusRequester = boxFocus.getOrPut(id) { FocusRequester() }
     val people = item.people.orEmpty().filter { it.name?.isNotBlank() == true }
+    var castReturn by rememberSaveable(item.id) { mutableStateOf<String?>(null) }
+    val castIndex = people.indexOfFirst { it.id != null && it.id == castReturn }.coerceAtLeast(0)
     LaunchedEffect(requestInitialFocus, item.id) {
         if (!requestInitialFocus) return@LaunchedEffect
         yield()
         try {
-            playFocus.requestFocus()
+            if (castReturn != null) castFocus.requestFocus() else playFocus.requestFocus()
         } catch (_: IllegalStateException) {
         }
     }
@@ -206,6 +212,7 @@ fun MovieDetailPage(
         focusIndex = focusIndex,
     )
     fun revealHero() {
+        castReturn = null
         focusKey = "hero"
         blurBackdrop = false
         stage.dock(0)
@@ -353,10 +360,16 @@ fun MovieDetailPage(
                         serverUrl = serverUrl,
                         apiKey = apiKey,
                         focusRequester = castFocus,
+                        initialIndex = if (castReturn != null) castIndex else 0,
+                        onOpenPerson = { person ->
+                            val id = person.id ?: return@PersonRow
+                            castReturn = id
+                            onOpenPerson(id)
+                        },
                         up = playFocus,
                         down = boundCollections.firstOrNull()?.first?.id?.let { focusFor(it) }
                             ?: if (similar.isNotEmpty()) similarFocus else null,
-                        forceFocused = forceFocus == DetailFocus.Cast,
+                        forceFocused = castReturn != null || forceFocus == DetailFocus.Cast,
                         onFocused = {
                             focusKey = "cast"
                             dockRow(1)
@@ -766,6 +779,8 @@ private fun PersonRow(
     down: FocusRequester?,
     forceFocused: Boolean,
     onFocused: () -> Unit = {},
+    initialIndex: Int = 0,
+    onOpenPerson: (PersonInfo) -> Unit = {},
 ) {
     DetailSlotRow(
         count = people.size,
@@ -779,7 +794,8 @@ private fun PersonRow(
         forceFocused = forceFocused,
         onFocused = onFocused,
         peekPrevious = true,
-        onActivate = {},
+        initialWindowStart = initialIndex,
+        onActivate = { index -> onOpenPerson(people[index]) },
         caption = { index ->
             val person = people[index]
             Column(

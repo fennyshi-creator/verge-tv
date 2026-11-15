@@ -25,6 +25,7 @@ import com.xxxx.emby_tv.util.EmbyPresentation
 import com.xxxx.emby_tv.util.LibraryFocus
 import com.xxxx.emby_tv.util.VersionControl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -235,13 +236,15 @@ class PolishTest {
         assertEquals(0f, ArtworkWash.strength(onHero = true, hasArtwork = true))
         assertEquals(1f, ArtworkWash.strength(onHero = false, hasArtwork = true))
         assertEquals(0f, ArtworkWash.strength(onHero = false, hasArtwork = false))
-        val scrim = HomeMask.stops(HomeStyle.background)
-        assertEquals(2, scrim.size)
-        assertEquals(0f, scrim.first().first)
-        assertEquals(1f, scrim.last().first)
-        assertEquals(0f, scrim.first().second.alpha)
-        assertEquals(HomeStyle.background, scrim.last().second)
+        assertEquals(1f, HomeMask.stillAlpha(0f))
+        assertEquals(0f, HomeMask.stillAlpha(1f))
+        assertTrue(HomeMask.stillKeepUntil(900, 120) in 0.8f..0.9f)
         assertTrue(HomeMask.seam.value in 80f..160f)
+        assertFalse(HomeMask.paintsOwnFill("continue"))
+        assertFalse(HomeMask.paintsOwnFill("library"))
+        assertTrue(HomeMask.sharesWash("continue"))
+        assertTrue(HomeMask.sharesWash("library"))
+        assertTrue(HomeMask.sharesWash("posters"))
         val darkRed = ArtworkWash.sampleMuted(intArrayOf(0xFF401810.toInt(), 0xFF502018.toInt()))
         assertTrue(darkRed != null)
         assertTrue(ArtworkWash.needsSoftwareCopy("HARDWARE"))

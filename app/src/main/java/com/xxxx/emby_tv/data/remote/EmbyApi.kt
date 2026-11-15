@@ -198,9 +198,25 @@ internal fun parseItemListElement(element: com.google.gson.JsonElement): List<Ba
     return com.google.gson.Gson().fromJson(array, type) ?: emptyList()
 }
 
-internal fun boxSetItemsPath(userId: String, boxId: String, apiKey: String): String {
-    return "/Users/$userId/Items?ParentId=$boxId&IncludeItemTypes=Movie,Series&Recursive=true&Limit=24" +
-            "&Fields=ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,PrimaryImageAspectRatio" +
+internal fun boxSetItemsPath(
+    userId: String,
+    boxId: String,
+    apiKey: String,
+    limit: Int = 24,
+    startIndex: Int = 0,
+): String {
+    val start = if (startIndex > 0) "&StartIndex=$startIndex" else ""
+    return "/Users/$userId/Items?ParentId=$boxId&IncludeItemTypes=Movie,Series&Recursive=true&Limit=$limit" +
+            start +
+            "&Fields=ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,PrimaryImageAspectRatio,Genres,OfficialRating" +
+            "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
+            "&X-Emby-Token=$apiKey"
+}
+
+internal fun personWorksPath(userId: String, personId: String, apiKey: String): String {
+    return "/Users/$userId/Items?PersonIds=$personId&IncludeItemTypes=Movie,Series,Episode&Recursive=true" +
+            "&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=200" +
+            "&Fields=ProductionYear,SeriesId,SeriesName,ImageTags,BackdropImageTags,Type" +
             "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
 }
@@ -1003,6 +1019,41 @@ object EmbyApi {
         ready
     }
 
+    suspend fun getBoxSetChildren(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        boxId: String,
+        limit: Int = 80,
+    ): List<BaseItemDto> {
+        return httpAsBaseItemDtoList(
+            context,
+            serverUrl,
+            apiKey,
+            deviceId,
+            boxSetItemsPath(userId, boxId, apiKey, limit = limit),
+        )
+    }
+
+    suspend fun getPersonWorks(
+        context: Context,
+        serverUrl: String,
+        apiKey: String,
+        deviceId: String,
+        userId: String,
+        personId: String,
+    ): List<BaseItemDto> {
+        return httpAsBaseItemDtoList(
+            context,
+            serverUrl,
+            apiKey,
+            deviceId,
+            personWorksPath(userId, personId, apiKey),
+        )
+    }
+
     suspend fun getSimilarItems(
         context: Context,
         serverUrl: String,
@@ -1028,7 +1079,7 @@ object EmbyApi {
         itemId: String,
     ): BaseItemDto {
         val url = "/Users/$userId/Items/$itemId?Fields=People,Overview,Genres,OfficialRating,CommunityRating," +
-                "ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,RunTimeTicks,UserData," +
+                "ProductionYear,PremiereDate,EndDate,ProductionLocations,Status,ImageTags,BackdropImageTags,RunTimeTicks,UserData," +
                 "Width,Height,MediaSources,MediaStreams,CollectionIds,ParentId" +
                 "&X-Emby-Token=$apiKey"
         return httpAsBaseItemDto(context, serverUrl, apiKey, deviceId, url)

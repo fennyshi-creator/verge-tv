@@ -2,6 +2,9 @@ package com.xxxx.emby_tv
 
 import Emby_tvTheme
 import com.xxxx.emby_tv.ui.LibraryScreen
+import com.xxxx.emby_tv.ui.detail.CollectionDetailPage
+import com.xxxx.emby_tv.ui.detail.PersonDetailPage
+import com.xxxx.emby_tv.ui.library.CollectionListPage
 import com.xxxx.emby_tv.ui.library.FavoritesPage
 import com.xxxx.emby_tv.ui.library.LibraryBrowseConnected
 import com.xxxx.emby_tv.ui.LoginScreen
@@ -232,6 +235,127 @@ fun EmbyTvApp() {
                     }
 
                     // 搜索页面
+                    composable(
+                        "collections/{libraryId}?libraryName={libraryName}",
+                        arguments = listOf(
+                            navArgument("libraryId") { type = NavType.StringType },
+                            navArgument("libraryName") {
+                                type = NavType.StringType
+                                defaultValue = ""
+                            },
+                        ),
+                    ) { backStackEntry ->
+                        val libraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
+                        val libraryName = backStackEntry.arguments?.getString("libraryName").orEmpty()
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val repository = remember {
+                            com.xxxx.emby_tv.data.repository.EmbyRepository.getInstance(context)
+                        }
+                        var boxes by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.BaseItemDto>?>(null) }
+                        LaunchedEffect(libraryId) {
+                            boxes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    repository.getLibraryList(
+                                        libraryId,
+                                        "BoxSet",
+                                        0,
+                                        200,
+                                        "SortName",
+                                        "Ascending",
+                                    ).first
+                                } catch (_: Exception) {
+                                    emptyList()
+                                }
+                            }
+                        }
+                        CollectionListPage(
+                            title = libraryName,
+                            serverUrl = repository.serverUrl ?: "",
+                            items = boxes,
+                            onOpenItem = { item ->
+                                val route = com.xxxx.emby_tv.util.EmbyPresentation.detailRoute(item)
+                                if (route != null) navController.navigate(route)
+                            },
+                        )
+                    }
+
+                    composable(
+                        "collection/{boxId}",
+                        arguments = listOf(navArgument("boxId") { type = NavType.StringType }),
+                    ) { backStackEntry ->
+                        val boxId = backStackEntry.arguments?.getString("boxId").orEmpty()
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val repository = remember {
+                            com.xxxx.emby_tv.data.repository.EmbyRepository.getInstance(context)
+                        }
+                        var box by remember { mutableStateOf<com.xxxx.emby_tv.data.model.BaseItemDto?>(null) }
+                        var children by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.BaseItemDto>?>(null) }
+                        LaunchedEffect(boxId) {
+                            val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    val item = repository.getMovieItem(boxId)
+                                    val kids = com.xxxx.emby_tv.util.EmbyPresentation.collectionChildrenForDisplay(
+                                        repository.getBoxSetChildren(boxId),
+                                    )
+                                    item to kids
+                                } catch (_: Exception) {
+                                    null to emptyList()
+                                }
+                            }
+                            box = loaded.first
+                            children = loaded.second
+                        }
+                        CollectionDetailPage(
+                            box = box,
+                            children = children,
+                            serverUrl = repository.serverUrl ?: "",
+                            onOpenItem = { item ->
+                                val route = com.xxxx.emby_tv.util.EmbyPresentation.detailRoute(item)
+                                if (route != null) navController.navigate(route)
+                            },
+                        )
+                    }
+
+                    composable(
+                        "person/{personId}",
+                        arguments = listOf(navArgument("personId") { type = NavType.StringType }),
+                    ) { backStackEntry ->
+                        val personId = backStackEntry.arguments?.getString("personId").orEmpty()
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val repository = remember {
+                            com.xxxx.emby_tv.data.repository.EmbyRepository.getInstance(context)
+                        }
+                        var person by remember { mutableStateOf<com.xxxx.emby_tv.data.model.BaseItemDto?>(null) }
+                        var movies by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.BaseItemDto>>(emptyList()) }
+                        var series by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.BaseItemDto>>(emptyList()) }
+                        LaunchedEffect(personId) {
+                            val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    val item = repository.getMovieItem(personId)
+                                    val works = com.xxxx.emby_tv.util.EmbyPresentation.personWorks(
+                                        repository.getPersonWorks(personId),
+                                    )
+                                    Triple(item, works.first, works.second)
+                                } catch (_: Exception) {
+                                    Triple(null, emptyList(), emptyList())
+                                }
+                            }
+                            person = loaded.first
+                            movies = loaded.second
+                            series = loaded.third
+                        }
+                        PersonDetailPage(
+                            person = person,
+                            movies = movies,
+                            series = series,
+                            serverUrl = repository.serverUrl ?: "",
+                            onOpenItem = { item ->
+                                val route = com.xxxx.emby_tv.util.EmbyPresentation.detailRoute(item)
+                                if (route != null) navController.navigate(route)
+                            },
+                        )
+                    }
+
                     composable("favorites") {
                         val context = androidx.compose.ui.platform.LocalContext.current
                         val repository = remember {
@@ -368,7 +492,10 @@ fun EmbyTvApp() {
                                 val id = mediaItem.id ?: ""
                                 val position = mediaItem.userData?.playbackPositionTicks ?: 0L
                                 navController.navigate("player/$id?position=$position")
-                            }
+                            },
+                            onOpenPerson = { personId ->
+                                navController.navigate("person/$personId")
+                            },
                         )
                     }
 
@@ -399,6 +526,9 @@ fun EmbyTvApp() {
                                 val position = mediaItem.userData?.playbackPositionTicks ?: 0L
                                 val source = if (sourceId.isNullOrBlank()) "" else "&source=$sourceId"
                                 navController.navigate("player/$id?position=$position$source")
+                            },
+                            onOpenPerson = { personId ->
+                                navController.navigate("person/$personId")
                             },
                         )
                     }

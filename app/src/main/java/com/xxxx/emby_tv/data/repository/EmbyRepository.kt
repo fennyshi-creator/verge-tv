@@ -645,6 +645,31 @@ class EmbyRepository private constructor(private val context: Context) {
         )
     }
 
+    suspend fun getBoxSetChildren(boxId: String, limit: Int = 80): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getBoxSetChildren(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            boxId,
+            limit,
+        )
+    }
+
+    suspend fun getPersonWorks(personId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getPersonWorks(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            personId,
+        )
+    }
+
     suspend fun getMovieItem(itemId: String): BaseItemDto {
         requireLoggedIn()
         return EmbyApi.getMovieItem(

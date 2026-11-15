@@ -58,6 +58,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -273,20 +276,33 @@ fun OfficialHome(
             ) {
                 Box(Modifier.fillMaxWidth()) {
                     if (heroItem != null && pinnedBackdrop.isNotBlank()) {
-                        Box(Modifier.fillMaxWidth().height(heroHeight)) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(heroHeight)
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    val keep = HomeMask.stillKeepUntil(
+                                        size.height.toInt(),
+                                        HomeMask.seam.toPx().toInt(),
+                                    )
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            0f to Color.Black,
+                                            keep to Color.Black,
+                                            1f to Color.Transparent,
+                                        ),
+                                        blendMode = BlendMode.DstIn,
+                                    )
+                                },
+                        ) {
                             FadeInImage(
                                 url = pinnedBackdrop,
                                 widthPx = 1280,
                                 heightPx = 720,
                                 contentDescription = null,
                                 modifier = Modifier.matchParentSize(),
-                            )
-                            Box(
-                                Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .height(HomeMask.seam)
-                                    .background(HomeMask.brush(HomeStyle.background)),
                             )
                         }
                     }
@@ -332,7 +348,6 @@ fun OfficialHome(
                         Modifier
                             .fillMaxWidth()
                             .offset(y = HomeMask.shiftDp("continue").dp)
-                            .background(HomeStyle.background)
                             .stageAnchor(continueIndex),
                     ) {
                         StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
