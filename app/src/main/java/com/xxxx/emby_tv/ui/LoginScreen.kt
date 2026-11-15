@@ -12,6 +12,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
@@ -35,6 +36,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.xxxx.emby_tv.ui.connect.ConnectForm
 import com.xxxx.emby_tv.ui.components.TvInputDialog
 import com.xxxx.emby_tv.ui.components.DoubleBackExitHandler
 import com.xxxx.emby_tv.data.local.PreferencesManager
@@ -48,7 +50,6 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.navigation.NavController
 import com.xxxx.emby_tv.ui.components.MenuDialog
-import com.xxxx.emby_tv.ui.components.TopStatusBar
 import com.xxxx.emby_tv.ui.theme.ThemeColorManager
 import com.xxxx.emby_tv.ui.viewmodel.LoginViewModel
 import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
@@ -240,23 +241,35 @@ fun LoginScreen(
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B0B0D))) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopStatusBar(
-            currentVersion = mainViewModel.currentVersion,
-            newVersion = mainViewModel.newVersion,
-            needUpdate = mainViewModel.needUpdate,
-            onMenuClick = { showMenu = true }
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(ConnectForm.PAGE), Color(0xFF131826), Color(0xFF0B0E16)),
+                ),
+            ),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 56.dp, vertical = 40.dp)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0x851C2230), Color(0xA8141210)),
+                    ),
+                    RoundedCornerShape(32.dp),
+                )
+                .padding(1.dp),
+        ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 72.dp),
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(72.dp),
         ) {
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(ConnectForm.LEFT_FRACTION).fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Center,
             ) {
                 if (qrCodeBitmap != null) {
                     Image(
@@ -284,13 +297,22 @@ fun LoginScreen(
                 }
             }
 
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .fillMaxHeight(0.76f)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.White.copy(0.18f), Color.Transparent),
+                        ),
+                    ),
+            )
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(28.dp))
-                    .padding(horizontal = 28.dp, vertical = 32.dp),
+                    .weight(1f - ConnectForm.LEFT_FRACTION)
+                    .padding(horizontal = 36.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Server URL Input
                 Row(
@@ -299,8 +321,12 @@ fun LoginScreen(
                 ) {
                     ProtocolButton(
                         protocol = protocol,
-                        onClick = { protocol = if (protocol == "http") "https" else "http" },
-                        modifier = Modifier.width(80.dp)
+                        onClick = {
+                            val next = if (protocol == "http") "https" else "http"
+                            port = ConnectForm.portFor(next, port)
+                            protocol = next
+                        },
+                        modifier = Modifier.width(88.dp),
                     )
                     TvInputButton(
                         value = host,
@@ -371,9 +397,9 @@ fun LoginScreen(
                         },
                     colors = ButtonDefaults.colors(
                         focusedContainerColor = Color.White,
-                        focusedContentColor = Color(0xFF161616),
-                        containerColor = Color.White.copy(alpha = 0.14f),
-                        contentColor = Color.White,
+                        focusedContentColor = Color(ConnectForm.INK),
+                        containerColor = Color(0xFFF4F1EA),
+                        contentColor = Color(ConnectForm.INK),
                     ),
                     shape = ButtonDefaults.shape()
                 ) {
@@ -415,9 +441,9 @@ fun LoginScreen(
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(100)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
-                        focusedContainerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White.copy(alpha = 0.5f),
-                        focusedContentColor = MaterialTheme.colorScheme.onPrimary
+                        focusedContainerColor = Color.White.copy(alpha = 0.12f),
+                        contentColor = Color.White.copy(alpha = 0.55f),
+                        focusedContentColor = Color(0xFFF4F1EA),
                     ),
                     modifier = Modifier.fillMaxWidth(0.8f)
                 ) {
@@ -540,13 +566,13 @@ fun TvInputButton(
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(14.dp)),
         border = ClickableSurfaceDefaults.border(
             border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))),
-            focusedBorder = Border(BorderStroke(0.dp, Color.Transparent)),
+            focusedBorder = Border(BorderStroke(1.5.dp, Color.White)),
         ),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.08f),
-            contentColor = Color.White,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Color(0xFF161616),
+            containerColor = Color(0x760F131C),
+            contentColor = Color(0xFFF4F1EA),
+            focusedContainerColor = Color(0xC81A2130),
+            focusedContentColor = Color(0xFFF4F1EA),
         ),
         modifier = modifier
             .fillMaxWidth(0.8f)
@@ -598,13 +624,13 @@ fun ProtocolButton(
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(14.dp)),
         border = ClickableSurfaceDefaults.border(
             border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))),
-            focusedBorder = Border(BorderStroke(0.dp, Color.Transparent)),
+            focusedBorder = Border(BorderStroke(1.5.dp, Color.White)),
         ),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.08f),
-            contentColor = Color.White,
+            containerColor = Color(0xEBFFFFFF),
+            contentColor = Color(ConnectForm.INK),
             focusedContainerColor = Color.White,
-            focusedContentColor = Color(0xFF161616),
+            focusedContentColor = Color(ConnectForm.INK),
         ),
         modifier = modifier.height(64.dp)
     ) {

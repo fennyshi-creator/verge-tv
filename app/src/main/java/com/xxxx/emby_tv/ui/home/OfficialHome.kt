@@ -272,19 +272,23 @@ fun OfficialHome(
                     .verticalScroll(scroll),
             ) {
                 Box(Modifier.fillMaxWidth()) {
-                    if (pinnedBackdrop.isNotBlank()) {
-                        FadeInImage(
-                            url = pinnedBackdrop,
-                            widthPx = 1280,
-                            heightPx = 720,
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                        Box(
-                            Modifier
-                                .matchParentSize()
-                                .background(HomeScrim.brush(HomeStyle.background)),
-                        )
+                    if (heroItem != null && pinnedBackdrop.isNotBlank()) {
+                        Box(Modifier.fillMaxWidth().height(heroHeight)) {
+                            FadeInImage(
+                                url = pinnedBackdrop,
+                                widthPx = 1280,
+                                heightPx = 720,
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                            )
+                            Box(
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(HomeMask.seam)
+                                    .background(HomeMask.brush(HomeStyle.background)),
+                            )
+                        }
                     }
                     Column(Modifier.fillMaxWidth()) {
                 if (heroItem != null) {
@@ -324,7 +328,13 @@ fun OfficialHome(
                     )
                 }
                 if (showContinue) {
-                    Column(Modifier.fillMaxWidth().stageAnchor(continueIndex)) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .offset(y = HomeMask.shiftDp("continue").dp)
+                            .background(HomeStyle.background)
+                            .stageAnchor(continueIndex),
+                    ) {
                         StageTitle(stringResource(R.string.continue_watching), continueIndex, stage, scroll)
                         TvLeadingRow(
                             items = resumeItems,
@@ -590,6 +600,7 @@ private fun HomeHero(
         Column(
             Modifier
                 .align(Alignment.CenterStart)
+                .offset(y = HomeMask.shiftDp("hero-title").dp)
                 .padding(start = HomeStyle.gutter, end = 280.dp, bottom = 24.dp)
                 .fillMaxWidth(0.46f)
                 .focusRequester(heroFocus)

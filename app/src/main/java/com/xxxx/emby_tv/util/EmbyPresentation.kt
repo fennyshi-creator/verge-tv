@@ -78,6 +78,41 @@ object EmbyPresentation {
     fun showContinueRow(items: List<BaseItemDto>?): Boolean =
         items.orEmpty().any { !it.id.isNullOrBlank() }
 
+    const val FAVORITES_TITLE = "收藏影片/剧集"
+
+    /**
+     * Movies and series the user favorited, from every library. A favorited
+     * episode is shown as its parent series, once.
+     */
+    fun favoritesForDisplay(items: List<BaseItemDto>): List<BaseItemDto> {
+        val order = LinkedHashMap<String, BaseItemDto>()
+        for (item in items) {
+            if (item.type != "Movie" && item.type != "Series") continue
+            val id = item.id ?: continue
+            order.putIfAbsent(id, item)
+        }
+        for (item in items) {
+            if (!item.type.equals("Episode", true)) continue
+            val id = item.seriesId ?: continue
+            if (order.containsKey(id)) continue
+            order[id] = BaseItemDto(
+                id = id,
+                name = item.seriesName ?: item.name,
+                type = "Series",
+                productionYear = item.productionYear,
+            )
+        }
+        return order.values.toList()
+    }
+
+    fun sortFavorites(items: List<BaseItemDto>, byYear: Boolean): List<BaseItemDto> {
+        return if (byYear) {
+            items.sortedWith(compareByDescending<BaseItemDto> { it.productionYear ?: 0 }.thenBy { it.name.orEmpty() })
+        } else {
+            items.sortedBy { it.name.orEmpty() }
+        }
+    }
+
     fun personImageUrl(
         serverUrl: String,
         person: PersonInfo,

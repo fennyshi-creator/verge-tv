@@ -153,12 +153,7 @@ fun HomeScreen(
                 },
                 onFavorites = {
                     restore.mark("favorites", null)
-                    val library = libraryLatestItems.firstOrNull() ?: return@OfficialHome
-                    val id = library.id ?: return@OfficialHome
-                    val title = library.name ?: ""
-                    navController.navigate(
-                        "library/$id?libraryName=$title&type=${libraryType(library)}&filter=IsFavorite"
-                    )
+                    navController.navigate("favorites")
                 },
                 onSettings = { navController.navigate("settings") },
             )

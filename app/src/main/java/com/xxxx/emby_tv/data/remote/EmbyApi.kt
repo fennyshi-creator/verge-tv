@@ -205,6 +205,14 @@ internal fun boxSetItemsPath(userId: String, boxId: String, apiKey: String): Str
             "&X-Emby-Token=$apiKey"
 }
 
+internal fun favoriteItemsPath(userId: String, apiKey: String): String {
+    return "/Users/$userId/Items?SortBy=SortName&SortOrder=Ascending&Filters=IsFavorite" +
+            "&IncludeItemTypes=Movie,Series,Episode&Recursive=true" +
+            "&Fields=BasicSyncInfo,CanDelete,CanDownload,PrimaryImageAspectRatio,ProductionYear,SeriesId,SeriesName" +
+            "&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Limit=300" +
+            "&X-Emby-Token=$apiKey"
+}
+
 internal fun latestItemsPath(
     userId: String,
     parentId: String,
@@ -856,12 +864,7 @@ object EmbyApi {
         deviceId: String,
         userId: String
     ): List<BaseItemDto> {
-        val url = "/Users/$userId/Items?SortBy=SeriesSortName,ParentIndexNumber,IndexNumber,SortName" +
-                "&SortOrder=Ascending&Filters=IsFavorite" +
-                "&Fields=BasicSyncInfo,CanDelete,CanDownload,PrimaryImageAspectRatio,ProductionYear" +
-                "&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Recursive=true&Limit=20" +
-                "&X-Emby-Token=$apiKey"
-        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url)
+        return httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, favoriteItemsPath(userId, apiKey))
     }
 
     /**

@@ -2,6 +2,7 @@ package com.xxxx.emby_tv
 
 import Emby_tvTheme
 import com.xxxx.emby_tv.ui.LibraryScreen
+import com.xxxx.emby_tv.ui.library.FavoritesPage
 import com.xxxx.emby_tv.ui.library.LibraryBrowseConnected
 import com.xxxx.emby_tv.ui.LoginScreen
 import com.xxxx.emby_tv.ui.PlayerScreen
@@ -231,6 +232,37 @@ fun EmbyTvApp() {
                     }
 
                     // 搜索页面
+                    composable("favorites") {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val repository = remember {
+                            com.xxxx.emby_tv.data.repository.EmbyRepository.getInstance(context)
+                        }
+                        var favoriteItems by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.BaseItemDto>?>(null) }
+                        LaunchedEffect(Unit) {
+                            favoriteItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    com.xxxx.emby_tv.util.EmbyPresentation.favoritesForDisplay(
+                                        repository.getFavoriteItems(),
+                                    )
+                                } catch (_: Exception) {
+                                    emptyList()
+                                }
+                            }
+                        }
+                        FavoritesPage(
+                            serverUrl = repository.serverUrl ?: "",
+                            items = favoriteItems,
+                            onOpenItem = { item ->
+                                val id = item.id ?: return@FavoritesPage
+                                if (item.type == "Series" || item.isSeries) {
+                                    navController.navigate("series/$id")
+                                } else {
+                                    navController.navigate("media/$id")
+                                }
+                            },
+                        )
+                    }
+
                     composable("search") {
                         val searchViewModel: SearchViewModel = viewModel()
                         val loginViewModel: LoginViewModel = viewModel()

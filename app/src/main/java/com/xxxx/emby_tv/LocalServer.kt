@@ -3,6 +3,7 @@ package com.xxxx.emby_tv
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import android.graphics.Color as AndroidColor
+import com.xxxx.emby_tv.ui.connect.PairingPage
 import com.xxxx.emby_tv.util.DiscoveredServer
 import com.xxxx.emby_tv.util.ErrorHandler
 import fi.iki.elonen.NanoHTTPD
@@ -254,136 +255,7 @@ class LocalServer private constructor(
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <meta charset="UTF-8">
                 <style>
-                    :root {
-                        --theme-primary: $themePrimary;
-                        --theme-secondary: $themeSecondary;
-                    }
-                    body {
-                        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                        padding: 0;
-                        margin: 0;
-                        background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
-                        color: white;
-                        display: flex;
-                        flex-wrap: wrap;
-                        justify-content: center;
-                        align-items: flex-start;
-                        min-height: 100vh;
-                    }
-                    .container {
-                        background: transparent;
-                        padding: 40px 20px;
-                        width: 90%;
-                        max-width: 400px;
-                        margin-top: 20px;
-                        margin-bottom: 20px;
-                    }
-                    h2 {
-                        text-align: center;
-                        margin-bottom: 30px;
-                        font-weight: 300;
-                        letter-spacing: 1px;
-                    }
-                    label {
-                        display: block;
-                        margin-bottom: 8px;
-                        font-size: 14px;
-                        color: #ccc;
-                    }
-                    .input-row {
-                        display: flex;
-                        gap: 8px;
-                        margin-bottom: 20px;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                    .input-row input {
-                        width: 100%;
-                        padding: 12px;
-                        box-sizing: border-box;
-                        background: rgba(0, 0, 0, 0.3);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
-                        border-radius: 8px;
-                        color: white;
-                        font-size: 16px;
-                    }
-                    .input-row input:focus {
-                        border-color: #448AFF;
-                        outline: none;
-                    }
-                    .protocol-btn {
-                        padding: 12px 20px;
-                        background: rgba(255, 255, 255, 0.1);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
-                        border-radius: 8px;
-                        color: white;
-                        font-size: 16px;
-                        cursor: pointer;
-                        transition: all 0.2s;
-                        min-width: 80px;
-                        margin-bottom: 20px;
-                    }
-                    .protocol-btn.active {
-                        background: rgba(255, 255, 255, 0.2);
-                    }
-                    .protocol { flex: 0 0 80px; }
-                    .host { flex: 1; }
-                    .port { flex: 0 0 80px; }
-                    input {
-                        width: 100%;
-                        padding: 12px;
-                        margin-bottom: 20px;
-                        box-sizing: border-box;
-                        background: rgba(0, 0, 0, 0.3);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
-                        border-radius: 8px;
-                        color: white;
-                        font-size: 16px;
-                        transition: border-color 0.3s;
-                    }
-                    input::placeholder {
-                        color: rgba(255, 255, 255, 0.5);
-                    }
-                    input:focus {
-                        border-color: var(--theme-primary);
-                        outline: none;
-                    }
-                    button {
-                        width: 100%;
-                        padding: 14px;
-                        background: white;
-                        color: black;
-                        border: none;
-                        border-radius: 8px;
-                        font-size: 16px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        transition: transform 0.2s, opacity 0.2s;
-                    }
-                    button:active {
-                        transform: scale(0.98);
-                        opacity: 0.9;
-                    }
-                    .success {
-                        text-align: center;
-                        color: #4CAF50;
-                    }
-                    .server-list { margin-bottom: 20px; }
-                    .server-item {
-                        display: flex; align-items: center; justify-content: space-between;
-                        gap: 8px;
-                        box-sizing: border-box;
-                        width: 100%; padding: 12px 16px; margin-bottom: 8px;
-                        background: white; color: black;
-                        border: none; border-radius: 8px;
-                        cursor: pointer;
-                        transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
-                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-                    }
-                    .server-item:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
-                    .server-item:active { transform: scale(0.98); opacity: 0.9; }
-                    .server-name { flex: 0 1 auto; font-size: 15px; font-weight: bold; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                    .server-addr { flex: 0 1 auto; font-size: 12px; color: #555; font-weight: normal; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    ${PairingPage.css()}
                 </style>
             </head>
             <body>
@@ -413,7 +285,12 @@ class LocalServer private constructor(
                         btn.innerText = p.toUpperCase();
                     }
                     function toggleProtocol() {
-                        setProtocol(document.getElementById('protocol-input').value === 'http' ? 'https' : 'http');
+                        var next = document.getElementById('protocol-input').value === 'http' ? 'https' : 'http';
+                        setProtocol(next);
+                        var port = document.querySelector('input[name=port]');
+                        if (!port) return;
+                        if (next === 'https' && (port.value === '' || port.value === '8096')) port.value = '443';
+                        if (next === 'http' && (port.value === '' || port.value === '443')) port.value = '8096';
                     }
                     // 解析 http(s)://host[:port] 并自动填充协议、地址、端口
                     function parseAndFillUrl(text) {

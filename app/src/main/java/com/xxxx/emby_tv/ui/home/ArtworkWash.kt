@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -50,19 +51,52 @@ object PageLayers {
 }
 
 /**
- * One gradient for the lower first screen. The last stop is the page color,
- * fully opaque, so the rows below are not a window onto the still.
+ * The cinematic still is the hero only. A short seam, not a long percentage
+ * fade, reaches opaque page color at the hero's bottom edge. Continue
+ * watching and every row under it are opaque siblings on that color.
  */
-object HomeScrim {
+object HomeMask {
+    val seam = 120.dp
+    private const val TITLE_SHIFT_DP = 36f
+
+    fun shiftDp(target: String): Float = if (target == "hero-title") TITLE_SHIFT_DP else 0f
+
+    /** Two stops across the seam box. The box itself is [seam] tall, not the hero. */
     fun stops(page: Color): List<Pair<Float, Color>> = listOf(
         0f to Color.Transparent,
-        0.46f to Color.Transparent,
-        0.62f to page.copy(alpha = 0.55f),
-        0.78f to page.copy(alpha = 0.92f),
-        1f to page,
+        1f to page.copy(alpha = 1f),
     )
 
     fun brush(page: Color): Brush = Brush.verticalGradient(*stops(page).toTypedArray())
+
+    data class Bands(
+        val stillTop: Int,
+        val stillBottom: Int,
+        val seamTop: Int,
+        val seamBottom: Int,
+        val opaqueTop: Int,
+    )
+
+    fun bands(heroHeight: Int, seamPx: Int): Bands {
+        val seam = seamPx.coerceIn(0, heroHeight.coerceAtLeast(0))
+        return Bands(
+            stillTop = 0,
+            stillBottom = heroHeight,
+            seamTop = heroHeight - seam,
+            seamBottom = heroHeight,
+            opaqueTop = heroHeight,
+        )
+    }
+
+    fun stillBehindContinue(bands: Bands, continueTitleTop: Int): Boolean =
+        bands.stillBottom > continueTitleTop
+
+    fun opaqueFromContinue(bands: Bands, continueTitleTop: Int): Boolean =
+        bands.opaqueTop <= continueTitleTop && bands.seamBottom <= continueTitleTop
+
+    /** No history: the seam ends on the library title. Nothing is left between them. */
+    fun emptyHistoryMeetsLibrary(bands: Bands, libraryTop: Int): Boolean =
+        bands.opaqueTop == libraryTop && bands.seamBottom == libraryTop
 }
 
 object ArtworkWash {
