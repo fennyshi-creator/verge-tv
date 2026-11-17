@@ -608,11 +608,11 @@ fun SettingsSheetBody(
         }
         item {
             SheetRow(
-                "优先使用 FFmpeg 音频解码",
-                if (decodeAudio) "开" else "关",
+                "解码为立体声",
+                if (decodeAudio) "开" else "自动",
             ) { onDecodeAudio(!decodeAudio) }
             Text(
-                "开启后关闭音频直通",
+                "自动时 HDMI 能收杜比才透传，电视扬声器解码",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

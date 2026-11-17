@@ -13,31 +13,41 @@ import android.os.Build
  * when the direct-playback query is wrong.
  */
 object AudioRouteProbe {
-    fun allowsBitstream(context: Context): Boolean {
-        val manager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return true
+    data class Snapshot(
+        val type: Int,
+        val encodings: Set<Int>,
+        val allowBitstream: Boolean,
+    )
+
+    fun read(context: Context): Snapshot {
+        val manager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return Snapshot(0, emptySet(), true)
+        val direct = directEac3()
         if (Build.VERSION.SDK_INT >= 33) {
             val attributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
                 .build()
-            val routed = manager.getAudioDevicesForAttributes(attributes)
-            val active = routed.firstOrNull()
+            val active = manager.getAudioDevicesForAttributes(attributes).firstOrNull()
             if (active != null) {
-                return PassthroughRoute.allowBitstream(
+                val encodings = active.encodings?.toSet() ?: emptySet()
+                return Snapshot(
                     active.type,
-                    active.encodings?.toSet() ?: emptySet(),
-                    directEac3(),
+                    encodings,
+                    PassthroughRoute.allowBitstream(active.type, encodings, direct),
                 )
             }
         }
         val devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { info ->
-            PassthroughRoute.Device(
-                type = info.type,
-                encodings = info.encodings?.toSet() ?: emptySet(),
-            )
+            PassthroughRoute.Device(info.type, info.encodings?.toSet() ?: emptySet())
         }
-        return PassthroughRoute.allowActive(devices, streamMask = 0, directQuery = directEac3())
+        val active = PassthroughRoute.selectActive(devices, 0)
+        val encodings = active?.encodings ?: emptySet()
+        val type = active?.type ?: 0
+        return Snapshot(type, encodings, PassthroughRoute.allowActive(devices, 0, direct))
     }
+
+    fun allowsBitstream(context: Context): Boolean = read(context).allowBitstream
 
     private fun directEac3(): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false

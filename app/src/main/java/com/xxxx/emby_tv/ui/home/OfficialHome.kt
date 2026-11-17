@@ -151,10 +151,15 @@ fun OfficialHome(
     }
     val posterFocus = remember(posterRows.size) { List(posterRows.size) { FocusRequester() } }
     val heroFocus = remember { FocusRequester() }
-    val heroItem = posterRows.firstNotNullOfOrNull { row ->
+    val heroFallback = posterRows.firstNotNullOfOrNull { row ->
         row.latestItems?.firstOrNull { !it.id.isNullOrBlank() }
     } ?: resumeItems.firstOrNull { !it.id.isNullOrBlank() }
         ?: libraries.firstNotNullOfOrNull { it.latestItems?.firstOrNull { item -> !item.id.isNullOrBlank() } }
+    val heroPool = remember(libraries) { EmbyPresentation.heroPool(libraries) }
+    val heroPick = remember(heroPool) {
+        if (heroPool.isEmpty()) -1 else kotlin.random.Random.nextInt(heroPool.size)
+    }
+    val heroItem = EmbyPresentation.pickHero(heroPool, heroPick) ?: heroFallback
     val showContinue = EmbyPresentation.showContinueRow(resumeItems)
     val contentFocus = if (showContinue) continueFocus else libraryFocus
     val menuDown = if (heroItem != null) heroFocus else contentFocus
@@ -973,8 +978,21 @@ private fun LibraryCollage(library: BaseItemDto, serverUrl: String) {
         .take(4)
     val viewPrimary = EmbyPresentation.viewPrimaryImageUrl(serverUrl, library)
     Box(Modifier.fillMaxSize()) {
-        when {
-            posters.isNotEmpty() -> {
+        when (EmbyPresentation.libraryTileSource(
+            hasPrimary = viewPrimary.isNotBlank() || SampleArt.lookup(library.id, ArtRole.Primary) != null,
+            collageCount = posters.size,
+        )) {
+            "primary" -> {
+                HomeImage(
+                    itemId = library.id,
+                    fallbackArtId = null,
+                    url = viewPrimary,
+                    role = ArtRole.Primary,
+                    contentDescription = library.name,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            "collage" -> {
                 Row(Modifier.fillMaxSize()) {
                     posters.forEach { child ->
                         HomeImage(
@@ -989,16 +1007,6 @@ private fun LibraryCollage(library: BaseItemDto, serverUrl: String) {
                         )
                     }
                 }
-            }
-            viewPrimary.isNotBlank() || SampleArt.lookup(library.id, ArtRole.Primary) != null -> {
-                HomeImage(
-                    itemId = library.id,
-                    fallbackArtId = null,
-                    url = viewPrimary,
-                    role = ArtRole.Primary,
-                    contentDescription = library.name,
-                    modifier = Modifier.fillMaxSize(),
-                )
             }
             else -> Box(Modifier.fillMaxSize().background(Color(0xFF2A2422)))
         }

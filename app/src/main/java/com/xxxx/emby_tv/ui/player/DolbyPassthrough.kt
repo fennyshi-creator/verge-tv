@@ -144,12 +144,17 @@ object PassthroughRoute {
      * the AVR still accepts the stream. A non-empty list with no Dolby or
      * IEC encoding is an endpoint that said it cannot take the bitstream.
      */
-    fun allowBitstream(type: Int, encodings: Set<Int>, directQuery: Boolean): Boolean {
+    fun allowBitstream(
+        type: Int,
+        encodings: Set<Int>,
+        @Suppress("UNUSED_PARAMETER") directQuery: Boolean,
+    ): Boolean {
         if (isLocalSink(type)) return false
-        if (!isHdmiFamily(type)) {
-            return directQuery && encodingsCarryBitstream(encodings)
+        if (isHdmiFamily(type)) {
+            if (encodings.isEmpty()) return true
+            return encodingsCarryBitstream(encodings)
         }
-        if (directQuery || encodings.isEmpty()) return true
+        if (encodings.isEmpty()) return true
         return encodingsCarryBitstream(encodings)
     }
 

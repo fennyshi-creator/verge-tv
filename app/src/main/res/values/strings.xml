@@ -94,6 +94,7 @@
     <string name="BitrateExceedsLimit">Bitrate exceeds limit</string>
 
     <string name="scan_qr_hint">Scan with your phone to enter the connection</string>
+    <string name="scan_qr_search_hint">Scan with your phone to enter a search</string>
     <string name="starting_server">Starting Local Server...</string>
     <string name="local_server_url">Server URL </string>
     <string name="update_title">Application Update</string>

@@ -111,48 +111,19 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
             try {
                 val accounts = repository.savedAccounts
-                if (accounts.isEmpty()) {
+                val currentId = repository.currentAccountId
+                val account = accounts.firstOrNull { it.id == currentId } ?: accounts.firstOrNull()
+                if (account == null) {
                     isSearching = false
+                    _allSearchResults = emptyList()
                     return@launch
                 }
-
-                val currentId = repository.currentAccountId
-                val sortedAccounts = accounts.sortedByDescending { it.id == currentId }
-                val totalAccounts = sortedAccounts.size
-                val semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
-                val completedCount = AtomicInteger(0)
-                val resultsMutex = Mutex()
-
-                val jobs = sortedAccounts.map { account ->
-                    async {
-                        semaphore.acquire()
-                        try {
-                            if (!coroutineContext.isActive) return@async
-
-                            val (items, count) = searchAccount(account, query)
-
-                            if (!coroutineContext.isActive) return@async
-
-                            resultsMutex.withLock {
-                                _allSearchResults = (_allSearchResults ?: emptyList()) + items
-                                totalCount += count
-                            }
-
-                            searchProgress = completedCount.incrementAndGet() to totalAccounts
-
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            completedCount.incrementAndGet()
-                            searchProgress = completedCount.get() to totalAccounts
-                        } finally {
-                            semaphore.release()
-                        }
-                    }
-                }
-
-                jobs.awaitAll()
-                ErrorHandler.logDebug(TAG, "多账号搜索完成: ${_allSearchResults?.size ?: 0} 条结果, 总计 $totalCount")
+                searchProgress = 0 to 1
+                val (items, count) = searchAccount(account, query)
+                _allSearchResults = items
+                totalCount = count
+                searchProgress = 1 to 1
+                ErrorHandler.logDebug(TAG, "当前账号搜索完成: ${items.size} 条结果, 总计 $totalCount")
 
             } catch (e: CancellationException) {
                 ErrorHandler.logDebug(TAG, "搜索已取消")

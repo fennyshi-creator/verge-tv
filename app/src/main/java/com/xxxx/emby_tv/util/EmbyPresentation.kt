@@ -78,6 +78,40 @@ object EmbyPresentation {
     fun showContinueRow(items: List<BaseItemDto>?): Boolean =
         items.orEmpty().any { !it.id.isNullOrBlank() }
 
+    fun hasOwnBackdrop(item: BaseItemDto): Boolean = !item.backdropImageTags.isNullOrEmpty()
+
+    /** Up to three newest movies and three newest series that have their own backdrop. */
+    fun heroPool(libraries: List<BaseItemDto>): List<BaseItemDto> {
+        fun take(kind: String): List<BaseItemDto> {
+            val rows = libraries.filter { latestIncludeTypes(it) == kind }
+            return rows.flatMap { it.latestItems.orEmpty() }
+                .filter { it.type == kind && !it.id.isNullOrBlank() && hasOwnBackdrop(it) }
+                .distinctBy { it.id }
+                .take(3)
+        }
+        return take("Movie") + take("Series")
+    }
+
+    fun pickHero(pool: List<BaseItemDto>, index: Int): BaseItemDto? {
+        if (pool.isEmpty()) return null
+        val at = index.mod(pool.size)
+        return pool[if (at < 0) at + pool.size else at]
+    }
+
+    /** Episode rating, then series, then season. Blank means show nothing. */
+    fun playbackRating(episode: String?, series: String?, season: String?): String? =
+        listOf(episode, series, season).firstOrNull { !it.isNullOrBlank() }
+
+    /** Fade in, hold, fade out. After that the rating stays hidden for the session. */
+    fun ratingAlpha(elapsedMs: Long, fadeMs: Long = 400L, holdMs: Long = 3500L): Float {
+        if (elapsedMs < 0L) return 0f
+        if (elapsedMs < fadeMs) return elapsedMs.toFloat() / fadeMs
+        if (elapsedMs < fadeMs + holdMs) return 1f
+        val out = elapsedMs - fadeMs - holdMs
+        if (out >= fadeMs) return 0f
+        return 1f - out.toFloat() / fadeMs
+    }
+
     const val FAVORITES_TITLE = "收藏影片/剧集"
 
     /**
@@ -564,6 +598,12 @@ object EmbyPresentation {
      * View tiles (especially 专题影单) carry art on ImageTags.Primary. A separate boolean
      * primary flag is not part of this payload and must not gate the URL.
      */
+    fun libraryTileSource(hasPrimary: Boolean, collageCount: Int): String = when {
+        hasPrimary -> "primary"
+        collageCount > 0 -> "collage"
+        else -> "placeholder"
+    }
+
     fun viewPrimaryImageUrl(serverUrl: String, view: BaseItemDto, maxWidth: Int = 800): String {
         if (serverUrl.isBlank()) return ""
         val tag = view.imageTags?.get("Primary")?.takeIf { it.isNotBlank() } ?: return ""

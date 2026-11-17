@@ -36,7 +36,7 @@ class Release262Test {
     fun anEndpointThatListsNoDolbyEncodingDecodes() {
         val pcmOnly = setOf(DolbyPassthrough.ENCODING_PCM_16BIT)
         assertFalse(PassthroughRoute.allowBitstream(PassthroughRoute.TYPE_HDMI, pcmOnly, directQuery = false))
-        assertTrue(PassthroughRoute.allowBitstream(PassthroughRoute.TYPE_HDMI, pcmOnly, directQuery = true))
+        assertFalse(PassthroughRoute.allowBitstream(PassthroughRoute.TYPE_HDMI, pcmOnly, directQuery = true))
         val switched = PassthroughRoute.allowActive(listOf(speaker()), 0, directQuery = false)
         assertFalse(switched)
         assertTrue(PassthroughRoute.allowActive(emptyList(), 0, directQuery = false))

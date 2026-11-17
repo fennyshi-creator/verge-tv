@@ -323,9 +323,11 @@ fun PlayerScreen(
     val transportButtons = remember { List(4) { FocusRequester() } }
     var showDiagnostics by remember { mutableStateOf(false) }
     var decodeAudio by remember { mutableStateOf(false) }
-    var routeAllowsBitstream by remember {
-        mutableStateOf(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
-    }
+    val initialRoute = remember { com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context) }
+    var routeSnapshot by remember { mutableStateOf(initialRoute) }
+    var routeAllowsBitstream by remember { mutableStateOf(initialRoute.allowBitstream) }
+    var ratingStartMs by remember(mediaId) { mutableStateOf<Long?>(null) }
+    var ratingNowMs by remember { mutableLongStateOf(0L) }
     var appliedBitstream by remember { mutableStateOf<Boolean?>(null) }
     var subtitleScale by remember { mutableFloatStateOf(1f) }
     var subtitleInk by remember { mutableStateOf(Color.White) }
@@ -1394,6 +1396,24 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(mediaId, player.playbackState, player.isPlaying) {
+        if (ratingStartMs == null &&
+            (player.playbackState == FsPlayback.STATE_READY || player.isPlaying)
+        ) {
+            val now = android.os.SystemClock.uptimeMillis()
+            ratingStartMs = now
+            ratingNowMs = now
+        }
+    }
+    LaunchedEffect(ratingStartMs) {
+        val start = ratingStartMs ?: return@LaunchedEffect
+        while (android.os.SystemClock.uptimeMillis() - start < 4_600L) {
+            ratingNowMs = android.os.SystemClock.uptimeMillis()
+            delay(40)
+        }
+        ratingNowMs = android.os.SystemClock.uptimeMillis()
+    }
+
     // 缓冲卡死看门狗：长时间缓冲且缓冲进度零增长时，若当前播放器存在音频输出错误则触发自动恢复；
     // 同时把停滞的网速显示归零，避免一直显示冻结的加载速度
     LaunchedEffect(player) {
@@ -1604,10 +1624,14 @@ fun PlayerScreen(
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
         val callback = object : android.media.AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                applyRoute(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
+                val snap = com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context)
+                routeSnapshot = snap
+                applyRoute(snap.allowBitstream)
             }
             override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
-                applyRoute(com.xxxx.emby_tv.ui.player.AudioRouteProbe.allowsBitstream(context))
+                val snap = com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context)
+                routeSnapshot = snap
+                applyRoute(snap.allowBitstream)
             }
         }
         manager?.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
@@ -1844,6 +1868,62 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
+            val debugAudio = getAudioTrack(media, selectedAudioIndex)
+            val debugVideo = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
+                ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+                ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+            val displayHdr = remember {
+                if (android.os.Build.VERSION.SDK_INT < 24) false
+                else {
+                    val window = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                    @Suppress("DEPRECATION")
+                    val types = window.defaultDisplay.hdrCapabilities?.supportedHdrTypes
+                    types != null && types.isNotEmpty()
+                }
+            }
+            Text(
+                text = com.xxxx.emby_tv.ui.player.PlaybackDebug.lines(
+                    deviceType = routeSnapshot.type,
+                    encodings = routeSnapshot.encodings,
+                    codec = debugAudio?.codec,
+                    channels = debugAudio?.channels,
+                    sampleRate = debugAudio?.sampleRate,
+                    openedEncoding = player.passthroughEncoding(),
+                    fellBack = player.passthroughFallback(),
+                    forcedDecode = decodeAudio,
+                    videoRange = debugVideo?.videoRange,
+                    rangeType = debugVideo?.videoRangeType,
+                    transfer = debugVideo?.colorTransfer,
+                    videoCodec = debugVideo?.codec,
+                    displayHdr = displayHdr,
+                    api = android.os.Build.VERSION.SDK_INT,
+                ).joinToString("\n"),
+                color = Color.White.copy(alpha = 0.88f),
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 24.dp, top = 16.dp)
+                    .background(Color(0x99141210), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+            val ratingLabel = com.xxxx.emby_tv.util.EmbyPresentation.playbackRating(
+                mediaInfo.officialRating,
+                null,
+                null,
+            )
+            val ratingAlpha = ratingStartMs?.let {
+                com.xxxx.emby_tv.util.EmbyPresentation.ratingAlpha(ratingNowMs - it)
+            } ?: 0f
+            if (!ratingLabel.isNullOrBlank() && ratingAlpha > 0.01f) {
+                Text(
+                    text = ratingLabel,
+                    color = Color.White.copy(alpha = ratingAlpha),
+                    fontSize = 28.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 48.dp),
+                )
+            }
             if (showDiagnostics && audioStatusLine.isNotBlank()) {
                 Text(
                     text = audioStatusLine,

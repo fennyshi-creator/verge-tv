@@ -3,6 +3,7 @@ package com.xxxx.emby_tv.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,8 +41,12 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.R.*
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.data.session.AccountInfo
-import com.xxxx.emby_tv.ui.components.BuildItem
 import com.xxxx.emby_tv.ui.components.Loading
+import com.xxxx.emby_tv.ui.home.ArtRole
+import com.xxxx.emby_tv.ui.home.HomeImage
+import com.xxxx.emby_tv.ui.home.HomeStyle
+import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.motion.FocusCard
 import com.xxxx.emby_tv.ui.components.TvInputDialog
 import com.xxxx.emby_tv.ui.theme.ThemeColorManager
 import com.xxxx.emby_tv.ui.viewmodel.LoginViewModel
@@ -182,7 +187,7 @@ fun SearchScreen(
             .padding(horizontal = 32.dp, vertical = 24.dp)
     ) {
         // Left Sidebar: Account List
-        if (sortedAccounts.isNotEmpty()) {
+        if (true) {
             LazyColumn(
                 modifier = Modifier
                     .width(250.dp)
@@ -202,14 +207,14 @@ fun SearchScreen(
                         ) {
                             Image(
                                 bitmap = qrCodeBitmap!!,
-                                contentDescription = stringResource(R.string.scan_qr_hint),
+                                contentDescription = stringResource(R.string.scan_qr_search_hint),
                                 modifier = Modifier
                                     .size(180.dp)
                                     .background(Color.White, RoundedCornerShape(12.dp))
                                     .padding(6.dp)
                             )
                             Text(
-                                text = stringResource(string.scan_qr_hint),
+                                text = stringResource(R.string.scan_qr_search_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(bottom = 10.dp, top = 10.dp),
@@ -225,148 +230,6 @@ fun SearchScreen(
                     }
                 }
 
-                // All Accounts Option (Only show when there are multiple accounts)
-                if (sortedAccounts.size > 1) {
-                    item {
-                        val isAllSelected = searchViewModel.filterAccount == null
-                        Surface(
-                            onClick = {
-                                searchViewModel.setAccountFilter(null)
-                            },
-                            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isAllSelected) MaterialTheme.colorScheme.primary.copy(
-                                    alpha = 0.2f
-                                ) else Color.White.copy(alpha = 0.05f),
-                                focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                contentColor = Color.White,
-                                focusedContentColor = Color.White
-                            ),
-                            border = ClickableSurfaceDefaults.border(
-                                border = if (isAllSelected) Border(
-                                    BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                    )
-                                ) else Border(BorderStroke(0.dp, Color.Transparent)),
-                                focusedBorder = Border(
-                                    BorderStroke(
-                                        2.dp,
-                                        MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            ),
-                            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(60.dp)
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused) {
-                                        searchViewModel.setAccountFilter(null)
-                                    }
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = if (isAllSelected) MaterialTheme.colorScheme.primary else Color.White.copy(
-                                        alpha = 0.6f
-                                    ),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = stringResource(R.string.all_accounts),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (isAllSelected) Color.White else Color.White.copy(
-                                        alpha = 0.8f
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                itemsIndexed(sortedAccounts, key = { _, acc -> acc.id }) { _, account ->
-                    val isSelected = searchViewModel.filterAccount?.id == account.id
-                    // Use domain logic from original code
-                    val domain = try {
-                        val uri = java.net.URI(account.serverUrl)
-                        uri.host ?: account.serverUrl
-                    } catch (e: Exception) {
-                        account.serverUrl
-                    }
-                    val displayText = "${account.username}@$domain"
-
-                    Surface(
-                        onClick = {
-                            searchViewModel.setAccountFilter(account)
-                        },
-                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.2f
-                            ) else Color.White.copy(alpha = 0.05f),
-                            focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            contentColor = Color.White,
-                            focusedContentColor = Color.White
-                        ),
-                        border = ClickableSurfaceDefaults.border(
-                            border = if (isSelected) Border(
-                                BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                )
-                            ) else Border(BorderStroke(0.dp, Color.Transparent)),
-                            focusedBorder = Border(
-                                BorderStroke(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        ),
-                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(60.dp)
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    searchViewModel.setAccountFilter(account)
-                                }
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(
-                                    alpha = 0.6f
-                                ),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = displayText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f)
-                            )
-
-                        }
-                    }
-                }
             }
 
             // Divider
@@ -460,10 +323,8 @@ fun SearchScreen(
                     } else {
                         ""
                     }
-                    val filterText =
-                        if (searchViewModel.filterAccount != null) " ${stringResource(R.string.filtered)}" else ""
                     Text(
-                        text = "${searchResults.size} / $totalCount$filterText$progressText",
+                        text = "${searchResults.size} / $totalCount$progressText",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.5f),
                     )
@@ -523,28 +384,15 @@ fun SearchScreen(
                             val id = item.id ?: ""
 
                             if (id.isNotEmpty()) {
-                                // Construct display name
-                                val domain = try {
-                                    val uri = java.net.URI(account.serverUrl)
-                                    uri.host ?: account.serverUrl
-                                } catch (e: Exception) {
-                                    account.serverUrl
-                                }
-                                val accountName = "${account.username}@$domain"
-
-                                BuildItem(
+                                SearchPoster(
                                     item = item,
-                                    imgWidth = imgWidth,
-                                    aspectRatio = maxAspectRatio,
+                                    serverUrl = account.serverUrl,
                                     modifier = if (item.id == returnId) {
                                         Modifier.fillMaxWidth().focusRequester(returnFocus)
                                     } else {
                                         Modifier.fillMaxWidth()
                                     },
-                                    isMyLibrary = false,
-                                    serverUrl = account.serverUrl,
-                                    accountName = accountName,
-                                    onItemClick = {
+                                    onClick = {
                                         returnId = id
                                         // Switch account if needed, then navigate
                                         if (account.id != currentAccountId) {
@@ -586,5 +434,49 @@ fun SearchScreen(
             },
             onDismiss = { showSearchDialog = false }
         )
+    }
+}
+
+@Composable
+private fun SearchPoster(
+    item: com.xxxx.emby_tv.data.model.BaseItemDto,
+    serverUrl: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        FocusCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .onFocusChanged { focused = it.isFocused }
+                .focusable()
+                .clickable(onClick = onClick),
+            focused = focused,
+            shape = shape,
+            lift = true,
+        ) {
+            HomeImage(
+                itemId = item.id,
+                fallbackArtId = item.seriesId,
+                url = if (serverUrl.isBlank()) "" else com.xxxx.emby_tv.Utils.getImageUrl(serverUrl, item, false),
+                role = ArtRole.Primary,
+                contentDescription = item.name,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        HomeText(
+            text = item.name.orEmpty(),
+            fontSize = 14.sp,
+            color = Color.White,
+            maxLines = 1,
+            modifier = Modifier.padding(top = 6.dp).fillMaxWidth(),
+        )
+        val year = item.productionYear?.toString().orEmpty()
+        if (year.isNotBlank()) {
+            HomeText(year, 12.sp, HomeStyle.meta, maxLines = 1, modifier = Modifier.fillMaxWidth())
+        }
     }
 }
