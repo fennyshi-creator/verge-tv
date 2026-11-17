@@ -11,6 +11,12 @@ object ConnectForm {
     const val PAGE = 0xFF0C111B.toInt()
     const val INK = 0xFF141210.toInt()
 
+    const val HOST_PLACEHOLDER = "主机地址"
+    const val TV_LOGIN_TITLE = "Emby TV 登录"
+    const val PHONE_LOGIN_SUBMIT = "登录"
+    const val PHONE_PROXY_SUBMIT = "发送到电视"
+    const val PHONE_SEARCH_SUBMIT = "在电视上搜索"
+
     fun portFor(protocol: String, currentPort: String): String {
         val next = protocol.lowercase()
         val port = currentPort.trim()
@@ -18,6 +24,40 @@ object ConnectForm {
         if (next == "http" && (port.isEmpty() || port == HTTPS_PORT)) return HTTP_PORT
         return port
     }
+
+    /** Blank install is HTTPS with no host and port 443. A saved URL keeps its scheme, host, and explicit port. */
+    fun parseServerUrl(url: String?): Triple<String, String, String> {
+        if (url.isNullOrBlank()) return Triple("https", "", HTTPS_PORT)
+        return try {
+            val uri = java.net.URI(url.trim())
+            val scheme = (uri.scheme ?: "https").lowercase()
+            val host = uri.host ?: ""
+            val port = when {
+                uri.port > 0 -> uri.port.toString()
+                scheme == "http" -> HTTP_PORT
+                else -> HTTPS_PORT
+            }
+            Triple(if (scheme == "http") "http" else "https", host, port)
+        } catch (_: Exception) {
+            Triple("https", "", HTTPS_PORT)
+        }
+    }
+
+    /** Phone submit starts TV login only when host and username are present. */
+    fun shouldAutoLogin(host: String, username: String): Boolean =
+        host.isNotBlank() && username.isNotBlank()
+
+    /** The TV login controls are always in the pane. Loading only disables the button. */
+    fun loginButtonShown(): Boolean = true
+
+    /** Phone login form defaults. Search and proxy pages do not use this. */
+    fun loginFormFragment(): String = """
+        <input type="hidden" name="protocol" id="protocol-input" value="https">
+        <button type="button" class="protocol protocol-btn active" id="btn-protocol" onclick="toggleProtocol()">HTTPS</button>
+        <input type="text" name="host" class="host" placeholder="$HOST_PLACEHOLDER" required>
+        <input type="text" name="port" class="port" placeholder="Port" value="443">
+        <button type="submit" id="btn-submit">$PHONE_LOGIN_SUBMIT</button>
+    """.trimIndent()
 }
 
 object PairingPage {

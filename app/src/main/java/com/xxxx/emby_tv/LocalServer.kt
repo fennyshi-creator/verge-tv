@@ -3,6 +3,7 @@ package com.xxxx.emby_tv
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import android.graphics.Color as AndroidColor
+import com.xxxx.emby_tv.ui.connect.ConnectForm
 import com.xxxx.emby_tv.ui.connect.PairingPage
 import com.xxxx.emby_tv.util.DiscoveredServer
 import com.xxxx.emby_tv.util.ErrorHandler
@@ -192,7 +193,7 @@ class LocalServer private constructor(
                     if (navigator.language.startsWith('zh')) {
                         document.getElementById('title').innerText = 'Emby TV 搜索';
                         document.getElementById('input-query').placeholder = '输入搜索关键词...';
-                        document.getElementById('btn-submit').innerText = '在电视上搜索';
+                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_SEARCH_SUBMIT}';
                     }
                 </script>
             </body>
@@ -208,15 +209,21 @@ class LocalServer private constructor(
                 session.parseBody(files)
                 val params = session.parameters
 
-                val protocol = params["protocol"]?.firstOrNull() ?: "http"
+                val protocol = params["protocol"]?.firstOrNull() ?: "https"
                 val host = params["host"]?.firstOrNull() ?: ""
-                val port = params["port"]?.firstOrNull() ?: "8096"
+                val port = params["port"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                    ?: if (protocol.equals("http", true)) ConnectForm.HTTP_PORT else ConnectForm.HTTPS_PORT
                 val username = params["username"]?.firstOrNull() ?: ""
                 val password = params["password"]?.firstOrNull() ?: ""
 
                 if (host.isNotEmpty()) {
                     onLoginConfigReceived?.invoke(protocol, host, port, username, password)
-                    return serveSuccessPage("Configuration Sent!", "You can verify the login on your TV.", "配置已发送！", "请在电视上验证登录。")
+                    return serveSuccessPage(
+                        "Signing in",
+                        "The TV is signing in now.",
+                        "正在登录",
+                        "电视正在登录，请稍候。",
+                    )
                 }
             } catch (e: Exception) {
                 ErrorHandler.logError("LocalServer", "服务器错误", e)
@@ -265,16 +272,13 @@ class LocalServer private constructor(
                         $serversBlock
                         <label id="label-url">Server URL</label>
                         <div class="input-row">
-                            <input type="hidden" name="protocol" id="protocol-input" value="http">
-                            <button type="button" class="protocol protocol-btn active" id="btn-protocol" onclick="toggleProtocol()">HTTP</button>
-                            <input type="text" name="host" class="host" placeholder="192.168.1.x" required>
-                            <input type="text" name="port" class="port" placeholder="Port" value="8096">
+                            ${ConnectForm.loginFormFragment().substringBefore("<button type=\"submit\"")}
                         </div>
                         <label id="label-user">Username</label>
                         <input type="text" name="username" id="input-username" placeholder="Username" required>
                         <label id="label-pass">Password</label>
                         <input type="password" name="password" id="input-password" placeholder="Password">
-                        <button type="submit" id="btn-submit">Send to TV</button>
+                        ${ConnectForm.loginFormFragment().substringAfter("<input type=\"text\" name=\"port\" class=\"port\" placeholder=\"Port\" value=\"443\">").trim()}
                     </form>
                 </div>
                 <script>
@@ -299,7 +303,7 @@ class LocalServer private constructor(
                         if (!m) return false;
                         var protocol = m[1].toLowerCase();
                         var host = m[2];
-                        var port = m[3] || (protocol === 'https' ? '443' : '80');
+                        var port = m[3] || (protocol === 'https' ? '443' : '8096');
                         setProtocol(protocol);
                         document.querySelector('input[name=host]').value = host;
                         document.querySelector('input[name=port]').value = port;
@@ -344,7 +348,8 @@ class LocalServer private constructor(
                         document.getElementById('input-username').placeholder = '用户名';
                         document.getElementById('label-pass').innerText = '密码';
                         document.getElementById('input-password').placeholder = '密码';
-                        document.getElementById('btn-submit').innerText = '发送到电视';
+                        document.querySelector('input[name=host]').placeholder = '${ConnectForm.HOST_PLACEHOLDER}';
+                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_LOGIN_SUBMIT}';
                     }
                     var lastScrollY = 0;
                     if (window.visualViewport) {
@@ -536,7 +541,7 @@ class LocalServer private constructor(
                         document.getElementById('label-user').innerText = '用户名（可选）';
                         document.getElementById('label-pass').innerText = '密码（可选）';
                         document.getElementById('scope-text').innerText = '仅代理Emby服务';
-                        document.getElementById('btn-submit').innerText = '发送到电视';
+                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_PROXY_SUBMIT}';
                     }
                 </script>
             </body>

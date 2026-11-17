@@ -75,19 +75,7 @@ fun LoginScreen(
     val doubleBackToExit = PreferencesManager(context).doubleBackToExit
 
     // 解析 savedServerUrl 的辅助函数
-    fun parseServerUrl(url: String?): Triple<String, String, String> {
-        if (url.isNullOrEmpty()) return Triple("http", "", "8096")
-        return try {
-            val uri = java.net.URI(url)
-            Triple(
-                uri.scheme ?: "http",
-                uri.host ?: "",
-                uri.port.takeIf { it > 0 }?.toString() ?: "8096"
-            )
-        } catch (e: Exception) {
-            Triple("http", "", "8096")
-        }
-    }
+    fun parseServerUrl(url: String?): Triple<String, String, String> = ConnectForm.parseServerUrl(url)
 
     // 在初始化时就解析 savedServerUrl
     val initialParsed = remember { parseServerUrl(loginViewModel.savedServerUrl) }
@@ -185,6 +173,34 @@ fun LoginScreen(
     var showMenu by remember { mutableStateOf(false) }
     val failText = stringResource(id = R.string.login_failed)
 
+    fun onLoginClick(
+        p: String = protocol,
+        h: String = host,
+        pt: String = port,
+        user: String = username,
+        pass: String = password,
+    ) {
+        val builtServerUrl = buildServerUrl(p, h, pt)
+
+        loginViewModel.login(
+            serverUrl = builtServerUrl,
+            username = user,
+            password = pass,
+            onSuccess = {
+                localServer?.stop()
+            },
+            onError = { error ->
+                scope.launch {
+                    android.widget.Toast.makeText(
+                        context.applicationContext,
+                        error,
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        )
+    }
+
     // 检查更新
     LaunchedEffect(Unit) {
         mainViewModel.checkUpdate()
@@ -198,12 +214,18 @@ fun LoginScreen(
                 serversProvider = { discoveredServers },
                 serverUserHintsProvider = { serverUserHints }
             ) { p, h, pt, user, pass ->
-                protocol = p
-                host = h
-                port = pt
-                username = user
-                password = pass
-                loginButtonFocusRequester.requestFocus()
+                scope.launch {
+                    protocol = p
+                    host = h
+                    port = pt
+                    username = user
+                    password = pass
+                    if (ConnectForm.shouldAutoLogin(h, user)) {
+                        onLoginClick(p, h, pt, user, pass)
+                    } else {
+                        loginButtonFocusRequester.requestFocus()
+                    }
+                }
             }
             localServer = server
 
@@ -223,28 +245,6 @@ fun LoginScreen(
         onDispose {
             localServer?.stop()
         }
-    }
-
-    fun onLoginClick(){
-        val builtServerUrl = buildServerUrl(protocol, host, port)
-
-        loginViewModel.login(
-            serverUrl = builtServerUrl,
-            username = username,
-            password = password,
-            onSuccess = {
-                localServer?.stop()
-            },
-            onError = { error ->
-                scope.launch {
-                    android.widget.Toast.makeText(
-                        context.applicationContext,
-                        error,
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(ConnectForm.PAGE))) {
@@ -349,75 +349,58 @@ fun LoginScreen(
             Column(
                 modifier = Modifier
                     .weight(1f - ConnectForm.LEFT_FRACTION)
-                    .padding(horizontal = 36.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.Center,
+                    .fillMaxHeight()
+                    .padding(horizontal = 28.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(28.dp)
-                            .background(Color(0xFF52B54B), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("EMBY 服务器信息", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Text("连接您的私人媒体中心", color = Color.White.copy(0.55f), fontSize = 12.sp)
-                    }
-                    Text(
-                        "${protocol.uppercase()} · $port",
-                        color = Color(0xFFB7F0C2),
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .background(Color.White.copy(0.08f), RoundedCornerShape(20.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                TvInputButton(
-                    value = host,
-                    label = stringResource(R.string.host),
-                    onClick = { showHostDialog = true },
-                    showMenu = { showMenu = true },
-                    widthFraction = 1f,
-                    modifier = Modifier.focusRequester(hostFocusRequester),
+                Text(
+                    ConnectForm.TV_LOGIN_TITLE,
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("传输协议", color = Color.White.copy(0.55f), fontSize = 12.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(64.dp)
-                                .background(Color(0x760F131C), RoundedCornerShape(14.dp))
-                                .padding(6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            ProtocolChoice("HTTPS", protocol == "https", Modifier.weight(1f)) {
-                                port = ConnectForm.portFor("https", port)
-                                protocol = "https"
-                            }
-                            ProtocolChoice("HTTP", protocol == "http", Modifier.weight(1f)) {
-                                port = ConnectForm.portFor("http", port)
-                                protocol = "http"
-                            }
-                        }
-                    }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "服务器地址",
+                    color = Color.White.copy(0.62f),
+                    fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProtocolButton(
+                        protocol = protocol,
+                        onClick = {
+                            val next = if (protocol == "http") "https" else "http"
+                            port = ConnectForm.portFor(next, port)
+                            protocol = next
+                        },
+                        modifier = Modifier.width(96.dp).height(48.dp),
+                    )
+                    TvInputButton(
+                        value = host,
+                        label = stringResource(R.string.host),
+                        onClick = { showHostDialog = true },
+                        showMenu = { showMenu = true },
+                        widthFraction = 1f,
+                        fieldHeight = 48.dp,
+                        modifier = Modifier.weight(1f).focusRequester(hostFocusRequester),
+                    )
                     TvInputButton(
                         value = port,
                         label = stringResource(R.string.port),
                         onClick = { showPortDialog = true },
                         showMenu = { showMenu = true },
                         widthFraction = 1f,
-                        modifier = Modifier.width(120.dp),
+                        fieldHeight = 48.dp,
+                        modifier = Modifier.width(96.dp),
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Username Input
                 TvInputButton(
@@ -425,10 +408,11 @@ fun LoginScreen(
                     label = stringResource(R.string.username),
                     showMenu = { showMenu = true },
                     widthFraction = 1f,
+                    fieldHeight = 48.dp,
                     onClick = { showUsernameDialog = true }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Password Input
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -438,6 +422,7 @@ fun LoginScreen(
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         showMenu = { showMenu = true },
                         widthFraction = 1f,
+                        fieldHeight = 48.dp,
                         modifier = Modifier.weight(1f),
                         onClick = { showPasswordDialog = true },
                     )
@@ -451,7 +436,7 @@ fun LoginScreen(
                             focusedContainerColor = Color.White,
                             focusedContentColor = Color(ConnectForm.INK),
                         ),
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(48.dp),
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Icon(
@@ -462,14 +447,14 @@ fun LoginScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(Modifier.weight(1f))
 
-                Button(
+                if (ConnectForm.loginButtonShown()) Button(
                     onClick = { onLoginClick() },
                     enabled = !loginViewModel.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
+                        .height(48.dp)
                         //兼容移动端点击  TODO：移除
                         //  .clickable(true, onClick = { onLoginClick() })
                         .focusRequester(loginButtonFocusRequester)
@@ -654,6 +639,7 @@ fun TvInputButton(
     showMenu: () -> Unit,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     widthFraction: Float = 0.8f,
+    fieldHeight: androidx.compose.ui.unit.Dp = 64.dp,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -672,7 +658,7 @@ fun TvInputButton(
         ),
         modifier = modifier
             .fillMaxWidth(widthFraction)
-            .height(64.dp)
+            .height(fieldHeight)
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
@@ -748,7 +734,7 @@ fun ProtocolButton(
             focusedContainerColor = Color.White,
             focusedContentColor = Color(ConnectForm.INK),
         ),
-        modifier = modifier.height(64.dp)
+        modifier = modifier
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
