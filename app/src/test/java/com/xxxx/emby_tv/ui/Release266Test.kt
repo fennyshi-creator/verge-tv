@@ -16,7 +16,7 @@ class Release266Test {
     @Test
     fun hardwareMapIsPreferredAndShaderIsOnlyTheFallback() {
         assertEquals(
-            HdrMap.HARDWARE,
+            HdrMap.DIRECT,
             HdrMap.mode(manualOn = false, displayHdr = false, sourceHdr = true, api = 31, hardwareRequestAvailable = true),
         )
         assertEquals(
@@ -29,7 +29,7 @@ class Release266Test {
             ),
         )
         assertEquals(
-            HdrMap.SHADER,
+            HdrMap.DIRECT,
             HdrMap.mode(manualOn = false, displayHdr = false, sourceHdr = true, api = 30, hardwareRequestAvailable = true),
         )
         assertEquals(
@@ -43,12 +43,16 @@ class Release266Test {
         assertEquals(HdrMap.SDR, HdrMap.mode(manualOn = true, displayHdr = false, sourceHdr = false, api = 31, hardwareRequestAvailable = true))
         assertEquals(HdrMap.COLOR_TRANSFER_SDR_VIDEO, 3)
         assertEquals(
-            "映射 SDR（硬解）",
+            "直出 HDR",
             PlaybackDebug.hdrOutput(true, false, api = 31, manualOn = false, hardwareRequestAvailable = true),
         )
         assertEquals(
-            "映射 SDR（Vulkan 着色器）",
+            "直出 HDR",
             PlaybackDebug.hdrOutput(true, false, api = 31, manualOn = false, hardwareRequestAvailable = false),
+        )
+        assertEquals(
+            "映射 SDR（硬解）",
+            PlaybackDebug.hdrOutput(true, false, api = 31, manualOn = true, hardwareRequestAvailable = true),
         )
         assertEquals(
             "直出 HDR",

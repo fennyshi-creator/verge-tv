@@ -19,14 +19,17 @@ class Release267Test {
         assertEquals(0f, HomeMask.firstScreenDarken(0f))
         assertEquals(0f, HomeMask.firstScreenDarken(0.55f))
         assertEquals(0f, HomeMask.firstScreenDarken(HomeMask.CLEAR_UNTIL))
-        assertTrue(HomeMask.firstScreenDarken(0.82f) > 0.15f)
-        assertTrue(HomeMask.firstScreenDarken(1f) > HomeMask.firstScreenDarken(0.9f))
-        assertTrue(HomeMask.firstScreenDarken(0.9f) > HomeMask.firstScreenDarken(0.78f))
-        assertTrue(HomeMask.firstScreenDarken(1f) < 1f)
+        assertTrue(HomeMask.CLEAR_UNTIL < 0.70f)
+        assertTrue(HomeMask.firstScreenDarken(0.70f) > 0f)
+        assertTrue(HomeMask.firstScreenDarken(0.82f) > 0.45f)
+        assertEquals(1f, HomeMask.firstScreenDarken(1f))
         val fallback = HomeMask.scrimColor(null)
         assertEquals(HomeStyle.background, fallback)
-        val swatch = androidx.compose.ui.graphics.Color(0xFF335577)
-        assertEquals(swatch, HomeMask.scrimColor(swatch))
+        val sky = androidx.compose.ui.graphics.Color(0xFF8EC8F0)
+        assertEquals(HomeStyle.background, HomeMask.scrimColor(sky))
+        val dark = androidx.compose.ui.graphics.Color(0xFF1A2420)
+        val mixed = HomeMask.scrimColor(dark)
+        assertTrue(mixed.red < 0.25f && mixed.green < 0.25f && mixed.blue < 0.25f)
     }
 
     @Test

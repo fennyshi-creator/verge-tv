@@ -145,11 +145,11 @@ class Release265Test {
     fun hdrSwitchPersistsAndOnRequestsTheShader() {
         assertFalse(HdrMap.forceSoftwareDecode(manualOn = false, displayHdr = true, sourceHdr = true))
         assertTrue(HdrMap.forceSoftwareDecode(manualOn = true, displayHdr = true, sourceHdr = true))
-        assertTrue(HdrMap.forceSoftwareDecode(manualOn = false, displayHdr = false, sourceHdr = true))
+        assertFalse(HdrMap.forceSoftwareDecode(manualOn = false, displayHdr = false, sourceHdr = true))
         assertFalse(HdrMap.forceSoftwareDecode(manualOn = true, displayHdr = false, sourceHdr = false))
         assertEquals(HdrMap.SHADER, HdrMap.output(manualOn = true, displayHdr = true, sourceHdr = true))
         assertEquals(HdrMap.DIRECT, HdrMap.output(manualOn = false, displayHdr = true, sourceHdr = true))
-        assertEquals(HdrMap.SHADER, HdrMap.output(manualOn = false, displayHdr = false, sourceHdr = true))
+        assertEquals(HdrMap.DIRECT, HdrMap.output(manualOn = false, displayHdr = false, sourceHdr = true))
         assertFalse(HdrMap.allowDirectHdr(manualOn = true))
         val first = PlaybackMemory.Session()
         first.hdrToSdr = true

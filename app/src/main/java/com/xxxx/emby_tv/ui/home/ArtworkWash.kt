@@ -151,26 +151,39 @@ object HomeMask {
 
     /**
      * Bottom-up mask. 0 is the top of the still. The hero title and the
-     * 继续观看 heading stay clear. Darkness builds under the poster row and
-     * is heaviest at the bottom edge. There is no horizontal cutoff.
+     * area above 继续观看 stay clear. Darkening is already underway at the
+     * poster row, and the bottom edge is the opaque page wash.
      */
-    const val CLEAR_UNTIL = 0.70f
+    const val CLEAR_UNTIL = 0.58f
 
     fun firstScreenDarken(fraction: Float): Float {
         val t = fraction.coerceIn(0f, 1f)
         if (t <= CLEAR_UNTIL) return 0f
         val u = (t - CLEAR_UNTIL) / (1f - CLEAR_UNTIL)
-        val eased = u * u * (3f - 2f * u)
-        return 0.88f * eased
+        return 1f - (1f - u) * (1f - u)
     }
 
-    /** Hero still swatch, or the page background before a sample exists. */
-    fun scrimColor(swatch: Color?): Color = swatch ?: HomeStyle.background
+    /**
+     * Same dark page wash as the rows below. A light hero swatch is not
+     * painted over the still; it falls back to the page background.
+     */
+    fun scrimColor(swatch: Color?): Color {
+        val page = HomeStyle.background
+        if (swatch == null) return page
+        val lum = swatch.red * 0.2126f + swatch.green * 0.7152f + swatch.blue * 0.0722f
+        if (lum > 0.34f) return page
+        return Color(
+            red = page.red * 0.78f + swatch.red * 0.22f,
+            green = page.green * 0.78f + swatch.green * 0.22f,
+            blue = page.blue * 0.78f + swatch.blue * 0.22f,
+            alpha = 1f,
+        )
+    }
 
     fun horizontalHeroCutoff(): Boolean = false
 
     fun firstScreenScrim(color: Color): Brush {
-        val stops = floatArrayOf(0f, 0.36f, 0.52f, 0.68f, 0.82f, 1f).map { t ->
+        val stops = floatArrayOf(0f, CLEAR_UNTIL, 0.72f, 0.84f, 0.94f, 1f).map { t ->
             t to color.copy(alpha = firstScreenDarken(t))
         }
         return Brush.verticalGradient(*stops.toTypedArray())

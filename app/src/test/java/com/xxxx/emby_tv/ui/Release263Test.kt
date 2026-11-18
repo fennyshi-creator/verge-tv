@@ -104,7 +104,17 @@ class Release263Test {
         assertTrue(lines.any { it.contains("PCM") && it.contains("编码") })
         assertTrue(lines.any { it.contains("片源 HDR10") })
         assertTrue(lines.any { it.contains("仅SDR") })
-        assertTrue(lines.any { it.contains("映射 SDR") })
+        assertTrue(lines.any { it.contains("直出 HDR") })
         assertEquals("直出 HDR", PlaybackDebug.hdrOutput(sourceHdr = true, displayHdr = true, api = 31))
+        assertEquals(
+            "映射 SDR（硬解）",
+            PlaybackDebug.hdrOutput(
+                sourceHdr = true,
+                displayHdr = false,
+                api = 31,
+                manualOn = true,
+                hardwareRequestAvailable = true,
+            ),
+        )
     }
 }

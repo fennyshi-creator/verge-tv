@@ -217,9 +217,9 @@ object AudioPolicy {
 }
 
 /**
- * HDR to SDR. Hardware MediaCodec is preferred when API 31+ can send
- * color-transfer-request. The Vulkan shader is only the fallback.
- * An HDR display with the switch off stays on direct HDR.
+ * HDR to SDR only when the user turns the switch on. Off keeps hardware
+ * decode and direct HDR, including on an SDR display. On prefers the
+ * MediaCodec color-transfer-request path; the Vulkan shader is the fallback.
  */
 object HdrMap {
     const val SHADER = "vulkan-hdr2sdr"
@@ -229,8 +229,11 @@ object HdrMap {
     const val HARDWARE_MIN_API = 31
     const val COLOR_TRANSFER_SDR_VIDEO = 3
 
-    fun needsMap(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): Boolean =
-        sourceHdr && (manualOn || !displayHdr)
+    fun needsMap(
+        manualOn: Boolean,
+        @Suppress("UNUSED_PARAMETER") displayHdr: Boolean,
+        sourceHdr: Boolean,
+    ): Boolean = sourceHdr && manualOn
 
     fun mode(
         manualOn: Boolean,

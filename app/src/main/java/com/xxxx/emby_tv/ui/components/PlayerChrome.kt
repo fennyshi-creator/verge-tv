@@ -637,7 +637,7 @@ fun SettingsSheetBody(
         item {
             SheetRow("HDR-SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
             Text(
-                "开：用着色器把 HDR 映射到 SDR。关：HDR 屏幕保持 HDR",
+                "关：不映射，硬解直出。开：优先硬解映射，不行再用着色器",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
