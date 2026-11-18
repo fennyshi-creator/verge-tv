@@ -337,9 +337,8 @@ class FsPlayback(private val appContext: Context) {
 
     private fun configure(player: FSPlayer) {
         val pass = if (passthroughEnabled) 1L else 0L
-        // HDR-SDR On, or an SDR display playing HDR, leaves MediaCodec so the
-        // Vulkan shader actually tone-maps. Off on an HDR display stays on
-        // the hardware path.
+        // Shader fallback only. Hardware HDR-to-SDR stays on MediaCodec and
+        // the configure hook sends color-transfer-request.
         val videoHardware = if (mapHdrToSdr) 0L else 1L
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)

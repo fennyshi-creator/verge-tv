@@ -549,7 +549,8 @@ internal fun MediaFactsRow(item: BaseItemDto, source: MediaSourceInfoDto? = null
     val runtime = facts.first.orEmpty()
     val resolution = facts.second.orEmpty()
     val audio = facts.third.orEmpty()
-    if (runtime.isBlank() && resolution.isBlank() && audio.isBlank()) return
+    val hdr = EmbyPresentation.hdrChip(item, source).orEmpty()
+    if (runtime.isBlank() && resolution.isBlank() && audio.isBlank() && hdr.isBlank()) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (runtime.isNotBlank()) HomeText(runtime, 13.sp, Color.White)
         if (resolution.isNotBlank()) {
@@ -563,8 +564,19 @@ internal fun MediaFactsRow(item: BaseItemDto, source: MediaSourceInfoDto? = null
                 HomeText(resolution, 11.sp, Color(0xFF161616), fontWeight = FontWeight.SemiBold)
             }
         }
-        if (audio.isNotBlank()) {
+        if (hdr.isNotBlank()) {
             if (runtime.isNotBlank() || resolution.isNotBlank()) Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White.copy(0.16f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            ) {
+                HomeText(hdr, 11.sp, Color.White, fontWeight = FontWeight.Medium)
+            }
+        }
+        if (audio.isNotBlank()) {
+            if (runtime.isNotBlank() || resolution.isNotBlank() || hdr.isNotBlank()) Spacer(Modifier.width(8.dp))
             Box(
                 Modifier
                     .clip(RoundedCornerShape(4.dp))

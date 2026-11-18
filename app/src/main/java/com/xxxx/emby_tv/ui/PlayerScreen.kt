@@ -825,8 +825,8 @@ fun PlayerScreen(
         routeAllows = routeAllowsBitstream,
     )
 
-    fun mapHdr(video: com.xxxx.emby_tv.data.model.MediaStreamDto?): Boolean =
-        com.xxxx.emby_tv.ui.player.HdrMap.forceSoftwareDecode(
+    fun hdrMode(video: com.xxxx.emby_tv.data.model.MediaStreamDto?): String =
+        com.xxxx.emby_tv.ui.player.HdrMap.mode(
             manualOn = hdrToSdr,
             displayHdr = displayHdr,
             sourceHdr = com.xxxx.emby_tv.ui.player.PlaybackDebug.sourceIsHdr(
@@ -835,13 +835,17 @@ fun PlayerScreen(
                 video?.colorTransfer,
                 video?.codec,
             ),
+            api = android.os.Build.VERSION.SDK_INT,
+            hardwareRequestAvailable = com.xxxx.emby_tv.ui.player.HdrToneMap.hardwareRequestAvailable(),
         )
 
     fun armHdr() {
         val video = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
             ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
             ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
-        player.mapHdrToSdr = mapHdr(video)
+        val mode = hdrMode(video)
+        player.mapHdrToSdr = mode == com.xxxx.emby_tv.ui.player.HdrMap.SHADER
+        com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(mode == com.xxxx.emby_tv.ui.player.HdrMap.HARDWARE)
     }
     // 当前播放器实例是否出现过音频输出错误（播放器重建时自动重置）
     var currentPlayerAudioError by remember { mutableStateOf(false) }
@@ -1934,6 +1938,7 @@ fun PlayerScreen(
                     displayHdr = displayHdr,
                     api = android.os.Build.VERSION.SDK_INT,
                     manualHdrToSdr = hdrToSdr,
+                    hardwareRequestAvailable = com.xxxx.emby_tv.ui.player.HdrToneMap.hardwareRequestAvailable(),
                 ).joinToString("\n"),
                 color = Color.White.copy(alpha = 0.88f),
                 fontSize = 12.sp,

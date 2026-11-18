@@ -217,23 +217,54 @@ object AudioPolicy {
 }
 
 /**
- * Manual HDR-SDR. On forces the Vulkan shader tone-map by leaving MediaCodec.
- * Off keeps hardware HDR output when the display can take it, and still maps
- * when the display reports no HDR.
+ * HDR to SDR. Hardware MediaCodec is preferred when API 31+ can send
+ * color-transfer-request. The Vulkan shader is only the fallback.
+ * An HDR display with the switch off stays on direct HDR.
  */
 object HdrMap {
     const val SHADER = "vulkan-hdr2sdr"
+    const val HARDWARE = "mediacodec-sdr"
     const val DIRECT = "hdr-direct"
     const val SDR = "sdr"
+    const val HARDWARE_MIN_API = 31
+    const val COLOR_TRANSFER_SDR_VIDEO = 3
 
-    fun forceSoftwareDecode(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): Boolean =
+    fun needsMap(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): Boolean =
         sourceHdr && (manualOn || !displayHdr)
 
-    fun allowDirectHdr(manualOn: Boolean): Boolean = !manualOn
-
-    fun output(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): String = when {
-        !sourceHdr -> SDR
-        manualOn || !displayHdr -> SHADER
-        else -> DIRECT
+    fun mode(
+        manualOn: Boolean,
+        displayHdr: Boolean,
+        sourceHdr: Boolean,
+        api: Int = 30,
+        hardwareRequestAvailable: Boolean = false,
+    ): String {
+        if (!sourceHdr) return SDR
+        if (!needsMap(manualOn, displayHdr, sourceHdr)) return DIRECT
+        return if (api >= HARDWARE_MIN_API && hardwareRequestAvailable) HARDWARE else SHADER
     }
+
+    fun forceSoftwareDecode(
+        manualOn: Boolean,
+        displayHdr: Boolean,
+        sourceHdr: Boolean,
+        api: Int = 30,
+        hardwareRequestAvailable: Boolean = false,
+    ): Boolean = mode(manualOn, displayHdr, sourceHdr, api, hardwareRequestAvailable) == SHADER
+
+    fun allowDirectHdr(
+        manualOn: Boolean,
+        displayHdr: Boolean = true,
+        sourceHdr: Boolean = true,
+        api: Int = 30,
+        hardwareRequestAvailable: Boolean = false,
+    ): Boolean = mode(manualOn, displayHdr, sourceHdr, api, hardwareRequestAvailable) != SHADER
+
+    fun output(
+        manualOn: Boolean,
+        displayHdr: Boolean,
+        sourceHdr: Boolean,
+        api: Int = 30,
+        hardwareRequestAvailable: Boolean = false,
+    ): String = mode(manualOn, displayHdr, sourceHdr, api, hardwareRequestAvailable)
 }

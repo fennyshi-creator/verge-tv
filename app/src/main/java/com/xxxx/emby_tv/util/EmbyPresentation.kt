@@ -500,6 +500,54 @@ object EmbyPresentation {
     fun resumePositionTicks(item: BaseItemDto): Long =
         item.userData?.playbackPositionTicks ?: 0L
 
+    /**
+     * HDR chip for the selected source. SDR and unknown metadata stay blank.
+     * Dolby Vision uses the settings wording 杜比视界.
+     */
+    fun hdrChip(item: BaseItemDto, source: MediaSourceInfoDto? = null): String? {
+        val video = source?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+            ?: item.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+            ?: item.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+            ?: return null
+        return hdrLabel(
+            video.videoRangeType,
+            video.extendedVideoType,
+            video.videoRange,
+            video.colorTransfer,
+            video.displayTitle,
+        )
+    }
+
+    fun hdrLabel(
+        rangeType: String?,
+        extendedType: String?,
+        videoRange: String?,
+        colorTransfer: String?,
+        displayTitle: String? = null,
+    ): String? {
+        val typed = listOfNotNull(rangeType, extendedType).joinToString(" ").lowercase(Locale.US)
+        val range = videoRange?.trim()?.lowercase(Locale.US).orEmpty()
+        if (typed.contains("dovi") || typed.contains("dolby")) return "杜比视界"
+        if (range == "sdr" || typed == "sdr") return null
+        if (typed.contains("hlg") || range == "hlg") return "HLG"
+        if (typed.contains("hdr10") || range == "hdr10") return "HDR10"
+        val transfer = colorTransfer?.trim()?.lowercase(Locale.US).orEmpty()
+        if (transfer.contains("arib") || transfer == "hlg") return "HLG"
+        if (transfer.contains("2084") || transfer == "pq" || transfer.contains("smpte2084")) return "HDR10"
+        if (range == "dv" || range.contains("dolby")) return "杜比视界"
+        if (range == "hdr") return "HDR10"
+        val structuredBlank = rangeType.isNullOrBlank() && extendedType.isNullOrBlank() &&
+            videoRange.isNullOrBlank() && colorTransfer.isNullOrBlank()
+        if (!structuredBlank) return null
+        val hint = displayTitle?.lowercase(Locale.US).orEmpty()
+        return when {
+            hint.contains("dolby vision") || hint.contains("杜比视界") || hint.contains("dovi") -> "杜比视界"
+            hint.contains("hlg") -> "HLG"
+            hint.contains("hdr10") -> "HDR10"
+            else -> null
+        }
+    }
+
     fun sourceFacts(item: BaseItemDto, source: MediaSourceInfoDto?): Triple<String?, String?, String?> {
         val runtime = runtimeLabel(runtimeTicksFor(item, source))
         val resolution = if (source != null) resolutionChip(source) else resolutionChip(item)

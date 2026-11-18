@@ -1,10 +1,8 @@
 package com.xxxx.emby_tv.ui.player
 
 /**
- * Text for the corner playback overlay. HDR tone-map is reported here.
- * The MediaCodec configure call lives in the prebuilt FFmpeg decoder, so
- * KEY_COLOR_TRANSFER_REQUEST cannot be set from the app. API 31+ is noted
- * when a request would have been made.
+ * Text for the corner playback overlay. The label names the path that was
+ * armed: hardware color-transfer-request, the Vulkan shader fallback, or no map.
  */
 object PlaybackDebug {
     const val COLOR_TRANSFER_SDR_VIDEO = 3
@@ -66,10 +64,12 @@ object PlaybackDebug {
     fun hdrOutput(
         sourceHdr: Boolean,
         displayHdr: Boolean,
-        @Suppress("UNUSED_PARAMETER") api: Int,
+        api: Int,
         manualOn: Boolean = false,
-    ): String = when (HdrMap.output(manualOn, displayHdr, sourceHdr)) {
+        hardwareRequestAvailable: Boolean = false,
+    ): String = when (HdrMap.output(manualOn, displayHdr, sourceHdr, api, hardwareRequestAvailable)) {
         HdrMap.DIRECT -> "直出 HDR"
+        HdrMap.HARDWARE -> "映射 SDR（硬解）"
         HdrMap.SHADER -> "映射 SDR（Vulkan 着色器）"
         else -> "直出 SDR"
     }
@@ -90,6 +90,7 @@ object PlaybackDebug {
         displayHdr: Boolean,
         api: Int,
         manualHdrToSdr: Boolean = false,
+        hardwareRequestAvailable: Boolean = false,
     ): List<String> {
         val opened = openedOutput(openedEncoding, fellBack, forcedDecode)
         val source = listOfNotNull(codec, channels?.let { "${it}ch" }, sampleRate?.let { "${it} Hz" })
@@ -108,6 +109,7 @@ object PlaybackDebug {
                 displayHdr,
                 api,
                 manualHdrToSdr,
+                hardwareRequestAvailable,
             ),
         )
     }
