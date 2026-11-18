@@ -261,6 +261,16 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val preferencesManager = remember { PreferencesManager(context) }
+    val displayHdr = remember {
+        if (android.os.Build.VERSION.SDK_INT < 24) false
+        else {
+            val window = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            @Suppress("DEPRECATION")
+            val types = window.defaultDisplay.hdrCapabilities?.supportedHdrTypes
+            types != null && types.isNotEmpty()
+        }
+    }
 
     // 获取 Repository 用于直接访问
     val repository = remember { EmbyRepository.getInstance(context) }
@@ -293,7 +303,7 @@ fun PlayerScreen(
     var buffered by remember { mutableStateOf(0L) }
     var audioStatusLine by remember { mutableStateOf("") }
 
-    var playbackCorrection by remember { mutableStateOf(0) } // 0: off, 1: server transcode
+    var playbackCorrection by remember { mutableIntStateOf(preferencesManager.playbackCorrection) }
     var playMode by remember { mutableStateOf(0) } // 0: list loop, 1: single loop, 2: no loop
     var endedHandled by remember { mutableStateOf(false) }
     var chromeVisible by remember { mutableStateOf(false) }
@@ -321,16 +331,18 @@ fun PlayerScreen(
     val okLatch = remember { OkLatch() }
     val timelineFocus = remember { FocusRequester() }
     val transportButtons = remember { List(4) { FocusRequester() } }
-    var showDiagnostics by remember { mutableStateOf(false) }
-    var decodeAudio by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(preferencesManager.showDiagnostics) }
+    var decodeAudio by remember { mutableStateOf(preferencesManager.decodeToStereo) }
+    var decoderPreference by remember { mutableIntStateOf(preferencesManager.decoderPreference) }
+    var hdrToSdr by remember { mutableStateOf(preferencesManager.hdrToSdr) }
     val initialRoute = remember { com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context) }
     var routeSnapshot by remember { mutableStateOf(initialRoute) }
     var routeAllowsBitstream by remember { mutableStateOf(initialRoute.allowBitstream) }
     var ratingStartMs by remember(mediaId) { mutableStateOf<Long?>(null) }
     var ratingNowMs by remember { mutableLongStateOf(0L) }
     var appliedBitstream by remember { mutableStateOf<Boolean?>(null) }
-    var subtitleScale by remember { mutableFloatStateOf(1f) }
-    var subtitleInk by remember { mutableStateOf(Color.White) }
+    var subtitleScale by remember { mutableFloatStateOf(preferencesManager.subtitleScale) }
+    var subtitleInk by remember { mutableStateOf(Color(preferencesManager.subtitleInk)) }
     var showStats by remember { mutableStateOf(false) }
 
     // 继续播放/从头开始 按钮状态
@@ -352,7 +364,6 @@ fun PlayerScreen(
     var allMediaSources by remember { mutableStateOf<List<com.xxxx.emby_tv.data.model.MediaSourceInfoDto>>(emptyList()) }
 
     // 片头跳过相关状态
-    val preferencesManager = remember { PreferencesManager(context) }
     var introStartMs by remember { mutableStateOf<Long?>(null) }
     var introEndMs by remember { mutableStateOf<Long?>(null) }
     var showSkipIntroButton by remember { mutableStateOf(false) }
@@ -806,8 +817,32 @@ fun PlayerScreen(
     // ===== 音频故障自动恢复（全程自动，无用户交互）=====
     // 0: 正常；1: 已用立体声安全模式重建过播放器；2: 已降级为无声播放
     var audioRecoveryStage by remember { mutableIntStateOf(0) }
-    fun bitstreamAllowed(): Boolean =
-        !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0 && routeAllowsBitstream
+    fun bitstreamAllowed(): Boolean = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
+        decoderPreference = decoderPreference,
+        forceStereo = decodeAudio,
+        speedIsOne = playbackSpeed == 1f,
+        recoveryStage = audioRecoveryStage,
+        routeAllows = routeAllowsBitstream,
+    )
+
+    fun mapHdr(video: com.xxxx.emby_tv.data.model.MediaStreamDto?): Boolean =
+        com.xxxx.emby_tv.ui.player.HdrMap.forceSoftwareDecode(
+            manualOn = hdrToSdr,
+            displayHdr = displayHdr,
+            sourceHdr = com.xxxx.emby_tv.ui.player.PlaybackDebug.sourceIsHdr(
+                video?.videoRange,
+                video?.videoRangeType,
+                video?.colorTransfer,
+                video?.codec,
+            ),
+        )
+
+    fun armHdr() {
+        val video = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
+            ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+            ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
+        player.mapHdrToSdr = mapHdr(video)
+    }
     // 当前播放器实例是否出现过音频输出错误（播放器重建时自动重置）
     var currentPlayerAudioError by remember { mutableStateOf(false) }
 
@@ -962,6 +997,7 @@ fun PlayerScreen(
                         videoUrl = newVideoUrl
                         media = mediaResult
                         val audio = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                        armHdr()
                         player.open(
                             url = newVideoUrl,
                             headers = playbackHeaders(),
@@ -982,11 +1018,16 @@ fun PlayerScreen(
     }
 
 
-    // 加载设置（playbackCorrection 不再持久化，每次进入播放页默认关闭，只对当前视频生效）
-    LaunchedEffect(Unit) {
+    LaunchedEffect(mediaInfo.type, mediaInfo.seriesId) {
         try {
+            val series = mediaInfo.type == "Episode" || mediaInfo.seriesId != null
+            if (mediaInfo.type.isNullOrBlank() && mediaInfo.seriesId == null) {
+                playMode = preferencesManager.playMode
+                return@LaunchedEffect
+            }
+            val key = if (series) "play_mode" else "play_mode_movie"
             val prefs = context.getSharedPreferences("emby_tv_prefs", Context.MODE_PRIVATE)
-            playMode = prefs.getInt("play_mode", 0)
+            playMode = if (prefs.contains(key)) prefs.getInt(key, preferencesManager.playMode) else preferencesManager.playMode
         } catch (e: Exception) {
             ErrorHandler.logError("PlayerScreen", "操作失败", e)
         }
@@ -1194,6 +1235,7 @@ fun PlayerScreen(
             }
 
             val audio = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+            armHdr()
             player.open(
                 url = playbackUrl,
                 headers = playbackHeaders(),
@@ -1603,13 +1645,16 @@ fun PlayerScreen(
     fun applyRoute(allow: Boolean) {
         val changed = allow != routeAllowsBitstream
         routeAllowsBitstream = allow
-        val next = !decodeAudio && playbackSpeed == 1f && audioRecoveryStage == 0 && allow
+        val next = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
+            decoderPreference, decodeAudio, playbackSpeed == 1f, audioRecoveryStage, allow,
+        )
         val url = player.url
         if (!changed || url == null || appliedBitstream == next) {
             appliedBitstream = next
             return
         }
         appliedBitstream = next
+        armHdr()
         player.open(
             url = url,
             headers = playbackHeaders(),
@@ -1872,15 +1917,6 @@ fun PlayerScreen(
             val debugVideo = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
                 ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
                 ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
-            val displayHdr = remember {
-                if (android.os.Build.VERSION.SDK_INT < 24) false
-                else {
-                    val window = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-                    @Suppress("DEPRECATION")
-                    val types = window.defaultDisplay.hdrCapabilities?.supportedHdrTypes
-                    types != null && types.isNotEmpty()
-                }
-            }
             Text(
                 text = com.xxxx.emby_tv.ui.player.PlaybackDebug.lines(
                     deviceType = routeSnapshot.type,
@@ -1897,6 +1933,7 @@ fun PlayerScreen(
                     videoCodec = debugVideo?.codec,
                     displayHdr = displayHdr,
                     api = android.os.Build.VERSION.SDK_INT,
+                    manualHdrToSdr = hdrToSdr,
                 ).joinToString("\n"),
                 color = Color.White.copy(alpha = 0.88f),
                 fontSize = 12.sp,
@@ -2162,23 +2199,71 @@ fun PlayerScreen(
                             preferencesManager.playbackSpeed = it
                         },
                         subtitleScale = subtitleScale,
-                        onScale = { subtitleScale = it },
+                        onScale = {
+                            subtitleScale = it
+                            preferencesManager.subtitleScale = it
+                        },
                         subtitlePadding = subtitleBottomPadding,
                         onPadding = {
                             subtitleBottomPadding = it
                             preferencesManager.subtitleBottomPadding = it
                         },
                         subtitleInk = subtitleInk,
-                        onInk = { subtitleInk = it },
+                        onInk = {
+                            subtitleInk = it
+                            preferencesManager.subtitleInk = it.toArgb()
+                        },
                         decodeAudio = decodeAudio,
                         onDecodeAudio = { enabled ->
                             decodeAudio = enabled
+                            preferencesManager.decodeToStereo = enabled
                             val url = player.url
-                            if (url != null) player.open(
+                            if (url != null) {
+                                armHdr()
+                                player.open(
                                 url = url,
                                 headers = playbackHeaders(),
                                 startMs = player.currentPosition,
-                                passthrough = !enabled && playbackSpeed == 1f && routeAllowsBitstream,
+                                passthrough = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
+                                    decoderPreference, enabled, playbackSpeed == 1f, audioRecoveryStage, routeAllowsBitstream,
+                                ),
+                                joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
+                                    audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                                ),
+                                speed = playbackSpeed,
+                            )
+                            }
+                        },
+                        decoderPreference = decoderPreference,
+                        onDecoderPreference = { next ->
+                            decoderPreference = next
+                            preferencesManager.decoderPreference = next
+                            val url = player.url ?: return@SettingsSheetBody
+                            armHdr()
+                            player.open(
+                                url = url,
+                                headers = playbackHeaders(),
+                                startMs = player.currentPosition,
+                                passthrough = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
+                                    next, decodeAudio, playbackSpeed == 1f, audioRecoveryStage, routeAllowsBitstream,
+                                ),
+                                joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
+                                    audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                                ),
+                                speed = playbackSpeed,
+                            )
+                        },
+                        hdrToSdr = hdrToSdr,
+                        onHdrToSdr = { enabled ->
+                            hdrToSdr = enabled
+                            preferencesManager.hdrToSdr = enabled
+                            val url = player.url ?: return@SettingsSheetBody
+                            armHdr()
+                            player.open(
+                                url = url,
+                                headers = playbackHeaders(),
+                                startMs = player.currentPosition,
+                                passthrough = bitstreamAllowed(),
                                 joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
                                     audioTracks.firstOrNull { it.index == selectedAudioIndex }
                                 ),
@@ -2186,18 +2271,25 @@ fun PlayerScreen(
                             )
                         },
                         diagnostics = showDiagnostics,
-                        onDiagnostics = { showDiagnostics = it },
+                        onDiagnostics = {
+                            showDiagnostics = it
+                            preferencesManager.showDiagnostics = it
+                        },
                         audioStatusLine = audioStatusLine,
                         playMode = playMode,
                         onPlayMode = { mode ->
                             playMode = mode
+                            preferencesManager.playMode = mode
                             val isSeriesContent = mediaInfo.type == "Episode" || mediaInfo.seriesId != null
                             val key = if (isSeriesContent) "play_mode" else "play_mode_movie"
                             context.getSharedPreferences("emby_tv_prefs", Context.MODE_PRIVATE)
                                 .edit().putInt(key, mode).apply()
                         },
                         playbackCorrection = playbackCorrection,
-                        onCorrection = { playbackCorrection = it },
+                        onCorrection = {
+                            playbackCorrection = it
+                            preferencesManager.playbackCorrection = it
+                        },
                         onLaunchExternal = { launchExternalPlayer(null) },
                     )
                     else -> Unit

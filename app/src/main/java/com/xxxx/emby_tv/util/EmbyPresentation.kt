@@ -1,5 +1,6 @@
 package com.xxxx.emby_tv.util
 
+import com.xxxx.emby_tv.pickPreferredMediaSource
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.PersonInfo
@@ -400,8 +401,12 @@ object EmbyPresentation {
     }
 
     /** White badge text. 4K stays 4K. 1080p is shown as 1080P. */
-    fun resolutionChip(item: BaseItemDto): String? {
-        val raw = qualityBadge(item) ?: return null
+    fun resolutionChip(item: BaseItemDto): String? = resolutionText(qualityBadge(item))
+
+    fun resolutionChip(source: MediaSourceInfoDto): String? = resolutionText(identifiableQuality(source))
+
+    fun resolutionText(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
         return when (raw.lowercase(Locale.US)) {
             "4k", "2160p" -> "4K"
             "1080p" -> "1080P"
@@ -416,6 +421,12 @@ object EmbyPresentation {
     fun audioChip(item: BaseItemDto): String? {
         val streams = item.mediaStreams?.takeIf { it.isNotEmpty() }
             ?: item.mediaSources?.firstOrNull()?.mediaStreams
+        return audioChip(streams)
+    }
+
+    fun audioChip(source: MediaSourceInfoDto): String? = audioChip(source.mediaStreams)
+
+    fun audioChip(streams: List<com.xxxx.emby_tv.data.model.MediaStreamDto>?): String? {
         val audio = streams.orEmpty()
             .filter { it.type.equals("Audio", true) }
             .maxByOrNull { it.channels ?: 0 }
@@ -457,7 +468,7 @@ object EmbyPresentation {
             .substringBefore("·")
             .trim()
         val shown = when (quality.lowercase(Locale.US)) {
-            "4k", "2160p" -> "2160P"
+            "4k", "2160p" -> "4K"
             "1080p" -> "1080P"
             "720p" -> "720P"
             else -> quality.uppercase(Locale.US)
@@ -466,6 +477,35 @@ object EmbyPresentation {
     }
 
     fun showVersionButton(sourceCount: Int): Boolean = sourceCount > 1
+
+    /** Same source the chips describe. Preference order matches playback. */
+    fun defaultSourceIndex(sources: List<MediaSourceInfoDto>, preference: Int): Int {
+        if (sources.isEmpty()) return 0
+        val picked = pickPreferredMediaSource(sources, preference) ?: return 0
+        val byId = sources.indexOfFirst { !it.id.isNullOrBlank() && it.id == picked.id }
+        if (byId >= 0) return byId
+        val byRef = sources.indexOf(picked)
+        return if (byRef >= 0) byRef else 0
+    }
+
+    /** Confirming a version closes or opens the menu. It never starts playback. */
+    fun versionConfirmStartsPlayback(): Boolean = false
+
+    fun versionMenuAfterConfirm(menuOpen: Boolean): Boolean = !menuOpen
+
+    fun runtimeTicksFor(item: BaseItemDto, source: MediaSourceInfoDto?): Long? =
+        source?.runTimeTicks?.takeIf { it > 0L } ?: item.runTimeTicks
+
+    /** Saved resume point stays on the title when the selected version changes. */
+    fun resumePositionTicks(item: BaseItemDto): Long =
+        item.userData?.playbackPositionTicks ?: 0L
+
+    fun sourceFacts(item: BaseItemDto, source: MediaSourceInfoDto?): Triple<String?, String?, String?> {
+        val runtime = runtimeLabel(runtimeTicksFor(item, source))
+        val resolution = if (source != null) resolutionChip(source) else resolutionChip(item)
+        val audio = if (source != null) audioChip(source) ?: audioChip(item) else audioChip(item)
+        return Triple(runtime, resolution, audio)
+    }
 
     /** The label and the downward menu cue appear together, only while focused. */
     fun versionShowsLabel(focused: Boolean): Boolean = focused

@@ -50,7 +50,7 @@ class FsPlayback(private val appContext: Context) {
     var headers: Map<String, String> = emptyMap()
         private set
     var passthroughEnabled: Boolean = true
-        private set
+    var mapHdrToSdr: Boolean = false
     var jocHint: Boolean = false
         private set
     var playWhenReady: Boolean = true
@@ -110,6 +110,7 @@ class FsPlayback(private val appContext: Context) {
         this.surface = surface
         try {
             engine?.setSurface(surface)
+            engine?.setAllowHDRDirectDisplay(!mapHdrToSdr)
         } catch (error: Exception) {
             Log.w(TAG, "setSurface failed", error)
         }
@@ -336,11 +337,15 @@ class FsPlayback(private val appContext: Context) {
 
     private fun configure(player: FSPlayer) {
         val pass = if (passthroughEnabled) 1L else 0L
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", 1)
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", 1)
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", 1)
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-mpeg2", 1)
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-mpeg4", 1)
+        // HDR-SDR On, or an SDR display playing HDR, leaves MediaCodec so the
+        // Vulkan shader actually tone-maps. Off on an HDR display stays on
+        // the hardware path.
+        val videoHardware = if (mapHdrToSdr) 0L else 1L
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", videoHardware)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-mpeg2", videoHardware)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-mpeg4", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "opensles", 0)
@@ -357,6 +362,11 @@ class FsPlayback(private val appContext: Context) {
         player.setOption(FSPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 48)
         headers["User-Agent"]?.let { player.setOption(FSPlayer.OPT_CATEGORY_FORMAT, "user_agent", it) }
         if (playbackSpeed != 1f) player.setSpeed(playbackSpeed)
+        try {
+            player.setAllowHDRDirectDisplay(!mapHdrToSdr)
+        } catch (error: Exception) {
+            Log.w(TAG, "hdr display flag failed", error)
+        }
     }
 
     private fun wire(player: FSPlayer) {

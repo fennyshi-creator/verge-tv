@@ -31,15 +31,20 @@ object AudioRouteProbe {
             val active = manager.getAudioDevicesForAttributes(attributes).firstOrNull()
             if (active != null) {
                 val encodings = active.encodings?.toSet() ?: emptySet()
+                val channels = channelCount(active)
                 return Snapshot(
                     active.type,
                     encodings,
-                    PassthroughRoute.allowBitstream(active.type, encodings, direct),
+                    PassthroughRoute.allowBitstream(active.type, encodings, direct, channels),
                 )
             }
         }
         val devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { info ->
-            PassthroughRoute.Device(info.type, info.encodings?.toSet() ?: emptySet())
+            PassthroughRoute.Device(
+                info.type,
+                info.encodings?.toSet() ?: emptySet(),
+                channelCount(info),
+            )
         }
         val active = PassthroughRoute.selectActive(devices, 0)
         val encodings = active?.encodings ?: emptySet()
@@ -48,6 +53,12 @@ object AudioRouteProbe {
     }
 
     fun allowsBitstream(context: Context): Boolean = read(context).allowBitstream
+
+    private fun channelCount(info: android.media.AudioDeviceInfo): Int =
+        PassthroughRoute.maxChannelCount(
+            info.channelCounts?.toList() ?: emptyList(),
+            info.channelMasks?.map { Integer.bitCount(it) } ?: emptyList(),
+        )
 
     private fun directEac3(): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false

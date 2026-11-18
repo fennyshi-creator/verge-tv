@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -90,7 +91,7 @@ fun SeriesDetailConnected(
     detailViewModel: DetailViewModel,
     serverUrl: String,
     apiKey: String = "",
-    onPlay: (BaseItemDto) -> Unit,
+    onPlay: (BaseItemDto, String?) -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenMovie: (String) -> Unit,
     onOpenPerson: (String) -> Unit = {},
@@ -123,11 +124,11 @@ fun SeriesDetailConnected(
         serverUrl = serverUrl,
         apiKey = apiKey,
         onSelectSeason = { seasonIndex = it },
-        onPlay = {
+        onPlay = { sourceId ->
             val target = detailViewModel.resumeItem ?: episodes.firstOrNull() ?: return@SeriesDetailPage
-            onPlay(target)
+            onPlay(target, sourceId)
         },
-        onOpenEpisode = onPlay,
+        onOpenEpisode = { episode -> onPlay(episode, null) },
         onToggleFavorite = {
             val id = item.id ?: return@SeriesDetailPage
             detailViewModel.toggleFavorite(id, item.userData?.isFavorite != true)
@@ -156,7 +157,7 @@ fun SeriesDetailPage(
     serverUrl: String,
     apiKey: String = "",
     onSelectSeason: (Int) -> Unit,
-    onPlay: () -> Unit,
+    onPlay: (String?) -> Unit,
     onOpenEpisode: (BaseItemDto) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
@@ -239,6 +240,19 @@ fun SeriesDetailPage(
         com.xxxx.emby_tv.ui.home.ArtworkPrefetch.enqueueBackdrops(backdropContext, listOf(backdrop))
     }
     val featured = resume ?: episodes.getOrNull(resumeIndex)
+    val versionSources = featured?.mediaSources.orEmpty()
+    val versionContext = androidx.compose.ui.platform.LocalContext.current
+    val sourcePreference = remember {
+        runCatching {
+            com.xxxx.emby_tv.data.local.PreferencesManager(versionContext).sourcePreference
+        }.getOrDefault(0)
+    }
+    var versionMenu by remember(featured?.id) { mutableStateOf(false) }
+    var versionIndex by remember(featured?.id, versionSources.joinToString { it.id.orEmpty() }, sourcePreference) {
+        mutableIntStateOf(EmbyPresentation.defaultSourceIndex(versionSources, sourcePreference))
+    }
+    val selectedSource = versionSources.getOrNull(versionIndex)
+    BackHandler(enabled = versionMenu) { versionMenu = false }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
         com.xxxx.emby_tv.ui.motion.ProvideStageScroll {
         BoxWithConstraints(modifier.fillMaxSize().background(Color(0xFF12110F)).clipToBounds()) {
@@ -310,6 +324,7 @@ fun SeriesDetailPage(
                     series,
                     featured,
                     serverUrl,
+                    selectedSource,
                     Modifier
                         .padding(horizontal = 48.dp)
                         .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
@@ -325,10 +340,15 @@ fun SeriesDetailPage(
                         artWash = null
                         revealHero()
                     },
-                    onPlay = onPlay,
+                    onPlay = { onPlay(selectedSource?.id) },
+                    onPickVersion = { versionMenu = EmbyPresentation.versionMenuAfterConfirm(versionMenu) },
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,
-                    showVersions = false,
+                    showVersions = EmbyPresentation.showVersionButton(versionSources.size),
+                    versionIndex = versionIndex,
+                    onVersionIndex = { versionIndex = it },
+                    versionMenuOpen = versionMenu,
+                    versionSources = versionSources,
                     modifier = Modifier.padding(horizontal = 48.dp),
                 )
                 }
@@ -558,13 +578,26 @@ fun SeriesDetailPage(
                 }
                 Spacer(Modifier.height(stageSpacer))
             }
+            if (versionMenu && versionSources.size > 1) {
+                VersionPanel(
+                    sources = versionSources,
+                    selected = versionIndex.coerceIn(0, versionSources.lastIndex),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 36.dp),
+                )
+            }
         }
         }
     }
 }
 
 @Composable
-private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverUrl: String, modifier: Modifier = Modifier) {
+private fun SeriesTitleBlock(
+    series: BaseItemDto,
+    episode: BaseItemDto?,
+    serverUrl: String,
+    source: com.xxxx.emby_tv.data.model.MediaSourceInfoDto? = null,
+    modifier: Modifier = Modifier,
+) {
     val genres = EmbyPresentation.genresLine(series)
     val rating = series.officialRating.orEmpty()
     val years = EmbyPresentation.yearLabel(series)
@@ -623,7 +656,7 @@ private fun SeriesTitleBlock(series: BaseItemDto, episode: BaseItemDto?, serverU
                 HomeText(overview, 13.sp, Color(0xFFE8E8E8), maxLines = 2)
             }
             Spacer(Modifier.height(8.dp))
-            MediaFactsRow(episode)
+            MediaFactsRow(episode, source)
         }
     }
 }

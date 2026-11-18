@@ -173,8 +173,13 @@ fun OfficialHome(
     val stage = rememberStageScroll(scroll)
     val scope = rememberCoroutineScope()
     var heroBottomPx by remember { mutableIntStateOf(0) }
-    fun focusRow(requester: FocusRequester, index: Int, pin: Boolean) {
-        if (pin || index <= 0) stage.dock(0) else stage.dockAtLeast(index, heroBottomPx)
+    var stillClearPx by remember { mutableIntStateOf(0) }
+    fun focusRow(requester: FocusRequester, index: Int, pin: Boolean, clearStill: Boolean = false) {
+        when {
+            pin || index <= 0 -> stage.dock(0)
+            clearStill -> stage.dockAtLeast(index, stillClearPx)
+            else -> stage.dockAtLeast(index, heroBottomPx)
+        }
         scope.launch {
             withFrameNanos { }
             try {
@@ -240,8 +245,9 @@ fun OfficialHome(
         }
     }
     CompositionLocalProvider(LocalHomeFont provides fontFamily, LocalBringIntoViewSpec provides keepStill) {
-        BoxWithConstraints(modifier.fillMaxSize().background(HomeStyle.background)) {
+        BoxWithConstraints(modifier.fillMaxSize().clipToBounds().background(HomeStyle.background)) {
             val viewport = constraints.maxHeight
+            stillClearPx = viewport
             val density = LocalDensity.current
             stage.stagePx = (viewport * 0.08f).toInt().coerceIn(
                 with(density) { 36.dp.roundToPx() },
@@ -266,6 +272,22 @@ fun OfficialHome(
             val seamPx = with(density) { 640.dp.roundToPx() }.coerceAtLeast(1)
             val heroVisible = 1f - (scroll.value / seamPx.toFloat()).coerceIn(0f, 1f)
             val pinnedBackdrop = if (heroItem == null || serverUrl.isBlank()) "" else Utils.getBackdropUrl(serverUrl, heroItem, 1280)
+            if (heroItem != null && pinnedBackdrop.isNotBlank() && !HomeMask.stillCleared(scroll.value, viewport)) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { translationY = -scroll.value.toFloat() },
+                ) {
+                    FadeInImage(
+                        url = pinnedBackdrop,
+                        widthPx = 1280,
+                        heightPx = 720,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(Modifier.fillMaxSize().background(HomeMask.firstScreenScrim(HomeStyle.background)))
+                }
+            }
             AmbientWash(
                 url = washUrl,
                 strength = ArtworkWash.blend(heroVisible, !washUrl.isNullOrBlank()),
@@ -282,29 +304,6 @@ fun OfficialHome(
                     .verticalScroll(scroll),
             ) {
                 Box(Modifier.fillMaxWidth()) {
-                    if (heroItem != null && pinnedBackdrop.isNotBlank()) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(heroHeight)
-                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                                .drawWithContent {
-                                    drawContent()
-                                    drawRect(
-                                        brush = HomeMask.fadeBrush(size.height, HomeMask.seam.toPx()),
-                                        blendMode = BlendMode.DstIn,
-                                    )
-                                },
-                        ) {
-                            FadeInImage(
-                                url = pinnedBackdrop,
-                                widthPx = 1280,
-                                heightPx = 720,
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                            )
-                        }
-                    }
                     Column(Modifier.fillMaxWidth()) {
                 if (heroItem != null) {
                         HomeHero(
@@ -322,7 +321,14 @@ fun OfficialHome(
                             heroItem.id?.let { onRememberFocus("hero", it) }
                             if (heroItem.type == "Episode") onResume(heroItem) else onOpenItem(heroItem)
                         },
-                        onDown = { focusRow(contentFocus, if (continueIndex >= 0) continueIndex else libraryIndex, pin = false) },
+                        onDown = {
+                            focusRow(
+                                contentFocus,
+                                if (continueIndex >= 0) continueIndex else libraryIndex,
+                                pin = false,
+                                clearStill = continueIndex < 0,
+                            )
+                        },
                         onUp = { focusRow(homeTabFocus, 0, pin = true) },
                         showPicture = false,
                         modifier = Modifier
@@ -377,8 +383,8 @@ fun OfficialHome(
                             },
                             onExitDown = {
                                 when {
-                                    libraryIndex >= 0 -> focusRow(libraryFocus, libraryIndex, pin = false)
-                                    posterIndex.isNotEmpty() -> focusRow(posterFocus[0], posterIndex[0], pin = false)
+                                    libraryIndex >= 0 -> focusRow(libraryFocus, libraryIndex, pin = false, clearStill = true)
+                                    posterIndex.isNotEmpty() -> focusRow(posterFocus[0], posterIndex[0], pin = false, clearStill = true)
                                 }
                             },
                             caption = { item ->
@@ -410,7 +416,7 @@ fun OfficialHome(
                                 onOpenLibrary(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { focusRow(libraryFocus, libraryIndex, pin = false) },
+                            onFocused = { focusRow(libraryFocus, libraryIndex, pin = false, clearStill = true) },
                             onFocusedIndex = { washUrl = primaryUrl(serverUrl, libraries[it]) },
                             onExitUp = {
                                 if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
@@ -418,7 +424,7 @@ fun OfficialHome(
                                 else focusRow(homeTabFocus, 0, pin = true)
                             },
                             onExitDown = {
-                                if (posterIndex.isNotEmpty()) focusRow(posterFocus[0], posterIndex[0], pin = false)
+                                if (posterIndex.isNotEmpty()) focusRow(posterFocus[0], posterIndex[0], pin = false, clearStill = true)
                             },
                             caption = { library ->
                                 CardCaption(library.name.orEmpty(), "", HomeStyle.libraryWidth)
@@ -454,23 +460,23 @@ fun OfficialHome(
                                 onOpenItem(item)
                             },
                             onMenu = onSettings,
-                            onFocused = { focusRow(posterFocus[index], posterIndex[index], pin = false) },
+                            onFocused = { focusRow(posterFocus[index], posterIndex[index], pin = false, clearStill = true) },
                             onFocusedIndex = { itemIndex ->
                                 library.latestItems.orEmpty().getOrNull(itemIndex)?.let { washUrl = primaryUrl(serverUrl, it) }
                             },
                             onExitUp = {
                                 if (index == 0) {
-                                    if (libraryIndex >= 0) focusRow(libraryFocus, libraryIndex, pin = false)
+                                    if (libraryIndex >= 0) focusRow(libraryFocus, libraryIndex, pin = false, clearStill = true)
                                     else if (continueIndex >= 0) focusRow(continueFocus, continueIndex, pin = false)
                                     else if (heroItem != null) focusRow(heroFocus, 0, pin = true)
                                     else focusRow(homeTabFocus, 0, pin = true)
                                 } else {
-                                    focusRow(posterFocus[index - 1], posterIndex[index - 1], pin = false)
+                                    focusRow(posterFocus[index - 1], posterIndex[index - 1], pin = false, clearStill = true)
                                 }
                             },
                             onExitDown = {
                                 if (index < posterFocus.lastIndex) {
-                                    focusRow(posterFocus[index + 1], posterIndex[index + 1], pin = false)
+                                    focusRow(posterFocus[index + 1], posterIndex[index + 1], pin = false, clearStill = true)
                                 }
                             },
                             caption = { item ->
@@ -593,14 +599,6 @@ private fun HomeHero(
         Box(
             Modifier
                 .fillMaxSize()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = HomeMask.fadeBrush(size.height, HomeMask.seam.toPx()),
-                        blendMode = BlendMode.DstIn,
-                    )
-                }
                 .background(
                     Brush.horizontalGradient(
                         0f to Color.Black.copy(0.55f),

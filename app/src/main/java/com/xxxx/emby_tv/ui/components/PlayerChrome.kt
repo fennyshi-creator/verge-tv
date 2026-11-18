@@ -552,6 +552,10 @@ fun SettingsSheetBody(
     onInk: (Color) -> Unit,
     decodeAudio: Boolean,
     onDecodeAudio: (Boolean) -> Unit,
+    decoderPreference: Int = 0,
+    onDecoderPreference: (Int) -> Unit = {},
+    hdrToSdr: Boolean = false,
+    onHdrToSdr: (Boolean) -> Unit = {},
     diagnostics: Boolean,
     onDiagnostics: (Boolean) -> Unit,
     audioStatusLine: String,
@@ -613,6 +617,27 @@ fun SettingsSheetBody(
             ) { onDecodeAudio(!decodeAudio) }
             Text(
                 "自动时 HDMI 能收杜比才透传，电视扬声器解码",
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            SheetRow(
+                "音频解码",
+                if (decoderPreference == 1) "优先 FFmpeg" else "自动",
+            ) { onDecoderPreference(if (decoderPreference == 1) 0 else 1) }
+            Text(
+                "优先 FFmpeg 与「解码为立体声」走同一条立体声解码",
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            SheetRow("HDR-SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
+            Text(
+                "开：用着色器把 HDR 映射到 SDR。关：HDR 屏幕保持 HDR",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

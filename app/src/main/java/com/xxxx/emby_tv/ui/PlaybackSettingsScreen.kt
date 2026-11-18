@@ -79,6 +79,9 @@ fun PlaybackSettingsScreen(
     // 多片源版本优先：0 杜比视界优先 / 1 HDR优先 / 2 流畅优先 / 3 默认排序
     var sourcePref by remember { mutableIntStateOf(prefs.sourcePreference) }
 
+    var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
+    var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
+
     // 跳过片头
     var autoSkipIntro by remember { mutableStateOf(prefs.autoSkipIntro) }
 
@@ -255,6 +258,46 @@ fun PlaybackSettingsScreen(
                         ) {
                             sourcePref = 3
                             prefs.sourcePreference = 3
+                        }
+                    }
+
+                    item { SectionTitle(stringResource(R.string.decoder_preference)) }
+                    item {
+                        SettingOptionRow(
+                            title = stringResource(R.string.decoder_auto),
+                            isSelected = decoderPreference == 0
+                        ) {
+                            decoderPreference = 0
+                            prefs.decoderPreference = 0
+                        }
+                    }
+                    item {
+                        SettingOptionRow(
+                            title = stringResource(R.string.decoder_ffmpeg),
+                            isSelected = decoderPreference == 1
+                        ) {
+                            decoderPreference = 1
+                            prefs.decoderPreference = 1
+                        }
+                    }
+
+                    item { SectionTitle(stringResource(R.string.hdr_sdr)) }
+                    item {
+                        SettingOptionRow(
+                            title = stringResource(R.string.hdr_sdr_off),
+                            isSelected = !hdrToSdr
+                        ) {
+                            hdrToSdr = false
+                            prefs.hdrToSdr = false
+                        }
+                    }
+                    item {
+                        SettingOptionRow(
+                            title = stringResource(R.string.hdr_sdr_on),
+                            isSelected = hdrToSdr
+                        ) {
+                            hdrToSdr = true
+                            prefs.hdrToSdr = true
                         }
                     }
 

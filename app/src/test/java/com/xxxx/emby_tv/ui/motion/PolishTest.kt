@@ -174,7 +174,7 @@ class PolishTest {
             bitrate = 192,
         )
         val text = EmbyPresentation.versionButtonLabel(source)
-        assertEquals("2160P", text)
+        assertEquals("4K", text)
         assertTrue(!text.contains("kbps"))
         val hd = com.xxxx.emby_tv.data.model.MediaSourceInfoDto(name = "1080p")
         assertEquals("1080P", EmbyPresentation.versionButtonLabel(hd))

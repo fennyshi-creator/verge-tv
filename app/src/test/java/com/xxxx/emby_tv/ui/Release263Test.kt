@@ -104,7 +104,7 @@ class Release263Test {
         assertTrue(lines.any { it.contains("PCM") && it.contains("编码") })
         assertTrue(lines.any { it.contains("片源 HDR10") })
         assertTrue(lines.any { it.contains("仅SDR") })
-        assertTrue(lines.any { it.contains("color-transfer-request") })
+        assertTrue(lines.any { it.contains("映射 SDR") })
         assertEquals("直出 HDR", PlaybackDebug.hdrOutput(sourceHdr = true, displayHdr = true, api = 31))
     }
 }

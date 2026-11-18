@@ -63,14 +63,15 @@ object PlaybackDebug {
 
     fun displayLabel(supportsHdr: Boolean): String = if (supportsHdr) "屏幕支持HDR" else "仅SDR"
 
-    fun hdrOutput(sourceHdr: Boolean, displayHdr: Boolean, api: Int): String {
-        if (!sourceHdr) return "直出 SDR"
-        if (displayHdr) return "直出 HDR"
-        return if (api >= 31) {
-            "映射 SDR（预编译 MediaCodec 未接收 color-transfer-request=$COLOR_TRANSFER_SDR_VIDEO）"
-        } else {
-            "映射 SDR（API $api 无法设置 color-transfer-request）"
-        }
+    fun hdrOutput(
+        sourceHdr: Boolean,
+        displayHdr: Boolean,
+        @Suppress("UNUSED_PARAMETER") api: Int,
+        manualOn: Boolean = false,
+    ): String = when (HdrMap.output(manualOn, displayHdr, sourceHdr)) {
+        HdrMap.DIRECT -> "直出 HDR"
+        HdrMap.SHADER -> "映射 SDR（Vulkan 着色器）"
+        else -> "直出 SDR"
     }
 
     fun lines(
@@ -88,6 +89,7 @@ object PlaybackDebug {
         videoCodec: String?,
         displayHdr: Boolean,
         api: Int,
+        manualHdrToSdr: Boolean = false,
     ): List<String> {
         val opened = openedOutput(openedEncoding, fellBack, forcedDecode)
         val source = listOfNotNull(codec, channels?.let { "${it}ch" }, sampleRate?.let { "${it} Hz" })
@@ -101,7 +103,12 @@ object PlaybackDebug {
             "输出 $opened",
             sourceLabel(videoRange, rangeType, transfer, videoCodec),
             displayLabel(displayHdr),
-            hdrOutput(sourceIsHdr(videoRange, rangeType, transfer, videoCodec), displayHdr, api),
+            hdrOutput(
+                sourceIsHdr(videoRange, rangeType, transfer, videoCodec),
+                displayHdr,
+                api,
+                manualHdrToSdr,
+            ),
         )
     }
 }

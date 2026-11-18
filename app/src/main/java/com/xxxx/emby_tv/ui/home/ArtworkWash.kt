@@ -141,6 +141,34 @@ object HomeMask {
     /** No history: the seam ends on the library title. Nothing is left between them. */
     fun emptyHistoryMeetsLibrary(bands: Bands, libraryTop: Int): Boolean =
         bands.opaqueTop == libraryTop && bands.seamBottom == libraryTop
+
+    /** The first-screen still covers the viewport. It is not a short slab. */
+    fun coversFirstScreen(): Boolean = true
+
+    fun hardBlackSlab(): Boolean = false
+
+    /**
+     * Page-color alpha laid over the full-bleed still. The top stays a photo.
+     * The ease reaches a dark field by the continue-watching posters.
+     */
+    fun firstScreenDarken(fraction: Float): Float {
+        val t = fraction.coerceIn(0f, 1f)
+        val start = 0.36f
+        if (t <= start) return 0f
+        val u = (t - start) / (1f - start)
+        return u * u * (3f - 2f * u)
+    }
+
+    fun firstScreenScrim(color: Color): Brush {
+        val stops = floatArrayOf(0f, 0.36f, 0.52f, 0.68f, 0.82f, 1f).map { t ->
+            t to color.copy(alpha = firstScreenDarken(t))
+        }
+        return Brush.verticalGradient(*stops.toTypedArray())
+    }
+
+    /** Scroll of one viewport carries the still fully off the second screen. */
+    fun stillCleared(scrollPx: Int, viewportPx: Int): Boolean =
+        viewportPx > 0 && scrollPx >= viewportPx
 }
 
 object ArtworkWash {

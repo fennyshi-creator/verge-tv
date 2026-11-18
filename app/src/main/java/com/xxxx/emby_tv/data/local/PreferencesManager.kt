@@ -110,6 +110,41 @@ class PreferencesManager(context: Context) {
         get() = prefs.getFloat(KEY_SUBTITLE_BOTTOM_PADDING, DEFAULT_SUBTITLE_BOTTOM_PADDING)
         set(value) = prefs.edit().putFloat(KEY_SUBTITLE_BOTTOM_PADDING, value).apply()
 
+    var subtitleScale: Float
+        get() = prefs.getFloat(KEY_SUBTITLE_SCALE, PlaybackMemory.DEFAULT_SUBTITLE_SCALE)
+        set(value) = prefs.edit().putFloat(KEY_SUBTITLE_SCALE, value).apply()
+
+    var subtitleInk: Int
+        get() = prefs.getInt(KEY_SUBTITLE_INK, PlaybackMemory.DEFAULT_SUBTITLE_INK)
+        set(value) = prefs.edit().putInt(KEY_SUBTITLE_INK, value).apply()
+
+    /** In-player 解码为立体声. False is 自动. */
+    var decodeToStereo: Boolean
+        get() = prefs.getBoolean(KEY_DECODE_TO_STEREO, false)
+        set(value) = prefs.edit().putBoolean(KEY_DECODE_TO_STEREO, value).apply()
+
+    /** 0 自动, 1 优先 FFmpeg. */
+    var decoderPreference: Int
+        get() = prefs.getInt(KEY_DECODER_PREFERENCE, PlaybackMemory.DECODER_AUTO)
+        set(value) = prefs.edit().putInt(KEY_DECODER_PREFERENCE, value).apply()
+
+    /** HDR-SDR. False is 关 so an HDR display is not remapped. */
+    var hdrToSdr: Boolean
+        get() = prefs.getBoolean(KEY_HDR_TO_SDR, false)
+        set(value) = prefs.edit().putBoolean(KEY_HDR_TO_SDR, value).apply()
+
+    var showDiagnostics: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_DIAGNOSTICS, value).apply()
+
+    var playbackCorrection: Int
+        get() = prefs.getInt(KEY_PLAYBACK_CORRECTION, 0)
+        set(value) = prefs.edit().putInt(KEY_PLAYBACK_CORRECTION, value).apply()
+
+    var playMode: Int
+        get() = prefs.getInt(KEY_PLAY_MODE, 0)
+        set(value) = prefs.edit().putInt(KEY_PLAY_MODE, value).apply()
+
     // === 缓冲设置 ===
 
     var minBufferMs: Int
@@ -220,6 +255,14 @@ class PreferencesManager(context: Context) {
         private const val KEY_DOUBLE_BACK_TO_EXIT = "double_back_to_exit"
         private const val KEY_PLAYBACK_SPEED = "playback_speed"
         private const val KEY_SUBTITLE_BOTTOM_PADDING = "subtitle_bottom_padding"
+        private const val KEY_SUBTITLE_SCALE = "subtitle_scale"
+        private const val KEY_SUBTITLE_INK = "subtitle_ink"
+        private const val KEY_DECODE_TO_STEREO = "decode_to_stereo"
+        private const val KEY_DECODER_PREFERENCE = "decoder_preference"
+        private const val KEY_HDR_TO_SDR = "hdr_to_sdr"
+        private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
+        private const val KEY_PLAYBACK_CORRECTION = "playback_correction"
+        private const val KEY_PLAY_MODE = "play_mode"
 
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_TYPE = "proxy_type"

@@ -328,4 +328,10 @@
     <string name="source_pref_hdr_first">HDR first</string>
     <string name="source_pref_smooth">Smooth first (lower bitrate)</string>
     <string name="source_pref_default">Default order</string>
+    <string name="decoder_preference">Audio decoder</string>
+    <string name="decoder_auto">Auto</string>
+    <string name="decoder_ffmpeg">Prefer FFmpeg</string>
+    <string name="hdr_sdr">HDR-SDR</string>
+    <string name="hdr_sdr_off">Off</string>
+    <string name="hdr_sdr_on">On</string>
 </resources>

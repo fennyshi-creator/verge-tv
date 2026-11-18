@@ -148,17 +148,29 @@ object PassthroughRoute {
         type: Int,
         encodings: Set<Int>,
         @Suppress("UNUSED_PARAMETER") directQuery: Boolean,
+        maxChannels: Int = -1,
     ): Boolean {
         if (isLocalSink(type)) return false
         if (isHdmiFamily(type)) {
             if (encodings.isEmpty()) return true
-            return encodingsCarryBitstream(encodings)
+            if (!encodingsCarryBitstream(encodings)) return false
+            // A stereo HDMI sink that still lists E-AC-3 cannot play the bitstream.
+            // ARC and eARC stay on the passthrough path for an AVR.
+            if (type == TYPE_HDMI && maxChannels in 1..2) return false
+            return true
         }
         if (encodings.isEmpty()) return true
         return encodingsCarryBitstream(encodings)
     }
 
-    data class Device(val type: Int, val encodings: Set<Int>)
+    fun maxChannelCount(counts: List<Int>, maskBitCounts: List<Int>): Int {
+        val fromCounts = counts.maxOrNull() ?: 0
+        if (fromCounts > 0) return fromCounts
+        val fromMasks = maskBitCounts.maxOrNull() ?: 0
+        return if (fromMasks > 0) fromMasks else -1
+    }
+
+    data class Device(val type: Int, val encodings: Set<Int>, val maxChannels: Int = -1)
 
     /** Null when the route cannot be told apart. Callers keep the current mode. */
     fun selectActive(devices: List<Device>, streamMask: Int): Device? {
@@ -179,6 +191,49 @@ object PassthroughRoute {
     /** Unknown route stays on bitstream so a probe miss does not drop a working AVR. */
     fun allowActive(devices: List<Device>, streamMask: Int, directQuery: Boolean): Boolean {
         val active = selectActive(devices, streamMask) ?: return true
-        return allowBitstream(active.type, active.encodings, directQuery)
+        return allowBitstream(active.type, active.encodings, directQuery, active.maxChannels)
+    }
+}
+
+/**
+ * Auto uses the route. Prefer-FFmpeg and 解码为立体声 both take the FFmpeg
+ * stereo decode path. A failed passthrough open is the same path.
+ */
+object AudioPolicy {
+    const val AUTO = 0
+    const val FFMPEG = 1
+
+    fun usePassthrough(
+        decoderPreference: Int,
+        forceStereo: Boolean,
+        speedIsOne: Boolean,
+        recoveryStage: Int,
+        routeAllows: Boolean,
+    ): Boolean {
+        if (forceStereo || !speedIsOne || recoveryStage > 0) return false
+        if (decoderPreference == FFMPEG) return false
+        return routeAllows
+    }
+}
+
+/**
+ * Manual HDR-SDR. On forces the Vulkan shader tone-map by leaving MediaCodec.
+ * Off keeps hardware HDR output when the display can take it, and still maps
+ * when the display reports no HDR.
+ */
+object HdrMap {
+    const val SHADER = "vulkan-hdr2sdr"
+    const val DIRECT = "hdr-direct"
+    const val SDR = "sdr"
+
+    fun forceSoftwareDecode(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): Boolean =
+        sourceHdr && (manualOn || !displayHdr)
+
+    fun allowDirectHdr(manualOn: Boolean): Boolean = !manualOn
+
+    fun output(manualOn: Boolean, displayHdr: Boolean, sourceHdr: Boolean): String = when {
+        !sourceHdr -> SDR
+        manualOn || !displayHdr -> SHADER
+        else -> DIRECT
     }
 }

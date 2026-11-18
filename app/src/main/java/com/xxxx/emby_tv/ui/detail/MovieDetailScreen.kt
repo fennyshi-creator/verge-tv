@@ -109,6 +109,7 @@ import com.xxxx.emby_tv.ui.focus.TvBringIntoView
 import com.xxxx.emby_tv.ui.home.LocalArtworkSoften
 import com.xxxx.emby_tv.ui.home.LocalHomeFont
 import com.xxxx.emby_tv.ui.viewmodel.DetailViewModel
+import com.xxxx.emby_tv.data.local.PreferencesManager
 import com.xxxx.emby_tv.util.EmbyPresentation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
@@ -135,8 +136,7 @@ fun MovieDetailConnected(
         collections = detailViewModel.collections,
         serverUrl = serverUrl,
         apiKey = apiKey,
-        onPlay = { onPlay(item, null) },
-        onPickSource = { sourceId -> onPlay(item, sourceId) },
+        onPlay = { sourceId -> onPlay(item, sourceId) },
         onToggleFavorite = {
             val id = item.id ?: return@MovieDetailPage
             detailViewModel.toggleFavorite(id, item.userData?.isFavorite != true)
@@ -157,8 +157,7 @@ fun MovieDetailPage(
     collections: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList(),
     serverUrl: String,
     apiKey: String = "",
-    onPlay: () -> Unit,
-    onPickSource: (String?) -> Unit,
+    onPlay: (String?) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
@@ -226,8 +225,14 @@ fun MovieDetailPage(
     }
     val dim by animateFloatAsState(if (blurBackdrop) 0.18f else 0f, com.xxxx.emby_tv.ui.motion.Motion.fade(), label = "backdrop-dim")
     val sources = item.mediaSources.orEmpty()
+    val sourcePreference = remember {
+        runCatching { PreferencesManager(backdropContext).sourcePreference }.getOrDefault(0)
+    }
     var versionMenu by remember(item.id) { mutableStateOf(false) }
-    var versionIndex by remember(item.id) { mutableIntStateOf(0) }
+    var versionIndex by remember(item.id, sources.joinToString { it.id.orEmpty() }, sourcePreference) {
+        mutableIntStateOf(EmbyPresentation.defaultSourceIndex(sources, sourcePreference))
+    }
+    val selectedSource = sources.getOrNull(versionIndex)
     var artWash by remember(item.id) { mutableStateOf<String?>(null) }
     BackHandler(enabled = versionMenu) { versionMenu = false }
     CompositionLocalProvider(LocalHomeFont provides fontFamily) {
@@ -321,6 +326,7 @@ fun MovieDetailPage(
                 TitleBlockSpaced(
                     item,
                     serverUrl,
+                    selectedSource,
                     Modifier
                         .padding(horizontal = 48.dp)
                         .onSizeChanged { titleHeight = with(density) { it.height.toDp() } },
@@ -339,10 +345,9 @@ fun MovieDetailPage(
                         artWash = null
                         revealHero()
                     },
-                    onPlay = onPlay,
+                    onPlay = { onPlay(selectedSource?.id) },
                     onPickVersion = {
-                        if (!versionMenu) versionMenu = true
-                        else onPickSource(sources.getOrNull(versionIndex)?.id)
+                        versionMenu = EmbyPresentation.versionMenuAfterConfirm(versionMenu)
                     },
                     versionMenuOpen = versionMenu,
                     showVersions = sources.size > 1,
@@ -466,7 +471,12 @@ fun MovieDetailPage(
 }
 
 @Composable
-private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Modifier = Modifier) {
+private fun TitleBlockSpaced(
+    item: BaseItemDto,
+    serverUrl: String,
+    source: MediaSourceInfoDto? = null,
+    modifier: Modifier = Modifier,
+) {
     val raw = EmbyPresentation.displayName(item)
     val genres = EmbyPresentation.genresLine(item)
     val year = EmbyPresentation.yearLabel(item)
@@ -529,15 +539,16 @@ private fun TitleBlockSpaced(item: BaseItemDto, serverUrl: String, modifier: Mod
             )
         }
         Spacer(Modifier.height(10.dp))
-        MediaFactsRow(item)
+        MediaFactsRow(item, source)
     }
 }
 
 @Composable
-internal fun MediaFactsRow(item: BaseItemDto) {
-    val runtime = EmbyPresentation.runtimeLabel(item.runTimeTicks).orEmpty()
-    val resolution = EmbyPresentation.resolutionChip(item).orEmpty()
-    val audio = EmbyPresentation.audioChip(item).orEmpty()
+internal fun MediaFactsRow(item: BaseItemDto, source: MediaSourceInfoDto? = null) {
+    val facts = EmbyPresentation.sourceFacts(item, source)
+    val runtime = facts.first.orEmpty()
+    val resolution = facts.second.orEmpty()
+    val audio = facts.third.orEmpty()
     if (runtime.isBlank() && resolution.isBlank() && audio.isBlank()) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (runtime.isNotBlank()) HomeText(runtime, 13.sp, Color.White)
@@ -589,9 +600,10 @@ internal fun ActionRow(
     onVersionIndex: (Int) -> Unit = {},
     onAction: (String) -> Unit = {},
     versionMenuOpen: Boolean = false,
+    versionSources: List<MediaSourceInfoDto>? = null,
     modifier: Modifier = Modifier,
 ) {
-    val sources = item.mediaSources.orEmpty()
+    val sources = versionSources ?: item.mediaSources.orEmpty()
     val actions = if (showVersions && EmbyPresentation.showVersionButton(sources.size)) {
         listOf("play", "version", "favorite", "played")
     } else {
@@ -1035,7 +1047,7 @@ internal fun AvatarPlaceholder(name: String, index: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun VersionPanel(
+internal fun VersionPanel(
     sources: List<MediaSourceInfoDto>,
     selected: Int,
     modifier: Modifier = Modifier,

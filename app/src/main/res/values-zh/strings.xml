@@ -328,4 +328,10 @@
     <string name="source_pref_hdr_first">HDR 优先</string>
     <string name="source_pref_smooth">流畅优先（低码率）</string>
     <string name="source_pref_default">默认排序</string>
+    <string name="decoder_preference">音频解码</string>
+    <string name="decoder_auto">自动</string>
+    <string name="decoder_ffmpeg">优先 FFmpeg</string>
+    <string name="hdr_sdr">HDR-SDR</string>
+    <string name="hdr_sdr_off">关</string>
+    <string name="hdr_sdr_on">开</string>
 </resources>
