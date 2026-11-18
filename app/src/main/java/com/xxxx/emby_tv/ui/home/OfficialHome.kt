@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -84,6 +86,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -285,7 +288,7 @@ fun OfficialHome(
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    Box(Modifier.fillMaxSize().background(HomeMask.firstScreenScrim(HomeStyle.background)))
+                    HeroBottomScrim(pinnedBackdrop, Modifier.fillMaxSize())
                 }
             }
             AmbientWash(
@@ -596,17 +599,6 @@ private fun HomeHero(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        0f to Color.Black.copy(0.55f),
-                        0.42f to Color.Black.copy(0.22f),
-                        1f to Color.Transparent,
-                    ),
-                ),
-        )
         HomeTopBar(
             menuFocus = menuFocus,
             menuSlot = menuSlot,
@@ -819,23 +811,14 @@ private fun HomeTopBar(
 
 @Composable
 private fun EmbyMark(modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .background(HomeStyle.logoGreen),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.size(13.dp).offset(x = 1.dp)) {
-            val path = Path().apply {
-                moveTo(0f, 0f)
-                lineTo(size.width, size.height / 2f)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(path, Color.White)
-        }
-    }
+    Image(
+        painter = painterResource(R.drawable.emby_mark),
+        contentDescription = "Emby",
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+            .height(30.dp)
+            .aspectRatio(HomeMark.ASPECT),
+    )
 }
 
 @Composable

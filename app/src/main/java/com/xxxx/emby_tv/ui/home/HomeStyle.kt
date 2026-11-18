@@ -39,6 +39,18 @@ object PosterRowFit {
     }
 }
 
+object HomeMark {
+    const val DRAWABLE = "emby_mark"
+    const val CROP_LEFT = 1
+    const val CROP_RIGHT = 376
+    const val WORDMARK_START = 409
+    const val ASPECT = 375f / 377f
+
+    fun includesWordmark(): Boolean = false
+
+    fun cropStopsBeforeWordmark(): Boolean = CROP_RIGHT <= WORDMARK_START
+}
+
 object HomeStyle {
     val background = Color(0xFF141210)
     val title = Color(0xFFF2F2F2)

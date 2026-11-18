@@ -46,11 +46,8 @@ class LocalServer private constructor(
         }
 
         fun startSearchServer(
-            themePrimaryDark: Color,
-            themeSecondaryLight: Color,
             onSearchReceived: (String) -> Unit
         ): LocalServer? {
-            updateThemeColors(themePrimaryDark, themeSecondaryLight)
             return startInternal(Mode.SEARCH, onSearchReceived = onSearchReceived)
         }
 
@@ -132,74 +129,7 @@ class LocalServer private constructor(
             }
         }
 
-        val html = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Emby TV Search</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <meta charset="UTF-8">
-                <style>
-                    :root { --theme-primary: $themePrimary; --theme-secondary: $themeSecondary; }
-                    body {
-                        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                        padding: 0; margin: 0;
-                        background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
-                        color: white;
-                        display: flex; justify-content: center; align-items: center;
-                        min-height: 100vh;
-                    }
-                    .container {
-                        background: rgba(0, 0, 0, 0.2);
-                        padding: 40px;
-                        border-radius: 16px;
-                        backdrop-filter: blur(10px);
-                        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-                        width: 90%; max-width: 400px;
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                    }
-                    h2 { text-align: center; margin-bottom: 30px; font-weight: 300; }
-                    input {
-                        width: 100%; padding: 14px; margin-bottom: 20px;
-                        box-sizing: border-box;
-                        background: rgba(0, 0, 0, 0.3);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
-                        border-radius: 8px; color: white; font-size: 16px;
-                    }
-                    input::placeholder {
-                        color: rgba(255, 255, 255, 0.5);
-                    }
-                    input:focus {
-                        border-color: var(--theme-primary);
-                        outline: none;
-                    }
-                    button {
-                        width: 100%; padding: 14px;
-                        background: white; color: black;
-                        border: none; border-radius: 8px;
-                        font-size: 16px; font-weight: bold; cursor: pointer;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h2 id="title">Emby TV Search</h2>
-                    <form method="POST">
-                        <input type="text" name="query" id="input-query" placeholder="Enter keywords..." required autofocus>
-                        <button type="submit" id="btn-submit">Search on TV</button>
-                    </form>
-                </div>
-                <script>
-                    if (navigator.language.startsWith('zh')) {
-                        document.getElementById('title').innerText = 'Emby TV 搜索';
-                        document.getElementById('input-query').placeholder = '输入搜索关键词...';
-                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_SEARCH_SUBMIT}';
-                    }
-                </script>
-            </body>
-            </html>
-        """.trimIndent()
-        return newFixedLengthResponse(html)
+        return newFixedLengthResponse(com.xxxx.emby_tv.ui.connect.PairingPage.searchDocument())
     }
 
     private fun serveLogin(session: IHTTPSession): Response {

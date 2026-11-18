@@ -48,7 +48,6 @@ import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.motion.FocusCard
 import com.xxxx.emby_tv.ui.components.TvInputDialog
-import com.xxxx.emby_tv.ui.theme.ThemeColorManager
 import com.xxxx.emby_tv.ui.viewmodel.LoginViewModel
 import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
 import com.xxxx.emby_tv.ui.focus.TvBringIntoView
@@ -76,8 +75,6 @@ fun SearchScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { EmbyRepository.getInstance(context) }
-    val themeColor = ThemeColorManager.getThemeColorById(context, mainViewModel.currentThemeId)
-
     // State
     var showSearchDialog by remember { mutableStateOf(false) }
     val searchResults = searchViewModel.searchResults
@@ -111,13 +108,10 @@ fun SearchScreen(
 
 
     // Start Local Server for Search
-    LaunchedEffect(themeColor) {
+    LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
 
-            val server = LocalServer.startSearchServer(
-                themeColor.primaryDark,
-                themeColor.secondaryLight
-            ) { query ->
+            val server = LocalServer.startSearchServer { query ->
                 searchViewModel.search(query)
             }
             localServer = server
@@ -432,7 +426,8 @@ fun SearchScreen(
                 showSearchDialog = false
                 searchViewModel.search(query)
             },
-            onDismiss = { showSearchDialog = false }
+            onDismiss = { showSearchDialog = false },
+            darkConfirm = true,
         )
     }
 }

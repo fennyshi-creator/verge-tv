@@ -101,7 +101,14 @@ object EmbyPresentation {
 
     /** Episode rating, then series, then season. Blank means show nothing. */
     fun playbackRating(episode: String?, series: String?, season: String?): String? =
-        listOf(episode, series, season).firstOrNull { !it.isNullOrBlank() }
+        listOf(episode, series, season).firstOrNull { !it.isNullOrBlank() }?.trim()
+
+    /** On-screen line. Blank ratings stay hidden. */
+    fun ratingLine(rating: String?): String? {
+        val text = rating?.trim().orEmpty()
+        if (text.isEmpty()) return null
+        return "分级为 $text"
+    }
 
     /** Fade in, hold, fade out. After that the rating stays hidden for the session. */
     fun ratingAlpha(elapsedMs: Long, fadeMs: Long = 400L, holdMs: Long = 3500L): Float {

@@ -285,6 +285,8 @@ fun PlayerScreen(
     var isShowInfo by remember { mutableStateOf(false) }
     var media by remember { mutableStateOf<MediaDto>(MediaDto()) }
     var mediaInfo by remember { mutableStateOf<BaseItemDto>(BaseItemDto()) }
+    var seriesRating by remember { mutableStateOf<String?>(null) }
+    var seasonRating by remember { mutableStateOf<String?>(null) }
     var session by remember { mutableStateOf<SessionDto?>(null) }
     var hasReportedPlaying by remember { mutableStateOf(false) }
 
@@ -1620,6 +1622,25 @@ fun PlayerScreen(
     val focusRequester = remember { FocusRequester() }
 
     // UI 结构 - 最外层纯黑背景
+    LaunchedEffect(mediaInfo.seriesId, mediaInfo.seasonId) {
+        val seriesId = mediaInfo.seriesId
+        val seasonId = mediaInfo.seasonId
+        seriesRating = if (seriesId.isNullOrBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { repository.getMediaInfo(seriesId).officialRating }.getOrNull()
+            }
+        }
+        seasonRating = if (seasonId.isNullOrBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { repository.getMediaInfo(seasonId).officialRating }.getOrNull()
+            }
+        }
+    }
+
     LaunchedEffect(mediaInfo.seriesId) {
         val seriesId = mediaInfo.seriesId ?: return@LaunchedEffect
         seriesEpisodes = withContext(Dispatchers.IO) {
@@ -1948,23 +1969,36 @@ fun PlayerScreen(
                     .background(Color(0x99141210), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
-            val ratingLabel = com.xxxx.emby_tv.util.EmbyPresentation.playbackRating(
-                mediaInfo.officialRating,
-                null,
-                null,
+            val ratingLabel = com.xxxx.emby_tv.util.EmbyPresentation.ratingLine(
+                com.xxxx.emby_tv.util.EmbyPresentation.playbackRating(
+                    mediaInfo.officialRating,
+                    seriesRating,
+                    seasonRating,
+                ),
             )
             val ratingAlpha = ratingStartMs?.let {
                 com.xxxx.emby_tv.util.EmbyPresentation.ratingAlpha(ratingNowMs - it)
             } ?: 0f
             if (!ratingLabel.isNullOrBlank() && ratingAlpha > 0.01f) {
-                Text(
-                    text = ratingLabel,
-                    color = Color.White.copy(alpha = ratingAlpha),
-                    fontSize = 28.sp,
+                Row(
                     modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 48.dp),
-                )
+                        .align(Alignment.TopStart)
+                        .padding(start = 36.dp, top = 28.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .width(4.dp)
+                            .height(26.dp)
+                            .background(Color(0xFF52B54B).copy(alpha = ratingAlpha)),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = ratingLabel,
+                        color = Color.White.copy(alpha = ratingAlpha),
+                        fontSize = 22.sp,
+                    )
+                }
             }
             if (showDiagnostics && audioStatusLine.isNotBlank()) {
                 Text(

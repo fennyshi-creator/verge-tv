@@ -60,6 +60,13 @@ object ConnectForm {
     """.trimIndent()
 }
 
+object SearchConfirm {
+    const val background = 0xFFF4F1EA
+    const val text = 0xFF141210
+
+    fun usesThemePrimary(): Boolean = false
+}
+
 object PairingPage {
     const val background = "#0c111b"
     const val buttonBackground = "#f4f1ea"
@@ -180,6 +187,36 @@ object PairingPage {
                 if (navigator.language.startsWith('zh')) {
                     document.getElementById('success-title').innerText = '$zhTitle';
                     document.getElementById('success-desc').innerText = '$zhDesc';
+                }
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+
+    fun searchDocument(): String = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Emby TV Search</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta charset="UTF-8">
+            <style>
+                ${css()}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2 id="title">Emby TV Search</h2>
+                <form method="POST">
+                    <input type="text" name="query" id="input-query" placeholder="Enter keywords..." required autofocus>
+                    <button type="submit" id="btn-submit">Search on TV</button>
+                </form>
+            </div>
+            <script>
+                if (navigator.language.startsWith('zh')) {
+                    document.getElementById('title').innerText = 'Emby TV 搜索';
+                    document.getElementById('input-query').placeholder = '输入搜索关键词...';
+                    document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_SEARCH_SUBMIT}';
                 }
             </script>
         </body>

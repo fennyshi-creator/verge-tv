@@ -18,8 +18,18 @@ import com.xxxx.emby_tv.R
  */
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.xxxx.emby_tv.ui.connect.SearchConfirm
+
+@Composable
+private fun darkConfirmColors() = ButtonDefaults.colors(
+    focusedContainerColor = Color(SearchConfirm.background),
+    focusedContentColor = Color(SearchConfirm.text),
+    containerColor = Color(SearchConfirm.background),
+    contentColor = Color(SearchConfirm.text),
+)
 
 @Composable
 fun TvInputDialog(
@@ -28,7 +38,8 @@ fun TvInputDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    isNumber: Boolean = false
+    isNumber: Boolean = false,
+    darkConfirm: Boolean = false,
 ) {
     var inputText by remember { mutableStateOf(initialValue) }
 
@@ -64,7 +75,7 @@ fun TvInputDialog(
                     onConfirm(inputText)
                     onDismiss()
                 },
-                colors = ButtonDefaults.colors(
+                colors = if (darkConfirm) darkConfirmColors() else ButtonDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.secondary,
                     focusedContentColor = MaterialTheme.colorScheme.onSecondary,
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
@@ -77,7 +88,7 @@ fun TvInputDialog(
         dismissButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.colors(
+                colors = if (darkConfirm) darkConfirmColors() else ButtonDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.secondary,
                     focusedContentColor = MaterialTheme.colorScheme.onSecondary,
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),

@@ -2,6 +2,8 @@ package com.xxxx.emby_tv.ui.home
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -148,16 +150,24 @@ object HomeMask {
     fun hardBlackSlab(): Boolean = false
 
     /**
-     * Page-color alpha laid over the full-bleed still. The top stays a photo.
-     * The ease reaches a dark field by the continue-watching posters.
+     * Bottom-up mask. 0 is the top of the still. The hero title and the
+     * 继续观看 heading stay clear. Darkness builds under the poster row and
+     * is heaviest at the bottom edge. There is no horizontal cutoff.
      */
+    const val CLEAR_UNTIL = 0.70f
+
     fun firstScreenDarken(fraction: Float): Float {
         val t = fraction.coerceIn(0f, 1f)
-        val start = 0.36f
-        if (t <= start) return 0f
-        val u = (t - start) / (1f - start)
-        return u * u * (3f - 2f * u)
+        if (t <= CLEAR_UNTIL) return 0f
+        val u = (t - CLEAR_UNTIL) / (1f - CLEAR_UNTIL)
+        val eased = u * u * (3f - 2f * u)
+        return 0.88f * eased
     }
+
+    /** Hero still swatch, or the page background before a sample exists. */
+    fun scrimColor(swatch: Color?): Color = swatch ?: HomeStyle.background
+
+    fun horizontalHeroCutoff(): Boolean = false
 
     fun firstScreenScrim(color: Color): Brush {
         val stops = floatArrayOf(0f, 0.36f, 0.52f, 0.68f, 0.82f, 1f).map { t ->
@@ -224,6 +234,33 @@ object ArtworkWash {
         if (n == 0) return null
         return (0xFF shl 24) or ((r / n).toInt() shl 16) or ((g / n).toInt() shl 8) or (b / n).toInt()
     }
+
+    suspend fun loadMuted(context: android.content.Context, url: String): Color? =
+        withContext(Dispatchers.IO) {
+            try {
+                val result = SingletonImageLoader.get(context).execute(
+                    ImageRequest.Builder(context)
+                        .data(url)
+                        .memoryCacheKey("wash:$url")
+                        .size(64, 96)
+                        .build(),
+                )
+                val image = (result as? SuccessResult)?.image ?: return@withContext null
+                val raw = image.toBitmap()
+                val bitmap = if (needsSoftwareCopy(raw.config?.name)) {
+                    raw.copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: return@withContext null
+                } else {
+                    raw
+                }
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                sampleMuted(pixels)?.let { Color(it) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+        }
 }
 
 /**
@@ -290,4 +327,18 @@ fun AmbientWash(
             ),
         )
     }
+}
+
+/**
+ * Bottom-up wash for the first-screen still. The color is this visit's hero
+ * swatch. The page background is used until that sample is ready.
+ */
+@Composable
+fun HeroBottomScrim(url: String?, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var swatch by remember { mutableStateOf<Color?>(null) }
+    LaunchedEffect(url) {
+        swatch = if (url.isNullOrBlank()) null else ArtworkWash.loadMuted(context, url)
+    }
+    Box(modifier.background(HomeMask.firstScreenScrim(HomeMask.scrimColor(swatch))))
 }
