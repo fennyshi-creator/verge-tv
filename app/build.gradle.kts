@@ -22,11 +22,11 @@ android {
     experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     defaultConfig {
-        applicationId = "com.xxxx.emby_tv"
+        applicationId = "com.verge.tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "2.0.68"
-        versionCode = 268
+        versionName = "1.0.0"
+        versionCode = 1
 //        versionCode = 92
 
     }

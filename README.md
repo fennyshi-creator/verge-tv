@@ -1,10 +1,10 @@
-# 🎬 OpenEmby TV
+# 🎬 Verge
 
 <div align="center">
 
 ![Logo](./img-show/show1.png)
 
-**开源 Emby TV 客户端 | Open-source Emby Client for TV/Box**
+**Verge · 开源 Emby TV 客户端 | Open-source Emby Client for TV/Box**
 
 [![Android](https://img.shields.io/badge/Android-6.0+-3DDC84?logo=android&style=flat-square)](https://www.android.com)
 [![Downloads](https://img.shields.io/github/downloads/shareven/openemby_tv/total?style=flat-square)](https://github.com/shareven/openemby_tv/releases/)

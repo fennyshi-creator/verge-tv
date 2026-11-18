@@ -246,7 +246,7 @@ internal fun latestItemsPath(
 
 object EmbyApi {
     private const val TAG = "EmbyApi"
-    const val CLIENT = "shareven/openemby_tv"
+    const val CLIENT = "verge_tv"
     val CLIENT_VERSION: String = BuildConfig.VERSION_NAME
     val DEVICE_NAME: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()

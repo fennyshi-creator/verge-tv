@@ -100,7 +100,7 @@ fun TopStatusBar(
                 }
 
                 Text(
-                    text ="OpenEmby TV "+ currentVersion,
+                    text = stringResource(R.string.app_name) + " " + currentVersion,
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
