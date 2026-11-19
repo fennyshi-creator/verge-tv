@@ -163,6 +163,7 @@ fun SearchScreen(
         } catch (_: IllegalStateException) {
         }
     }
+    val imageDensity = androidx.compose.ui.platform.LocalDensity.current.density
     LaunchedEffect(gridState, searchResults?.size) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
             .collect { last ->
@@ -174,6 +175,7 @@ fun SearchScreen(
                     context,
                     urls,
                     com.xxxx.emby_tv.ui.home.ArtRole.Primary,
+                    density = imageDensity,
                 )
             }
     }

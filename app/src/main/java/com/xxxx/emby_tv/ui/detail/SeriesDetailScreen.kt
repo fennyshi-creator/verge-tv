@@ -456,13 +456,10 @@ fun SeriesDetailPage(
                         val person = people[index]
                         val url = EmbyPresentation.personImageUrl(serverUrl, person, apiKey)
                         if (url.isNotBlank()) {
-                            coil3.compose.AsyncImage(
-                                model = coil3.request.ImageRequest.Builder(
-                                    androidx.compose.ui.platform.LocalContext.current,
-                                ).data(url).build(),
+                            com.xxxx.emby_tv.ui.home.CastAvatar(
+                                url = url,
                                 contentDescription = person.name,
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.CircleShape),
                             )
                         } else {
                             AvatarPlaceholder(person.name.orEmpty(), index, Modifier.fillMaxSize())

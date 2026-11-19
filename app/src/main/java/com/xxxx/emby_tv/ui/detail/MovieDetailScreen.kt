@@ -857,10 +857,9 @@ private fun PersonRow(
         val person = people[index]
         val url = EmbyPresentation.personImageUrl(serverUrl, person, apiKey)
         if (url.isNotBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(url).build(),
+            com.xxxx.emby_tv.ui.home.CastAvatar(
+                url = url,
                 contentDescription = person.name,
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
             )
         } else {
