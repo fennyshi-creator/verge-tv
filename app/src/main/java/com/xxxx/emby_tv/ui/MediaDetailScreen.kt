@@ -606,8 +606,19 @@ fun PersonCard(
                 } else null
 
                 if (imageUrl != null) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val widthPx = with(density) { imgWidth.roundToPx() }.coerceAtLeast(1)
+                    val heightPx = (widthPx / aspectRatio).toInt().coerceAtLeast(1)
+                    val sized = com.xxxx.emby_tv.ui.home.DisplayedImage.raiseMaxWidth(
+                        imageUrl,
+                        maxOf(widthPx, heightPx),
+                        density.density,
+                    )
                     AsyncImage(
-                        model = imageUrl,
+                        model = coil3.request.ImageRequest.Builder(LocalContext.current)
+                            .data(sized)
+                            .size(widthPx, heightPx)
+                            .build(),
                         contentDescription = person.name,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

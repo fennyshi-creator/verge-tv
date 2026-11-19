@@ -22,7 +22,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -60,7 +64,21 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            EmbyTvApp()
+            val configuration = LocalConfiguration.current
+            val system = LocalDensity.current
+            val override = com.xxxx.emby_tv.ui.home.TvDensity.overrideDensity(
+                widthPx = (configuration.screenWidthDp * system.density).toInt(),
+                density = system.density,
+            )
+            if (override == null) {
+                EmbyTvApp()
+            } else {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(override, system.fontScale),
+                ) {
+                    EmbyTvApp()
+                }
+            }
         }
     }
 }
@@ -577,7 +595,10 @@ fun EmbyTvApp() {
                                 navController.popBackStack()
                                 navController.navigate("player/$nextId?position=$nextPos")
                             },
-                            onExit = { navController.popBackStack() },
+                            onExit = {
+                                com.xxxx.emby_tv.ui.components.BackGuard.arm(System.currentTimeMillis())
+                                navController.popBackStack()
+                            },
                         )
                     }
                 }

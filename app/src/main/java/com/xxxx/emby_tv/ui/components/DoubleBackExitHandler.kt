@@ -43,6 +43,7 @@ fun DoubleBackExitHandler(enabled: Boolean) {
 
     BackHandler {
         val now = System.currentTimeMillis()
+        if (BackGuard.armed(now)) return@BackHandler
         if (now - lastBackPressTime <= 2000L) {
             (context as? Activity)?.finish()
         } else {

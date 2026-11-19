@@ -157,7 +157,12 @@ fun TvLeadingRow(
             if (imageUrls.isNotEmpty()) {
                 val end = (windowStart + fullSlots + 4).coerceAtMost(imageUrls.size)
                 val start = windowStart.coerceIn(0, imageUrls.size)
-                jobs += ArtworkPrefetch.enqueue(prefetchContext, imageUrls.subList(start, end), prefetchRole)
+                jobs += ArtworkPrefetch.enqueue(
+                    prefetchContext,
+                    imageUrls.subList(start, end),
+                    prefetchRole,
+                    density = density.density,
+                )
             }
             if (backdropUrls.isNotEmpty()) {
                 jobs += ArtworkPrefetch.enqueueBackdrops(

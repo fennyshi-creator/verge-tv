@@ -1097,11 +1097,13 @@ fun HomeImage(
     }
     val art = SampleArt.lookup(artId, role)
     val soften = LocalArtworkSoften.current
-    val (pxW, pxH) = ArtworkPrefetch.pixels(role)
+    val density = LocalDensity.current.density
+    val (pxW, pxH) = ArtworkPrefetch.pixels(role, density)
+    val requestUrl = if (role == ArtRole.Backdrop) url else DisplayedImage.raiseMaxWidth(url, maxOf(pxW, pxH), density)
     when {
         art != null -> SampleArtwork(art, modifier)
         url.isNotBlank() -> FadeInImage(
-            url = url,
+            url = requestUrl,
             widthPx = pxW,
             heightPx = pxH,
             contentDescription = contentDescription,

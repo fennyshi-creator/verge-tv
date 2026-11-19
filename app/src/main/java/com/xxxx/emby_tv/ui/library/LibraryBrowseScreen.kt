@@ -361,6 +361,7 @@ private fun PosterGrid(
     val scope = rememberCoroutineScope()
     val shape = RoundedCornerShape(12.dp)
     val prefetchContext = androidx.compose.ui.platform.LocalContext.current
+    val imageDensity = androidx.compose.ui.platform.LocalDensity.current.density
     val pageResumed = com.xxxx.emby_tv.ui.home.rememberPageResumed()
     LaunchedEffect(gridState, items.size, serverUrl, pageResumed) {
         if (!com.xxxx.emby_tv.ui.home.PageWork.runs(pageResumed)) return@LaunchedEffect
@@ -373,7 +374,12 @@ private fun PosterGrid(
                     val urls = (last + 1 until (last + 13).coerceAtMost(items.size)).map { index ->
                         if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, items[index], false)
                     }
-                    jobs += ArtworkPrefetch.enqueue(prefetchContext, urls, ArtRole.Primary)
+                    jobs += ArtworkPrefetch.enqueue(
+                        prefetchContext,
+                        urls,
+                        ArtRole.Primary,
+                        density = imageDensity,
+                    )
                 }
         } finally {
             jobs.forEach { it.dispose() }

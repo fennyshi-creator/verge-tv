@@ -79,7 +79,8 @@ class LauncherIconTest {
                 }
             }
             val span = maxX - minX + 1
-            assertTrue("glyph too small in $dir: $span / $size", span > size * 0.60)
+            assertTrue("glyph not inset in $dir: $span / $size", span > size * 0.40 && span < size * 0.58)
+            assertTrue("glyph flush in $dir: left $minX", minX > size * 0.15)
         }
     }
 

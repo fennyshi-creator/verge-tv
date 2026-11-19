@@ -13,18 +13,34 @@ import coil3.request.transformations
  * or a hold on Right still decodes from scratch.
  */
 object ArtworkPrefetch {
-    fun pixels(role: ArtRole): Pair<Int, Int> = when (role) {
-        ArtRole.Primary -> 400 to 600
-        ArtRole.Thumb -> 480 to 270
-        ArtRole.Backdrop -> 1280 to 720
+    fun pixels(role: ArtRole, density: Float = DisplayedImage.BASELINE_DENSITY): Pair<Int, Int> {
+        val base = when (role) {
+            ArtRole.Primary -> 400 to 600
+            ArtRole.Thumb -> 480 to 270
+            ArtRole.Backdrop -> 1280 to 720
+        }
+        if (role == ArtRole.Backdrop) return base
+        val scale = DisplayedImage.scale(density)
+        return (base.first * scale).toInt() to (base.second * scale).toInt()
     }
 
-    fun enqueue(context: Context, urls: List<String>, role: ArtRole, blur: Boolean = false): List<Disposable> {
+    fun enqueue(
+        context: Context,
+        urls: List<String>,
+        role: ArtRole,
+        blur: Boolean = false,
+        density: Float = DisplayedImage.BASELINE_DENSITY,
+    ): List<Disposable> {
         if (urls.isEmpty()) return emptyList()
-        val (width, height) = pixels(role)
+        val (width, height) = pixels(role, density)
         val loader = SingletonImageLoader.get(context)
+        val longest = maxOf(width, height)
         return urls.mapNotNull { url ->
-            if (url.isBlank()) null else loader.enqueue(request(context, url, width, height, blur))
+            if (url.isBlank()) null
+            else {
+                val sized = if (role == ArtRole.Backdrop) url else DisplayedImage.raiseMaxWidth(url, longest, density)
+                loader.enqueue(request(context, sized, width, height, blur))
+            }
         }
     }
 

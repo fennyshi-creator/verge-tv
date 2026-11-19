@@ -16,6 +16,7 @@ import okhttp3.Request
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * FSPlayer wrapper used by the player screen. Video is MediaCodec. AC-3 / E-AC-3
@@ -36,14 +37,30 @@ class FsPlayback(private val appContext: Context) {
         const val STATE_READY = 3
         const val STATE_ENDED = 4
         private const val TAG = "FsPlayback"
+        private const val ENGINE_THREAD = "verge-fs-cmd"
+        const val RELEASE_TIMEOUT_MS = 1_800L
+        const val STALL_REOPEN_LIMIT = 1
+
+        /** The main thread must never wait on `ffp_wait_stop_l`. */
+        fun joinsNativeRelease(onMainThread: Boolean): Boolean = !onMainThread
     }
 
     private val listeners = CopyOnWriteArrayList<Listener>()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val subtitleIo = Executors.newSingleThreadExecutor()
-    private var engine: FSPlayer? = null
-    private var surface: Surface? = null
-    private var released = false
+    private val subtitleIo = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "verge-subtitle-io").apply { isDaemon = true }
+    }
+    private val commands = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, ENGINE_THREAD).apply { isDaemon = true }
+    }
+    @Volatile private var engine: FSPlayer? = null
+    @Volatile private var surface: Surface? = null
+    @Volatile private var released = false
+    @Volatile private var seekInFlight = false
+    @Volatile private var subtitleResolved = true
+    private val gate = Any()
+
+    val isReleased: Boolean get() = released
 
     var url: String? = null
         private set
@@ -107,12 +124,15 @@ class FsPlayback(private val appContext: Context) {
     }
 
     fun setVideoSurface(surface: Surface?) {
+        if (released) return
         this.surface = surface
-        try {
-            engine?.setSurface(surface)
-            engine?.setAllowHDRDirectDisplay(!mapHdrToSdr)
-        } catch (error: Exception) {
-            Log.w(TAG, "setSurface failed", error)
+        onEngine {
+            try {
+                engine?.setSurface(surface)
+                engine?.setAllowHDRDirectDisplay(!mapHdrToSdr)
+            } catch (error: Exception) {
+                Log.w(TAG, "setSurface failed", error)
+            }
         }
     }
 
@@ -131,7 +151,13 @@ class FsPlayback(private val appContext: Context) {
         this.playbackSpeed = speed
         this.jocHint = joc
         this.passthroughEnabled = passthrough && speed == 1f
-        swapEngine()
+        onEngine { swapEngine() }
+    }
+
+    /** Reopen the current item after playback stops advancing. */
+    fun reopen(atMs: Long) {
+        val current = url ?: return
+        open(current, headers, atMs, passthroughEnabled, jocHint, playbackSpeed)
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -144,10 +170,12 @@ class FsPlayback(private val appContext: Context) {
             open(currentUrl, headers, currentPosition, passthrough = speed == 1f, joc = jocHint)
             return
         }
-        try {
-            engine?.setSpeed(speed)
-        } catch (error: Exception) {
-            Log.w(TAG, "setSpeed failed", error)
+        onEngine {
+            try {
+                engine?.setSpeed(speed)
+            } catch (error: Exception) {
+                Log.w(TAG, "setSpeed failed", error)
+            }
         }
     }
 
@@ -159,57 +187,76 @@ class FsPlayback(private val appContext: Context) {
     }
 
     fun setSubtitleDelayMs(delayMs: Long) {
-        try {
-            engine?.setSubtitleExtraDelay(delayMs / 1000f)
-        } catch (error: Exception) {
-            Log.w(TAG, "subtitle delay failed", error)
+        onEngine {
+            try {
+                engine?.setSubtitleExtraDelay(delayMs / 1000f)
+            } catch (error: Exception) {
+                Log.w(TAG, "subtitle delay failed", error)
+            }
         }
     }
 
     fun setVolume(left: Float, right: Float) {
-        try {
-            engine?.setVolume(left, right)
-        } catch (error: Exception) {
-            Log.w(TAG, "setVolume failed", error)
+        onEngine {
+            try {
+                engine?.setVolume(left, right)
+            } catch (error: Exception) {
+                Log.w(TAG, "setVolume failed", error)
+            }
         }
     }
 
     fun play() {
         playWhenReady = true
-        try {
-            val current = engine ?: return
-            current.start()
-            dispatchPlaying(true)
-        } catch (error: Exception) {
-            Log.w(TAG, "start failed", error)
+        onEngine {
+            if (released) return@onEngine
+            try {
+                val current = engine ?: return@onEngine
+                current.start()
+                // Do not claim playback started until the engine says it is playing.
+                dispatchPlaying(current.isPlaying)
+            } catch (error: Exception) {
+                Log.w(TAG, "start failed", error)
+            }
         }
     }
 
     fun pause() {
         playWhenReady = false
-        try {
-            engine?.pause()
-        } catch (error: Exception) {
-            Log.w(TAG, "pause failed", error)
+        onEngine {
+            try {
+                engine?.pause()
+            } catch (error: Exception) {
+                Log.w(TAG, "pause failed", error)
+            }
+            dispatchPlaying(false)
         }
-        dispatchPlaying(false)
     }
 
     fun stop() {
         playWhenReady = false
-        try {
-            engine?.stop()
-        } catch (error: Exception) {
-            Log.w(TAG, "stop failed", error)
+        onEngine {
+            try {
+                engine?.stop()
+            } catch (error: Exception) {
+                Log.w(TAG, "stop failed", error)
+            }
+            setState(STATE_IDLE)
         }
-        setState(STATE_IDLE)
     }
 
     fun seekTo(positionMs: Long) {
-        try {
-            engine?.seekTo(positionMs.coerceAtLeast(0L))
-        } catch (error: Exception) {
-            Log.w(TAG, "seek failed", error)
+        val target = positionMs.coerceAtLeast(0L)
+        onEngine {
+            if (released) return@onEngine
+            seekInFlight = true
+            setState(STATE_BUFFERING)
+            try {
+                engine?.seekTo(target)
+            } catch (error: Exception) {
+                seekInFlight = false
+                Log.w(TAG, "seek failed", error)
+            }
         }
     }
 
@@ -236,13 +283,17 @@ class FsPlayback(private val appContext: Context) {
         if (externalSubtitleUrl.isNullOrBlank()) {
             localSubtitlePath = null
             subtitleCues = emptyList()
-            mainHandler.post { if (generation == subtitleGeneration) applyTracks(null) }
+            subtitleResolved = true
+            onEngine { if (generation == subtitleGeneration) applyTracks(null) }
             return
         }
-        if (sameSubtitle && (subtitleCues.isNotEmpty() || localSubtitlePath != null)) {
-            mainHandler.post { if (generation == subtitleGeneration) applyTracks(localSubtitlePath) }
+        if (sameSubtitle && subtitleResolved) {
+            onEngine { if (generation == subtitleGeneration) applyTracks(localSubtitlePath) }
             return
         }
+        subtitleResolved = false
+        subtitleCues = emptyList()
+        onEngine { if (generation == subtitleGeneration) applyTracks(null) }
         subtitleIo.execute {
             var local: String? = null
             var cues = emptyList<SubtitleCue>()
@@ -258,8 +309,9 @@ class FsPlayback(private val appContext: Context) {
             if (generation != subtitleGeneration) return@execute
             localSubtitlePath = local
             subtitleCues = cues
+            subtitleResolved = true
             Log.i(TAG, "subtitle cues=${cues.size} local=${local != null}")
-            mainHandler.post {
+            onEngine {
                 if (generation == subtitleGeneration) applyTracks(local)
             }
         }
@@ -292,28 +344,34 @@ class FsPlayback(private val appContext: Context) {
     }
 
     fun release() {
-        if (released) return
-        released = true
-        val current = engine
-        engine = null
-        try {
-            current?.setSurface(null)
-            current?.stop()
-            current?.release()
-        } catch (error: Exception) {
-            Log.w(TAG, "release failed", error)
+        synchronized(gate) {
+            if (released) return
+            released = true
+            try {
+                commands.execute { detachAndStop() }
+            } catch (error: RejectedExecutionException) {
+                Log.w(TAG, "release queue closed", error)
+                detachNative(engine)
+                engine = null
+            }
         }
     }
 
+    private fun detachAndStop() {
+        val current = engine
+        engine = null
+        surface = null
+        detachNative(current)
+        subtitleIo.shutdownNow()
+        commands.shutdown()
+    }
+
     private fun swapEngine() {
+        if (released) return
         val previous = engine
         engine = null
-        try {
-            previous?.setSurface(null)
-            previous?.release()
-        } catch (error: Exception) {
-            Log.w(TAG, "release previous player failed", error)
-        }
+        detachNative(previous)
+        if (released) return
         val next = try {
             FSPlayer()
         } catch (error: UnsatisfiedLinkError) {
@@ -321,9 +379,15 @@ class FsPlayback(private val appContext: Context) {
             dispatchError(error.message ?: "libfsplayer.so")
             return
         }
+        if (released) {
+            detachNative(next)
+            return
+        }
         engine = next
         configure(next)
+        if (released || engine !== next) return
         wire(next)
+        if (released || engine !== next) return
         try {
             next.setSurface(surface)
             val playUrl = url ?: return
@@ -333,6 +397,62 @@ class FsPlayback(private val appContext: Context) {
         } catch (error: Exception) {
             Log.e(TAG, "prepare failed", error)
             dispatchError(error.message ?: "prepare")
+        }
+    }
+
+    /**
+     * Native release joins demux and refresh threads. That join never runs
+     * on the main looper. Other callers wait at most [RELEASE_TIMEOUT_MS]
+     * and then leave the instance alone.
+     */
+    private fun detachNative(player: FSPlayer?) {
+        if (player == null) return
+        val worker = Thread({
+            try {
+                player.setSurface(null)
+            } catch (error: Exception) {
+                Log.w(TAG, "detach surface failed", error)
+            }
+            try {
+                player.release()
+            } catch (error: Exception) {
+                Log.w(TAG, "release failed", error)
+            }
+        }, "verge-fs-release")
+        worker.isDaemon = true
+        worker.start()
+        val onMain = Looper.myLooper() == Looper.getMainLooper()
+        if (!joinsNativeRelease(onMain)) return
+        worker.join(RELEASE_TIMEOUT_MS)
+        if (worker.isAlive) {
+            Log.w(TAG, "native release still running after ${RELEASE_TIMEOUT_MS}ms")
+        }
+    }
+
+    private fun onEngine(block: () -> Unit) {
+        if (Thread.currentThread().name == ENGINE_THREAD) {
+            if (released) return
+            try {
+                block()
+            } catch (error: Exception) {
+                Log.w(TAG, "engine command failed", error)
+            }
+            return
+        }
+        synchronized(gate) {
+            if (released) return
+            try {
+                commands.execute {
+                    if (released) return@execute
+                    try {
+                        block()
+                    } catch (error: Exception) {
+                        Log.w(TAG, "engine command failed", error)
+                    }
+                }
+            } catch (error: RejectedExecutionException) {
+                Log.w(TAG, "engine command dropped", error)
+            }
         }
     }
 
@@ -362,6 +482,9 @@ class FsPlayback(private val appContext: Context) {
         player.setOption(FSPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 48)
         headers["User-Agent"]?.let { player.setOption(FSPlayer.OPT_CATEGORY_FORMAT, "user_agent", it) }
         if (playbackSpeed != 1f) player.setSpeed(playbackSpeed)
+        // Kernel subtitles stay off until applyTracks chooses that renderer.
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle", 1)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", 0)
         try {
             player.setAllowHDRDirectDisplay(!mapHdrToSdr)
         } catch (error: Exception) {
@@ -371,60 +494,78 @@ class FsPlayback(private val appContext: Context) {
 
     private fun wire(player: FSPlayer) {
         player.setOnPreparedListener {
-            if (engine !== player) return@setOnPreparedListener
-            val mediaDuration = try {
-                player.duration
-            } catch (_: Exception) {
-                0L
-            }
-            // A resume point past the real file (stale Emby runtime, or a
-            // short HLS probe) seeks off the end: one frame, then the player
-            // dies. Stay at the start instead.
-            val resume = if (mediaDuration > 0L && startMs >= mediaDuration - 1_500L) 0L else startMs
-            if (resume > 0L) player.seekTo(resume)
-            setState(STATE_READY)
-            dispatchVideoDecoder("mediacodec")
-            applyTracks(localSubtitlePath)
-            if (playWhenReady) {
-                player.start()
-                dispatchPlaying(true)
+            onEngine {
+                if (released || engine !== player) return@onEngine
+                val mediaDuration = try {
+                    player.duration
+                } catch (_: Exception) {
+                    0L
+                }
+                // A resume point past the real file (stale Emby runtime, or a
+                // short HLS probe) seeks off the end: one frame, then the player
+                // dies. Stay at the start instead.
+                val resume = if (mediaDuration > 0L && startMs >= mediaDuration - 1_500L) 0L else startMs
+                if (resume > 0L) player.seekTo(resume)
+                setState(STATE_READY)
+                dispatchVideoDecoder("mediacodec")
+                applyTracks(localSubtitlePath)
+                if (playWhenReady) {
+                    player.start()
+                    dispatchPlaying(player.isPlaying)
+                }
             }
         }
         player.setOnCompletionListener {
-            if (engine !== player) return@setOnCompletionListener
-            dispatchPlaying(false)
-            setState(STATE_ENDED)
+            onEngine {
+                if (released || engine !== player) return@onEngine
+                dispatchPlaying(false)
+                setState(STATE_ENDED)
+            }
         }
         player.setOnErrorListener { _, what, extra ->
-            if (engine !== player) return@setOnErrorListener true
-            Log.e(TAG, "FSPlayer error what=$what extra=$extra")
-            dispatchPlaying(false)
-            setState(STATE_IDLE)
-            dispatchError("FSPlayer $what/$extra")
+            onEngine {
+                if (released || engine !== player) return@onEngine
+                Log.e(TAG, "FSPlayer error what=$what extra=$extra")
+                dispatchPlaying(false)
+                setState(STATE_IDLE)
+                dispatchError("FSPlayer $what/$extra")
+            }
             true
         }
         player.setOnInfoListener { _, what, _ ->
-            if (engine !== player) return@setOnInfoListener true
-            when (what) {
-                IMediaPlayer.MEDIA_INFO_BUFFERING_START -> setState(STATE_BUFFERING)
-                IMediaPlayer.MEDIA_INFO_BUFFERING_END -> {
-                    setState(STATE_READY)
-                    dispatchPlaying(player.isPlaying)
+            onEngine {
+                if (released || engine !== player) return@onEngine
+                when (what) {
+                    IMediaPlayer.MEDIA_INFO_BUFFERING_START -> setState(STATE_BUFFERING)
+                    IMediaPlayer.MEDIA_INFO_BUFFERING_END -> {
+                        seekInFlight = false
+                        setState(STATE_READY)
+                        dispatchPlaying(player.isPlaying)
+                    }
+                    IMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START -> {
+                        seekInFlight = false
+                        setState(STATE_READY)
+                        dispatchPlaying(player.isPlaying)
+                        dispatchVideoDecoder("mediacodec")
+                    }
+                    IMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START -> {
+                        Log.i(
+                            TAG,
+                            "audio rendering encoding=${passthroughEncoding()} fallback=${passthroughFallback()}"
+                        )
+                    }
+                    IMediaPlayer.MEDIA_INFO_VIDEO_DECODER_OPEN -> dispatchVideoDecoder("mediacodec")
                 }
-                IMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START -> {
-                    setState(STATE_READY)
-                    dispatchPlaying(player.isPlaying)
-                    dispatchVideoDecoder("mediacodec")
-                }
-                IMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START -> {
-                    Log.i(
-                        TAG,
-                        "audio rendering encoding=${passthroughEncoding()} fallback=${passthroughFallback()}"
-                    )
-                }
-                IMediaPlayer.MEDIA_INFO_VIDEO_DECODER_OPEN -> dispatchVideoDecoder("mediacodec")
             }
             true
+        }
+        player.setOnSeekCompleteListener {
+            onEngine {
+                if (released || engine !== player) return@onEngine
+                seekInFlight = false
+                setState(STATE_READY)
+                dispatchPlaying(player.isPlaying)
+            }
         }
     }
 
@@ -441,15 +582,22 @@ class FsPlayback(private val appContext: Context) {
             val index = audio[audioOrdinal].streamIndex
             if (index >= 0) player.selectTrack(index)
         }
+        val cuesReady = subtitleCues.isNotEmpty()
+        val kernel = SubtitleRoute.allowKernel(
+            hasTextCues = cuesReady,
+            externalRequested = !externalSubtitleUrl.isNullOrBlank(),
+            downloadSettled = subtitleResolved,
+        )
+        if (!kernel) {
+            // Text that SubtitleView can draw must not also be composited by libass.
+            quietKernelSubtitles(player, tracks)
+            return
+        }
         val requested = externalSubtitleUrl
         if (requested.isNullOrBlank()) {
             player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", 1)
             if (subtitleOrdinal < 0) {
-                try {
-                    player.deselectTrack(-1)
-                } catch (error: Exception) {
-                    Log.w(TAG, "subtitle off failed", error)
-                }
+                quietKernelSubtitles(player, tracks)
                 return
             }
             val embedded = tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT }
@@ -475,20 +623,19 @@ class FsPlayback(private val appContext: Context) {
         }
         Log.i(TAG, "subtitle loaded=$loaded path=$path cues=${subtitleCues.size}")
         applySubtitleFont(player)
-        // Parsed text is drawn on the Android overlay. Leave GPU mix on only when
-        // we have nothing to draw ourselves (embedded bitmap / failed download).
-        val mix = if (subtitleCues.isEmpty()) 1L else 0L
-        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", mix)
-        if (subtitleCues.isNotEmpty()) return
-        val subs = tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT }
-        if (subtitleOrdinal < 0) {
-            subs.forEach { track ->
-                val index = track.streamIndex
-                if (index >= 0) player.deselectTrack(index)
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", 1)
+    }
+
+    private fun quietKernelSubtitles(player: FSPlayer, tracks: List<FSTrackInfo>) {
+        player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "subtitle_mix", 0)
+        tracks.filter { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT }.forEach { track ->
+            val index = track.streamIndex
+            if (index < 0) return@forEach
+            try {
+                player.deselectTrack(index)
+            } catch (error: Exception) {
+                Log.w(TAG, "subtitle deselect $index failed", error)
             }
-        } else if (subtitleOrdinal in subs.indices) {
-            val index = subs[subtitleOrdinal].streamIndex
-            if (index >= 0) player.selectTrack(index)
         }
     }
 
@@ -548,18 +695,24 @@ class FsPlayback(private val appContext: Context) {
     private fun setState(state: Int) {
         if (playbackState == state) return
         playbackState = state
-        listeners.forEach { it.onPlaybackStateChanged(state) }
+        dispatch { it.onPlaybackStateChanged(state) }
     }
 
     private fun dispatchPlaying(playing: Boolean) {
-        listeners.forEach { it.onPlayingChanged(playing) }
+        dispatch { it.onPlayingChanged(playing) }
     }
 
     private fun dispatchError(message: String) {
-        listeners.forEach { it.onError(message) }
+        dispatch { it.onError(message) }
     }
 
     private fun dispatchVideoDecoder(name: String) {
-        listeners.forEach { it.onVideoDecoder(name) }
+        dispatch { it.onVideoDecoder(name) }
+    }
+
+    private fun dispatch(block: (Listener) -> Unit) {
+        val snapshot = listeners.toList()
+        if (snapshot.isEmpty()) return
+        mainHandler.post { snapshot.forEach(block) }
     }
 }

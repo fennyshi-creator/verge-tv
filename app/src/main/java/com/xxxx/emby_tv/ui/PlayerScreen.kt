@@ -9,7 +9,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -1217,7 +1216,7 @@ fun PlayerScreen(
             val isMkv = playbackUrl.contains(".mkv", ignoreCase = true)
             val hasEmbeddedTextSubs = subtitleTracks.any { it.isExternal != true }
             if (isMkv && hasEmbeddedTextSubs) {
-                val compressedOrdinals = MkvCompressedSubtitleDetector.detect(playbackUrl, okHttpClient)
+                val compressedOrdinals = withContext(Dispatchers.IO) { MkvCompressedSubtitleDetector.detect(playbackUrl, okHttpClient) }
                 if (compressedOrdinals.isNotEmpty()) {
                     val embeddedSubs = subtitleTracks.filter { it.isExternal != true }
                     routedIndices = compressedOrdinals
@@ -1485,6 +1484,43 @@ fun PlayerScreen(
                     handleAudioSinkFailure()
                     lastChangeTime = System.currentTimeMillis()
                 }
+            }
+        }
+    }
+
+    // Play was requested and the clock is not moving. Reopen once; a second
+    // stall waits until the position actually advances before trying again.
+    LaunchedEffect(player) {
+        var lastPos = player.currentPosition
+        var stillSince = 0L
+        var retries = 0
+        while (isActive) {
+            delay(500)
+            if (player.isReleased) break
+            if (!player.playWhenReady || userPaused || seekFeedback) {
+                lastPos = player.currentPosition
+                stillSince = 0L
+                continue
+            }
+            val pos = player.currentPosition
+            val now = System.currentTimeMillis()
+            if (pos != lastPos) {
+                lastPos = pos
+                stillSince = 0L
+                retries = 0
+                continue
+            }
+            val state = player.playbackState
+            if (state == FsPlayback.STATE_IDLE || state == FsPlayback.STATE_ENDED) {
+                stillSince = 0L
+                continue
+            }
+            if (stillSince == 0L) stillSince = now
+            if (now - stillSince >= 2_500L && retries < FsPlayback.STALL_REOPEN_LIMIT) {
+                retries++
+                Log.w("PlayerScreen", "playback stalled at $pos, reopening once")
+                player.reopen(pos)
+                stillSince = now
             }
         }
     }
@@ -1830,8 +1866,6 @@ fun PlayerScreen(
             PlayerBackAction.Ignore -> Unit
         }
     }
-
-    BackHandler { dispatchPlayerBack(KeyPhase.Down) }
 
     LaunchedEffect(episodeStrip, playerSheet, showResumeButtons) {
         if (episodeStrip || showResumeButtons ||
