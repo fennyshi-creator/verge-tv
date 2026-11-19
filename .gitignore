@@ -17,6 +17,8 @@
 local.properties
 .kotlin
 key.properties
+*.keystore
+*.jks
 .opencode
 .myconfig
 # FSPlayer Gradle outputs

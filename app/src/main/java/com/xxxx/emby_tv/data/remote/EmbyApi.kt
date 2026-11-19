@@ -1158,7 +1158,7 @@ object EmbyApi {
      * 获取最新版本信息
      */
     suspend fun getNewVersion(context: Context): JsonObject = withContext(Dispatchers.IO) {
-        val url = "https://api.github.com/repos/shareven/openemby_tv/releases/latest"
+        val url = "https://api.github.com/repos/fennyshi-creator/verge-tv/releases/latest"
         val request = Request.Builder()
             .url(url)
             .addHeader("Accept", "application/json")

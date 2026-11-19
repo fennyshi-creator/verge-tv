@@ -34,6 +34,13 @@ class VergeIdentityTest {
         assertFalse(en.contains("OpenEmby"))
         assertFalse(zh.contains("OpenEmby"))
         assertEquals("verge_tv", EmbyApi.CLIENT)
+        val api = projectFile("app/src/main/java/com/xxxx/emby_tv/data/remote/EmbyApi.kt").readText()
+        assertTrue(api.contains("https://api.github.com/repos/fennyshi-creator/verge-tv/releases/latest"))
+        assertFalse(api.contains("shareven/openemby_tv"))
+        assertTrue(en.contains("https://github.com/fennyshi-creator/verge-tv"))
+        assertTrue(zh.contains("https://github.com/fennyshi-creator/verge-tv"))
+        assertFalse(en.contains("shareven/openemby_tv"))
+        assertFalse(zh.contains("shareven/openemby_tv"))
         assertFalse(PlaybackMemory.Session().hdrToSdr)
         assertEquals(
             HdrMap.DIRECT,

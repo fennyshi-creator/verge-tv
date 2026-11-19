@@ -7,9 +7,9 @@
 **Verge · 开源 Emby TV 客户端 | Open-source Emby Client for TV/Box**
 
 [![Android](https://img.shields.io/badge/Android-6.0+-3DDC84?logo=android&style=flat-square)](https://www.android.com)
-[![Downloads](https://img.shields.io/github/downloads/shareven/openemby_tv/total?style=flat-square)](https://github.com/shareven/openemby_tv/releases/)
+[![Downloads](https://img.shields.io/github/downloads/fennyshi-creator/verge-tv/total?style=flat-square)](https://github.com/fennyshi-creator/verge-tv/releases/)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-e85d4f?style=flat-square)](https://creativecommons.org/licenses/by-nc/4.0/)
-[![Version](https://img.shields.io/github/v/release/shareven/openemby_tv?style=flat-square)](https://github.com/shareven/openemby_tv/releases/latest)
+[![Version](https://img.shields.io/github/v/release/fennyshi-creator/verge-tv?style=flat-square)](https://github.com/fennyshi-creator/verge-tv/releases/latest)
 
 [简体中文](#简介--introduction) · [English](#introduction)
 
@@ -23,7 +23,7 @@
 
 本项目主要用于学习 Android 在 TV/遥控交互、焦点管理、流式播放集成（Emby API）以及多语言本地化等方面的实践。
 
-**🛡️ 隐私安全**：App 不收集任何个人信息。只主动访问了 [GitHub Releases API](https://api.github.com/repos/shareven/openemby_tv/releases/latest) 用于下载更新，其他数据接口为用户自己填的服务器地址。
+**🛡️ 隐私安全**：App 不收集任何个人信息。只主动访问了 [GitHub Releases API](https://api.github.com/repos/fennyshi-creator/verge-tv/releases/latest) 用于下载更新，其他数据接口为用户自己填的服务器地址。
 
 > An open-source Emby client aimed at learning and exchanging technical knowledge. This project demonstrates Android usage for TV/remote UI, focus handling, streaming integration with Emby API, and localization.
 
@@ -37,7 +37,7 @@
 
 | 最低 Android 版本 | 下载地址 |
 |:------------------:|:--------:|
-| Android 6.0+ | [GitHub Releases](https://github.com/shareven/openemby_tv/releases/) |
+| Android 6.0+ | [GitHub Releases](https://github.com/fennyshi-creator/verge-tv/releases/) |
 
 ---
 
@@ -136,7 +136,7 @@ Track switching, progress control, keep screen on
 
 | 接口 / API | 用途 / Purpose |
 |:----|:----|
-| `GET https://api.github.com/repos/shareven/openemby_tv/releases/latest` | 获取最新版本信息 / Get latest version info |
+| `GET https://api.github.com/repos/fennyshi-creator/verge-tv/releases/latest` | 获取最新版本信息 / Get latest version info |
 
 ---
 
@@ -177,6 +177,8 @@ Feel free to open Issues or PRs to discuss problems or suggest improvements!
 This project is licensed under a **non-commercial** license:
 
 **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**
+
+Verge started from the open-source OpenEmby TV project ([shareven/openemby_tv](https://github.com/shareven/openemby_tv)), which is under the same CC BY-NC 4.0 license. This repository keeps that license in `LICENSE`. Updates and the project homepage are [fennyshi-creator/verge-tv](https://github.com/fennyshi-creator/verge-tv).
 
 | 允许 / Allowed | 禁止 / Not Allowed |
 |:----|:----:|
