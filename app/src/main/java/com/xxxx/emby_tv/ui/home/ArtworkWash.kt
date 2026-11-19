@@ -160,6 +160,13 @@ object HomeMask {
      */
     const val CLEAR_UNTIL = 0.58f
 
+    /**
+     * From here to the bottom of the still, the scrim is the page color.
+     * The still layer outlives the hero and its hard edge would otherwise
+     * show a tinted strip under 继续观看.
+     */
+    const val LAND_AT = 0.90f
+
     fun firstScreenDarken(fraction: Float): Float {
         val t = fraction.coerceIn(0f, 1f)
         if (t <= CLEAR_UNTIL) return 0f
@@ -186,11 +193,20 @@ object HomeMask {
 
     fun horizontalHeroCutoff(): Boolean = false
 
+    fun firstScreenStops(tint: Color): List<Pair<Float, Color>> {
+        val page = HomeStyle.background
+        return listOf(
+            0f to tint.copy(alpha = firstScreenDarken(0f)),
+            CLEAR_UNTIL to tint.copy(alpha = firstScreenDarken(CLEAR_UNTIL)),
+            0.72f to tint.copy(alpha = firstScreenDarken(0.72f)),
+            0.84f to tint.copy(alpha = firstScreenDarken(0.84f)),
+            LAND_AT to page,
+            1f to page,
+        )
+    }
+
     fun firstScreenScrim(color: Color): Brush {
-        val stops = floatArrayOf(0f, CLEAR_UNTIL, 0.72f, 0.84f, 0.94f, 1f).map { t ->
-            t to color.copy(alpha = firstScreenDarken(t))
-        }
-        return Brush.verticalGradient(*stops.toTypedArray())
+        return Brush.verticalGradient(*firstScreenStops(color).toTypedArray())
     }
 
     /** Scroll of one viewport carries the still fully off the second screen. */
