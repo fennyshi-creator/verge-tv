@@ -361,14 +361,23 @@ private fun PosterGrid(
     val scope = rememberCoroutineScope()
     val shape = RoundedCornerShape(12.dp)
     val prefetchContext = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(gridState, items.size, serverUrl) {
-        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
-            .collect { last ->
-                val urls = (last + 1 until (last + 13).coerceAtMost(items.size)).map { index ->
-                    if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, items[index], false)
+    val pageResumed = com.xxxx.emby_tv.ui.home.rememberPageResumed()
+    LaunchedEffect(gridState, items.size, serverUrl, pageResumed) {
+        if (!com.xxxx.emby_tv.ui.home.PageWork.runs(pageResumed)) return@LaunchedEffect
+        val jobs = mutableListOf<coil3.request.Disposable>()
+        try {
+            snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+                .collect { last ->
+                    jobs.forEach { it.dispose() }
+                    jobs.clear()
+                    val urls = (last + 1 until (last + 13).coerceAtMost(items.size)).map { index ->
+                        if (serverUrl.isBlank()) "" else Utils.getImageUrl(serverUrl, items[index], false)
+                    }
+                    jobs += ArtworkPrefetch.enqueue(prefetchContext, urls, ArtRole.Primary)
                 }
-                ArtworkPrefetch.enqueue(prefetchContext, urls, ArtRole.Primary)
-            }
+        } finally {
+            jobs.forEach { it.dispose() }
+        }
     }
     RestoreFocus(
         active = restoreIndex >= 0,

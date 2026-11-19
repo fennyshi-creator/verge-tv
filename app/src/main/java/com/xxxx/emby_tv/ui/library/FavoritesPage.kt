@@ -30,6 +30,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -177,6 +180,7 @@ private fun FavoritePoster(
     onFocused: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val openLatch = remember { OpenLatch() }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
@@ -188,8 +192,18 @@ private fun FavoritePoster(
                     focused = it.isFocused
                     if (it.isFocused) onFocused()
                 }
+                .onKeyEvent { event ->
+                    when (openLatch.onKey(event.type, event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                        OpenAction.Open -> {
+                            onOpen()
+                            true
+                        }
+                        OpenAction.Consume -> true
+                        OpenAction.Ignore -> false
+                    }
+                }
                 .focusable()
-                .clickable(onClick = onOpen),
+                .clickable(onClick = { if (openLatch.onClick()) onOpen() }),
         ) {
             Box(Modifier.fillMaxSize().clip(shape)) {
                 HomeImage(

@@ -61,6 +61,7 @@ import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.HomeText
 import com.xxxx.emby_tv.ui.motion.FocusCard
 import com.xxxx.emby_tv.ui.motion.FocusLift
+import com.xxxx.emby_tv.ui.motion.LibraryWindow
 import com.xxxx.emby_tv.ui.motion.ProvideStageScroll
 import com.xxxx.emby_tv.ui.motion.StageDock
 import com.xxxx.emby_tv.ui.motion.rememberStageScroll
@@ -101,8 +102,10 @@ fun LibraryGridPage(
     val stage = rememberStageScroll(scroll)
     val filterFocus = remember { FocusRequester() }
     val sortFocus = remember { FocusRequester() }
-    val rowFocus = remember(rows.size) { List(rows.size) { FocusRequester() } }
+    val rowFocus = rememberLibraryRequesters()
     var gridRow by remember { mutableIntStateOf(0) }
+    var pendingRow by remember { mutableIntStateOf(0) }
+    var keyRepeat by remember { mutableStateOf(false) }
     var gridCol by remember { mutableIntStateOf(0) }
     var showFilter by remember { mutableStateOf(false) }
     var showSort by remember { mutableStateOf(false) }
@@ -118,7 +121,10 @@ fun LibraryGridPage(
         if (restoreIndex >= 0) {
             val (row, col) = LibraryFocus.cell(restoreIndex, 6)
             gridRow = row
+            pendingRow = row
             gridCol = col
+        } else {
+            pendingRow = gridRow
         }
         placed = true
         yield()
@@ -126,8 +132,13 @@ fun LibraryGridPage(
         withFrameNanos { }
         if (restoreIndex >= 0) stage.jump(gridRow)
         try {
-            rowFocus.getOrNull(gridRow.coerceAtMost(rows.lastIndex))?.requestFocus()
+            rowFocus.get(gridRow.coerceAtMost(rows.lastIndex)).requestFocus()
         } catch (_: IllegalStateException) {
+            withFrameNanos { }
+            try {
+                rowFocus.get(gridRow.coerceAtMost(rows.lastIndex)).requestFocus()
+            } catch (_: IllegalStateException) {
+            }
         }
     }
     BackHandler(enabled = showFilter || showSort) {
@@ -147,7 +158,14 @@ fun LibraryGridPage(
             with(density) { 220.dp.roundToPx() },
         )
         val spacer = with(density) { StageDock.bottomSpacer(viewport, stage.stagePx).toDp() }
+        var measuredStride by remember { mutableIntStateOf(0) }
+        val stride = if (measuredStride > 0) {
+            measuredStride
+        } else {
+            LibraryWindow.stridePx(constraints.maxWidth, density.density, density.fontScale)
+        }
         var columnRoot by remember { mutableIntStateOf(0) }
+        val soundView = androidx.compose.ui.platform.LocalView.current
         AmbientWash(
             url = washUrl,
             strength = ArtworkWash.strength(onHero = false, hasArtwork = !washUrl.isNullOrBlank()),
@@ -176,7 +194,7 @@ fun LibraryGridPage(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                HeaderPill(text = "筛选", focus = filterFocus, right = sortFocus, down = rowFocus.firstOrNull()) {
+                HeaderPill(text = "筛选", focus = filterFocus, right = sortFocus, down = if (rows.isEmpty()) null else rowFocus.get(0)) {
                     viewModel.ensureGenres()
                     filterPage = null
                     showFilter = true
@@ -188,7 +206,7 @@ fun LibraryGridPage(
                     text = "排序：$sortLabel $arrow",
                     focus = sortFocus,
                     left = filterFocus,
-                    down = rowFocus.firstOrNull(),
+                    down = if (rows.isEmpty()) null else rowFocus.get(0),
                 ) { showSort = true }
             }
             if (viewModel.items == null) {
@@ -200,32 +218,65 @@ fun LibraryGridPage(
                     HomeText("没有符合的内容", 16.sp, HomeStyle.meta)
                 }
             } else {
-                rows.forEachIndexed { index, row ->
+                LibraryKeyedWindow(
+                    rowCount = rows.size,
+                    focusedRow = gridRow,
+                    pendingRow = pendingRow,
+                    stridePx = stride,
+                    requesters = rowFocus,
+                    edgeUp = filterFocus,
+                    focusedNow = { gridRow },
+                    repeatNow = { keyRepeat },
+                    onStep = { delta, repeat ->
+                        keyRepeat = repeat
+                        val next = LibraryNav.step(LibraryNav.Cursor(gridRow, pendingRow, rows.size), delta)
+                        pendingRow = next.pending
+                    },
+                    onFocused = { index ->
+                        gridRow = index
+                        if (index == 0) stage.dock(0) else stage.dock(index + 1)
+                        if (index >= rows.lastIndex - 1) viewModel.loadMore()
+                    },
+                    onRetreat = { landed ->
+                        gridRow = landed
+                        pendingRow = landed
+                    },
+                    onArmRepeat = { stage.armRepeat(it) },
+                    onHorizontal = { delta ->
+                        val row = rows.getOrNull(gridRow) ?: return@LibraryKeyedWindow false
+                        val next = (gridCol + delta).coerceIn(0, row.lastIndex)
+                        if (next == gridCol) {
+                            false
+                        } else {
+                            gridCol = next
+                            playNavigationSound(soundView)
+                            true
+                        }
+                    },
+                    onOpen = {
+                        rows.getOrNull(gridRow)?.getOrNull(gridCol)?.let(onOpenItem)
+                    },
+                    modifierFor = { index ->
+                        Modifier.onGloballyPositioned {
+                            if (measuredStride == 0 && it.size.height > 0 && rows[index].size == 6) {
+                                measuredStride = it.size.height
+                            }
+                            val y = (it.positionInRoot().y - columnRoot + scroll.value).toInt()
+                            stage.record(index + 1, y)
+                        }
+                    },
+                ) { index ->
+                    val row = rows[index]
                     LibraryPosterRow(
                         cells = row,
                         selectedCol = if (gridRow == index) gridCol.coerceAtMost(row.lastIndex) else 0,
                         focused = gridRow == index,
-                        focusRequester = rowFocus[index],
-                        up = if (index == 0) filterFocus else rowFocus[index - 1],
-                        down = rowFocus.getOrNull(index + 1),
-                        modifier = Modifier.onGloballyPositioned {
-                            val y = (it.positionInRoot().y - columnRoot + scroll.value).toInt()
-                            stage.record(index + 1, y)
-                        },
-                        onFocus = {
-                            gridRow = index
-                            val dest = StageDock.libraryRowOffset(
-                                stage.tops.getOrElse(index + 1) { 0 },
-                                index,
-                                stage.stagePx,
-                                scroll.maxValue,
-                            )
-                            if (index == 0) stage.dock(0) else {
-                                stage.dock(index + 1)
-                            }
-                            if (index >= rows.lastIndex - 1) viewModel.loadMore()
-                            dest
-                        },
+                        focusRequester = rowFocus.get(index),
+                        up = null,
+                        down = null,
+                        focusEnabled = false,
+                        modifier = Modifier,
+                        onFocus = { 0 },
                         onCol = { gridCol = it },
                         onOpen = onOpenItem,
                         serverUrl = serverUrl,
@@ -314,6 +365,8 @@ internal fun LibraryPosterRow(
     up: FocusRequester?,
     down: FocusRequester?,
     modifier: Modifier,
+    focusEnabled: Boolean = true,
+    onArmRepeat: (Boolean) -> Unit = {},
     onFocus: () -> Int,
     onCol: (Int) -> Unit,
     onOpen: (BaseItemDto) -> Unit,
@@ -327,11 +380,10 @@ internal fun LibraryPosterRow(
         val item = cells.getOrNull(col) ?: return@LaunchedEffect
         onWash(Utils.getImageUrl(serverUrl, item, false))
     }
-    Row(
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 28.dp, vertical = 8.dp)
-            .padding(top = FocusLift.rise + 10.dp)
+    val focusMod = if (!focusEnabled) {
+        Modifier
+    } else {
+        Modifier
             .focusRequester(focusRequester)
             .onFocusChanged {
                 if (it.isFocused) {
@@ -361,7 +413,7 @@ internal fun LibraryPosterRow(
                     }
                     Key.DirectionDown -> {
                         if (down != null) {
-                            onFocus()
+                            onArmRepeat(event.nativeKeyEvent.repeatCount > 0)
                             try {
                                 down.requestFocus()
                             } catch (_: IllegalStateException) {
@@ -373,6 +425,7 @@ internal fun LibraryPosterRow(
                     }
                     Key.DirectionUp -> {
                         if (up != null) {
+                            onArmRepeat(event.nativeKeyEvent.repeatCount > 0)
                             try {
                                 up.requestFocus()
                             } catch (_: IllegalStateException) {
@@ -388,7 +441,14 @@ internal fun LibraryPosterRow(
                     }
                     else -> false
                 }
-            },
+            }
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 28.dp, vertical = 8.dp)
+            .padding(top = FocusLift.rise + 10.dp)
+            .then(focusMod),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         cells.forEachIndexed { index, item ->
@@ -418,17 +478,14 @@ internal fun LibraryPosterRow(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
-                val years = EmbyPresentation.yearLabel(item)
-                if (years.isNotBlank()) {
-                    HomeText(
-                        years,
-                        12.sp,
-                        HomeStyle.meta,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                HomeText(
+                    EmbyPresentation.yearLabel(item).ifBlank { "\u00a0" },
+                    12.sp,
+                    HomeStyle.meta,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         repeat(6 - cells.size) { Spacer(Modifier.weight(1f)) }

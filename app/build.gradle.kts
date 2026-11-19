@@ -25,8 +25,8 @@ android {
         applicationId = "com.verge.tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "1.0.0"
-        versionCode = 1
+        versionName = "1.0.4"
+        versionCode = 5
 //        versionCode = 92
 
     }
@@ -34,6 +34,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.isReturnDefaultValues = true
     }
     // AGP 9 内置 Kotlin：jvmTarget 自动与 targetCompatibility 对齐，无需 kotlinOptions
 
@@ -126,6 +130,9 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.compose.ui:ui-test-junit4:1.10.0")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.10.0")
 
     implementation("androidx.compose.ui:ui-tooling-preview:1.10.0")
     screenshotTestImplementation("androidx.compose.ui:ui-tooling:1.10.0")

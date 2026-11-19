@@ -3,6 +3,7 @@ package com.xxxx.emby_tv.ui.home
 import android.content.Context
 import android.os.Build
 import coil3.SingletonImageLoader
+import coil3.request.Disposable
 import coil3.request.ImageRequest
 import coil3.request.transformations
 
@@ -18,20 +19,19 @@ object ArtworkPrefetch {
         ArtRole.Backdrop -> 1280 to 720
     }
 
-    fun enqueue(context: Context, urls: List<String>, role: ArtRole, blur: Boolean = false) {
-        if (urls.isEmpty()) return
+    fun enqueue(context: Context, urls: List<String>, role: ArtRole, blur: Boolean = false): List<Disposable> {
+        if (urls.isEmpty()) return emptyList()
         val (width, height) = pixels(role)
         val loader = SingletonImageLoader.get(context)
-        for (url in urls) {
-            if (url.isBlank()) continue
-            loader.enqueue(request(context, url, width, height, blur))
+        return urls.mapNotNull { url ->
+            if (url.isBlank()) null else loader.enqueue(request(context, url, width, height, blur))
         }
     }
 
     /** Backdrop the details page will show. Hardware blur reuses the sharp bitmap. */
-    fun enqueueBackdrops(context: Context, urls: List<String>) {
+    fun enqueueBackdrops(context: Context, urls: List<String>): List<Disposable> {
         val hardware = Build.VERSION.SDK_INT >= 31
-        enqueue(context, urls, ArtRole.Backdrop, blur = !hardware)
+        return enqueue(context, urls, ArtRole.Backdrop, blur = !hardware)
     }
 
     fun request(
