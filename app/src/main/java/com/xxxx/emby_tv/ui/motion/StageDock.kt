@@ -82,6 +82,54 @@ object StageDock {
     }
 }
 
+/**
+ * A single remote tap uses the eased page scroll. A held key uses the short step.
+ * Homepage docks pass no arm and keep the 160ms heuristic.
+ */
+object StageScrollPolicy {
+    const val REPEAT_WINDOW_MS = 159L
+
+    fun shortStep(nowMs: Long, lastAtMs: Long, armedRepeat: Boolean?): Boolean {
+        if (armedRepeat != null) return armedRepeat
+        val delta = nowMs - lastAtMs
+        return delta in 1..REPEAT_WINDOW_MS
+    }
+}
+
+/** Which library poster rows are composed. The rest are spacers of one row stride. */
+object LibraryWindow {
+    const val COLUMNS = 6
+    const val BEFORE = 2
+    const val AFTER = 3
+
+    fun range(focused: Int, total: Int, before: Int = BEFORE, after: Int = AFTER): IntRange {
+        if (total <= 0) return IntRange.EMPTY
+        val focus = focused.coerceIn(0, total - 1)
+        val start = (focus - before).coerceAtLeast(0)
+        val endInclusive = (focus + after).coerceAtMost(total - 1)
+        return start..endInclusive
+    }
+
+    /**
+     * Height of one [com.xxxx.emby_tv.ui.library.LibraryPosterRow]:
+     * 28dp side padding, 16dp gaps, 2:3 poster, title, year, and the focus padding.
+     */
+    fun stridePx(gridWidthPx: Int, density: Float, fontScale: Float): Int {
+        val d = density.coerceAtLeast(0.5f)
+        val scale = fontScale.coerceAtLeast(0.5f)
+        val horizontalPad = (56f * d).toInt()
+        val gap = (16f * d).toInt()
+        val inner = (gridWidthPx - horizontalPad).coerceAtLeast(0)
+        val posterW = (inner - gap * (COLUMNS - 1)) / COLUMNS
+        val posterH = if (posterW <= 0) 0 else posterW * 3 / 2
+        val verticalPad = (16f * d).toInt()
+        val liftPad = (16f * d).toInt()
+        val title = (14f * d * scale * 1.2f + 8f * d).toInt()
+        val year = (12f * d * scale * 1.2f).toInt()
+        return verticalPad + liftPad + posterH + title + year
+    }
+}
+
 @Stable
 class StageScroll(
     private val scroll: ScrollState,
@@ -92,6 +140,12 @@ class StageScroll(
     private var job: kotlinx.coroutines.Job? = null
     private var lastAt = 0L
     private var activeIndex = 0
+    private var armedRepeat: Boolean? = null
+
+    /** Library rows arm this from the key event. Homepage leaves it unset. */
+    fun armRepeat(repeating: Boolean) {
+        armedRepeat = repeating
+    }
 
     fun record(index: Int, contentY: Int) {
         if (index < 0) return
@@ -119,7 +173,8 @@ class StageScroll(
 
     private fun dockTo(index: Int, dest: Int) {
         val now = System.currentTimeMillis()
-        val repeating = now - lastAt in 1..159
+        val repeating = StageScrollPolicy.shortStep(now, lastAt, armedRepeat)
+        armedRepeat = null
         lastAt = now
         if (activeIndex == index && job?.isActive == true) return
         if (activeIndex == index && scroll.value == dest) return

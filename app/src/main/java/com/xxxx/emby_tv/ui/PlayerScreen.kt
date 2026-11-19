@@ -1607,6 +1607,7 @@ fun PlayerScreen(
     // 退出播放页时上报停止（与播放器实例重建解耦，音频自动恢复重建时不会误报）
     DisposableEffect(Unit) {
         onDispose {
+            player.release()
             playerViewModel.reportStopped(
                 mediaId = mediaId,
                 media = media,
@@ -1938,37 +1939,6 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            val debugAudio = getAudioTrack(media, selectedAudioIndex)
-            val debugVideo = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
-                ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
-                ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
-            Text(
-                text = com.xxxx.emby_tv.ui.player.PlaybackDebug.lines(
-                    deviceType = routeSnapshot.type,
-                    encodings = routeSnapshot.encodings,
-                    codec = debugAudio?.codec,
-                    channels = debugAudio?.channels,
-                    sampleRate = debugAudio?.sampleRate,
-                    openedEncoding = player.passthroughEncoding(),
-                    fellBack = player.passthroughFallback(),
-                    forcedDecode = decodeAudio,
-                    videoRange = debugVideo?.videoRange,
-                    rangeType = debugVideo?.videoRangeType,
-                    transfer = debugVideo?.colorTransfer,
-                    videoCodec = debugVideo?.codec,
-                    displayHdr = displayHdr,
-                    api = android.os.Build.VERSION.SDK_INT,
-                    manualHdrToSdr = hdrToSdr,
-                    hardwareRequestAvailable = com.xxxx.emby_tv.ui.player.HdrToneMap.hardwareRequestAvailable(),
-                ).joinToString("\n"),
-                color = Color.White.copy(alpha = 0.88f),
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 24.dp, top = 16.dp)
-                    .background(Color(0x99141210), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
             val ratingLabel = com.xxxx.emby_tv.util.EmbyPresentation.ratingLine(
                 com.xxxx.emby_tv.util.EmbyPresentation.playbackRating(
                     mediaInfo.officialRating,

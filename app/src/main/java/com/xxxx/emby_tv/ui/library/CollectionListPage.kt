@@ -147,6 +147,7 @@ fun CollectionListPage(
                                 val y = (it.positionInRoot().y - columnRoot + scroll.value).toInt()
                                 stage.record(index + 1, y)
                             },
+                            onArmRepeat = { stage.armRepeat(it) },
                             onFocus = {
                                 gridRow = index
                                 if (index == 0) stage.dock(0) else stage.dock(index + 1)

@@ -292,6 +292,7 @@ class FsPlayback(private val appContext: Context) {
     }
 
     fun release() {
+        if (released) return
         released = true
         val current = engine
         engine = null

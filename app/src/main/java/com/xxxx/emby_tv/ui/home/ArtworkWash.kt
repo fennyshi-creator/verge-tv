@@ -6,11 +6,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -276,6 +280,27 @@ object ArtworkWash {
         }
 }
 
+/** Covered pages stay composed through the fade. They should not keep sampling art. */
+object PageWork {
+    fun runs(resumed: Boolean): Boolean = resumed
+}
+
+@Composable
+fun rememberPageResumed(): Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle) {
+        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { source, _ ->
+            resumed = source.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    return resumed
+}
+
 /**
  * A low, directional tint. [strength] is 0 on the hero and 1 once that
  * backdrop has slid away. A missing bitmap leaves the color transparent.
@@ -288,8 +313,10 @@ fun AmbientWash(
     maxAlpha: Float = 0.42f,
 ) {
     val context = LocalContext.current
+    val resumed = rememberPageResumed()
     var swatch by remember { mutableStateOf<Color?>(null) }
-    LaunchedEffect(url) {
+    LaunchedEffect(url, resumed) {
+        if (!PageWork.runs(resumed)) return@LaunchedEffect
         if (url.isNullOrBlank()) {
             swatch = null
             return@LaunchedEffect
@@ -349,8 +376,10 @@ fun AmbientWash(
 @Composable
 fun HeroBottomScrim(url: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val resumed = rememberPageResumed()
     var swatch by remember { mutableStateOf<Color?>(null) }
-    LaunchedEffect(url) {
+    LaunchedEffect(url, resumed) {
+        if (!PageWork.runs(resumed)) return@LaunchedEffect
         swatch = if (url.isNullOrBlank()) null else ArtworkWash.loadMuted(context, url)
     }
     Box(modifier.background(HomeMask.firstScreenScrim(HomeMask.scrimColor(swatch))))

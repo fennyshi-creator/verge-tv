@@ -147,20 +147,28 @@ fun TvLeadingRow(
         val shape = RoundedCornerShape(corner)
         val focusedIndex = (windowStart + slot).coerceIn(0, total - 1)
         val prefetchContext = LocalContext.current
+        val pageResumed = com.xxxx.emby_tv.ui.home.rememberPageResumed()
         LaunchedEffect(focusedIndex, rowFocused) {
             if (rowFocused || forceFocused) onFocusedIndex?.invoke(focusedIndex)
         }
-        LaunchedEffect(windowStart, focusedIndex, imageUrls, backdropUrls) {
+        LaunchedEffect(windowStart, focusedIndex, imageUrls, backdropUrls, pageResumed) {
+            if (!com.xxxx.emby_tv.ui.home.PageWork.runs(pageResumed)) return@LaunchedEffect
+            val jobs = mutableListOf<coil3.request.Disposable>()
             if (imageUrls.isNotEmpty()) {
                 val end = (windowStart + fullSlots + 4).coerceAtMost(imageUrls.size)
                 val start = windowStart.coerceIn(0, imageUrls.size)
-                ArtworkPrefetch.enqueue(prefetchContext, imageUrls.subList(start, end), prefetchRole)
+                jobs += ArtworkPrefetch.enqueue(prefetchContext, imageUrls.subList(start, end), prefetchRole)
             }
             if (backdropUrls.isNotEmpty()) {
-                ArtworkPrefetch.enqueueBackdrops(
+                jobs += ArtworkPrefetch.enqueueBackdrops(
                     prefetchContext,
                     listOfNotNull(backdropUrls.getOrNull(focusedIndex), backdropUrls.getOrNull(focusedIndex + 1)),
                 )
+            }
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                jobs.forEach { it.dispose() }
             }
         }
 
