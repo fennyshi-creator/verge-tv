@@ -24,14 +24,13 @@ class Release101Test {
         assertTrue(StageScrollPolicy.shortStep(nowMs = 1_000, lastAtMs = 900, armedRepeat = true))
         assertTrue(StageScrollPolicy.shortStep(nowMs = 1_000, lastAtMs = 900, armedRepeat = null))
         assertFalse(StageScrollPolicy.shortStep(nowMs = 1_000, lastAtMs = 700, armedRepeat = null))
-        val library = projectFile("app/src/main/java/com/xxxx/emby_tv/ui/library/LibraryGridPage.kt").readText()
+        val library = projectFile("app/src/main/java/com/xxxx/emby_tv/ui/library/LibraryNav.kt").readText()
         val down = library.substringAfter("Key.DirectionDown ->").substringBefore("Key.DirectionUp ->")
-        val up = library.substringAfter("Key.DirectionUp ->").substringBefore("Key.DirectionCenter")
-        assertFalse(down.contains("onFocus()"))
-        assertTrue(down.contains("onArmRepeat(event.nativeKeyEvent.repeatCount > 0)"))
-        assertTrue(down.contains("requestFocus()"))
-        assertTrue(up.contains("onArmRepeat(event.nativeKeyEvent.repeatCount > 0)"))
-        assertFalse(up.contains("onFocus()"))
+        val up = library.substringAfter("Key.DirectionUp ->").substringBefore("Key.DirectionLeft")
+        assertTrue(down.contains("onStep(1, repeat)"))
+        assertFalse(down.contains("requestFocus()"))
+        assertTrue(up.contains("onStep(-1, repeat)"))
+        assertTrue(library.contains("key(index)"))
     }
 
     @Test
@@ -43,7 +42,7 @@ class Release101Test {
         val stride = LibraryWindow.stridePx(gridWidthPx = 1920, density = 2f, fontScale = 1f)
         assertTrue(stride > 200)
         val library = projectFile("app/src/main/java/com/xxxx/emby_tv/ui/library/LibraryGridPage.kt").readText()
-        assertTrue(library.contains("LibraryWindow.range"))
+        assertTrue(library.contains("LibraryKeyedWindow"))
         assertFalse(library.contains("rows.forEachIndexed"))
     }
 
