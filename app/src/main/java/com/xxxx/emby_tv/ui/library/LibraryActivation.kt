@@ -13,3 +13,32 @@ object LibraryActivation {
         return key == Key.DirectionCenter || key == Key.Enter || key == Key.NumPadEnter
     }
 }
+
+/**
+ * One press opens once. The key-down opens immediately; a clickable that
+ * also sees that same press must not open a second time. A later pointer
+ * click, with no key, still opens.
+ */
+enum class OpenAction { Ignore, Consume, Open }
+
+class OpenLatch {
+    private var keyOpened = false
+
+    fun onKey(type: KeyEventType, key: Key, repeat: Boolean = false): OpenAction {
+        if (type != KeyEventType.KeyDown) return OpenAction.Ignore
+        if (key != Key.DirectionCenter && key != Key.Enter && key != Key.NumPadEnter) {
+            return OpenAction.Ignore
+        }
+        if (repeat) return OpenAction.Consume
+        keyOpened = true
+        return OpenAction.Open
+    }
+
+    fun onClick(): Boolean {
+        if (keyOpened) {
+            keyOpened = false
+            return false
+        }
+        return true
+    }
+}

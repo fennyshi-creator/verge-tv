@@ -762,7 +762,8 @@ private fun HomeTopBar(
                         else -> false
                     }
                 }
-                .padding(horizontal = 6.dp, vertical = 4.dp)
+                .height(HomeCapsule.trackDp().dp)
+                .padding(horizontal = 6.dp, vertical = HomeCapsule.TRACK_PADDING_DP.dp)
                 .onGloballyPositioned { rowLeft = it.positionInWindow().x.roundToInt() },
         ) {
             if (rowFocused && targetWidth > 0) {
@@ -770,7 +771,8 @@ private fun HomeTopBar(
                     Modifier
                         .offset(x = pillX)
                         .width(pillW)
-                        .height(36.dp)
+                        .height(HomeCapsule.PILL_DP.dp)
+                        .align(Alignment.CenterStart)
                         .clip(RoundedCornerShape(50))
                         .background(Color.White),
                 )
@@ -784,7 +786,7 @@ private fun HomeTopBar(
                                 chipLeft[index] = coords.positionInWindow().x.roundToInt() - rowLeft
                                 chipWidth[index] = coords.size.width
                             }
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = HomeCapsule.ITEM_PADDING_DP.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (index == 0 || index == 3) {

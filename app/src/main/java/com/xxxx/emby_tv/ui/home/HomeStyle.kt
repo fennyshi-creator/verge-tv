@@ -51,6 +51,25 @@ object HomeMark {
     fun cropStopsBeforeWordmark(): Boolean = CROP_RIGHT <= WORDMARK_START
 }
 
+/**
+ * The gray homepage menu track keeps one height. The white pill sits inside
+ * that track and is never taller than the unfocused item row.
+ */
+object HomeCapsule {
+    const val TRACK_PADDING_DP = 4
+    const val ITEM_PADDING_DP = 6
+    const val ICON_DP = 20
+    const val PILL_DP = 30
+
+    fun itemContentDp(): Int = ICON_DP + ITEM_PADDING_DP * 2
+
+    fun trackDp(): Int = itemContentDp() + TRACK_PADDING_DP * 2
+
+    fun trackStable(): Boolean = trackDp() == itemContentDp() + TRACK_PADDING_DP * 2
+
+    fun pillFitsInTrack(): Boolean = PILL_DP <= itemContentDp()
+}
+
 object HomeStyle {
     val background = Color(0xFF141210)
     val title = Color(0xFFF2F2F2)

@@ -25,6 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
@@ -440,6 +443,7 @@ private fun SearchPoster(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val openLatch = remember { com.xxxx.emby_tv.ui.library.OpenLatch() }
     val shape = RoundedCornerShape(12.dp)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         FocusCard(
@@ -447,8 +451,18 @@ private fun SearchPoster(
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .onFocusChanged { focused = it.isFocused }
+                .onKeyEvent { event ->
+                    when (openLatch.onKey(event.type, event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                        com.xxxx.emby_tv.ui.library.OpenAction.Open -> {
+                            onClick()
+                            true
+                        }
+                        com.xxxx.emby_tv.ui.library.OpenAction.Consume -> true
+                        com.xxxx.emby_tv.ui.library.OpenAction.Ignore -> false
+                    }
+                }
                 .focusable()
-                .clickable(onClick = onClick),
+                .clickable(onClick = { if (openLatch.onClick()) onClick() }),
             focused = focused,
             shape = shape,
             lift = true,
