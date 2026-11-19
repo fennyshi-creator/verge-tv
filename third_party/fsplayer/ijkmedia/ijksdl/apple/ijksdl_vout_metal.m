@@ -1,0 +1,429 @@
+/*
+ * ijksdl_vout_ios_gles2.c
+ *
+ * Copyright (c) 2013 Bilibili
+ * Copyright (c) 2013 Zhang Rui <bbcallen@gmail.com>
+ * Copyright (c) 2019 debugly <qianlongxu@gmail.com>
+ *
+ * This file is part of FSPlayer.
+ *
+ * FSPlayer is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * FSPlayer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with FSPlayer; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#import "ijksdl_vout_metal.h"
+
+#include <assert.h>
+#include "ijksdl/ijksdl_vout_internal.h"
+#include "ijksdl/ffmpeg/ijksdl_vout_overlay_ffmpeg.h"
+#include "ijkplayer/ff_subtitle_def.h"
+#import "ijksdl_gpu_metal.h"
+#include "ff_ffplay_def.h"
+
+@implementation FSTilePiece
+
+- (void)dealloc
+{
+    if (_avframe) {
+        av_frame_free(&self->_avframe);
+    }
+}
+
+- (BOOL)hasAlpha
+{
+    if (self.avframe) {
+        const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(self.avframe->format);
+        if (desc && (desc->flags & AV_PIX_FMT_FLAG_ALPHA)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+@end
+
+@implementation FSOverlayAttach
+
+- (void)dealloc
+{
+    if (self.avframe) {
+        av_frame_free(&self->_avframe);
+    }
+    if (self.overlay) {
+        SDL_TextureOverlay_Release(&self->_overlay);
+    }
+}
+
+- (BOOL)hasAlpha
+{
+    if (self.tilePieces.count > 0) {
+        return [self.tilePieces.firstObject hasAlpha];
+    }
+    
+    if (self.avframe) {
+        const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(self.avframe->format);
+        if (desc && (desc->flags & AV_PIX_FMT_FLAG_ALPHA)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+@end
+
+struct SDL_Vout_Opaque {
+    __strong UIView<FSVideoOutputProtocol> *outputView;
+    uint64_t renderer_id;
+};
+
+static uint64_t next_renderer_id;
+
+static SDL_VoutOverlay *vout_create_overlay_l(int width, int height, int src_format, SDL_Vout *vout)
+{
+    return SDL_VoutFFmpeg_CreateOverlay(width, height, src_format, vout);
+}
+
+static SDL_VoutOverlay *vout_create_overlay(int width, int height, int src_format, SDL_Vout *vout)
+{
+    SDL_LockMutex(vout->mutex);
+    SDL_VoutOverlay *overlay = vout_create_overlay_l(width, height, src_format, vout);
+    SDL_UnlockMutex(vout->mutex);
+    return overlay;
+}
+
+static void vout_free_l(SDL_Vout *vout)
+{
+    if (!vout)
+        return;
+    
+    SDL_Vout_Opaque *opaque = vout->opaque;
+    if (opaque) {
+        opaque->outputView = nil;
+    }
+    
+    SDL_Vout_FreeInternal(vout);
+}
+
+static int vout_display_overlay_l(SDL_Vout *vout, const Frame *frame, SDL_TextureOverlay *sub_overlay)
+{
+    // `frame` is the owning Frame from the player's picture queue. It carries the
+    // display geometry (frame->w/h) the renderer scales to;
+
+    SDL_Vout_Opaque *opaque = vout->opaque;
+    UIView<FSVideoOutputProtocol>* gl_view = opaque->outputView;
+    
+    if (!gl_view) {
+        ALOGE("vout_display_overlay_l: NULL gl_view\n");
+        return -1;
+    }
+
+    if (!frame || frame->disp_w <= 0 || frame->disp_h <= 0) {
+        FSOverlayAttach *attach = [[FSOverlayAttach alloc] init];
+        attach.overlay = SDL_TextureOverlay_Retain(sub_overlay);
+        return [gl_view displayAttach:attach];
+    }
+
+#if IS_TILEGRID_HEIC_ENABLED
+    SDL_VoutOverlay *overlay = frame->bmp;
+    /* HEIC tile grid 路径：把所有 tile 的 AVFrame 打包到 FSOverlayAttach.tilePieces，
+       渲染侧（FSMetalView）再把每个 AVFrame 转成 CVPixelBuffer 后合成。 */
+    if (overlay->is_tile_grid) {
+        //该rendering已经显示过一次了，就触发刷新
+        if (overlay->attach_displayed && overlay->attach_renderer_id == opaque->renderer_id &&
+            [gl_view respondsToSelector:@selector(refreshAttach:)] &&
+            [gl_view refreshAttach:sub_overlay]) {
+            return YES;
+        }
+        overlay->attach_displayed = 0;
+        int count = SDL_VoutOverlay_GetTileCount(overlay);
+        if (count <= 0) {
+            ALOGE("vout_display_overlay_l: tile-grid overlay with 0 tiles\n");
+            return -5;
+        }
+        AVFrame **frames = (AVFrame **)calloc(count, sizeof(AVFrame *));
+        int *xs = (int *)calloc(count, sizeof(int));
+        int *ys = (int *)calloc(count, sizeof(int));
+        int *ws = (int *)calloc(count, sizeof(int));
+        int *hs = (int *)calloc(count, sizeof(int));
+        int got = SDL_VoutOverlay_GetTileAVFrames(overlay, frames, xs, ys, ws, hs, count);
+        
+        FSOverlayAttach *attach = [[FSOverlayAttach alloc] init];
+        attach.w = frame->disp_w;
+        attach.h = frame->disp_h;
+        attach.sarNum = frame->sar.num;
+        attach.sarDen = frame->sar.den;
+        attach.autoZRotate = frame->auto_z_rotate_degrees;
+
+        NSMutableArray<FSTilePiece *> *pieces = [NSMutableArray arrayWithCapacity:got];
+        for (int i = 0; i < got; i++) {
+            if (!frames[i]) continue;
+            FSTilePiece *p = [[FSTilePiece alloc] init];
+            // Clone the tile frame (owned by attach); the renderer converts it to a
+            // CVPixelBuffer. Mirrors the single-frame av_frame_clone below.
+            p.avframe = av_frame_clone(frames[i]);
+            p.x = xs[i]; p.y = ys[i];
+            p.w = ws[i]; p.h = hs[i];
+            [pieces addObject:p];
+        }
+        attach.tilePieces = pieces;
+        attach.overlay = SDL_TextureOverlay_Retain(sub_overlay);
+        free(frames); free(xs); free(ys); free(ws); free(hs);
+        BOOL displayed = [gl_view displayAttach:attach];
+        overlay->attach_displayed = displayed;
+        overlay->attach_renderer_id = displayed ? opaque->renderer_id : 0;
+        return displayed;
+    }
+#endif
+    
+    // The renderer consumes the decoded AVFrame directly: FSPlaceboView uploads it,
+    // FSMetalView derives a CVPixelBuffer from it on the render thread. The dispatch
+    // layer no longer pulls a CVPixelBuffer here (that logic moved into the renderer).
+    AVFrame *av_frame = frame->frame;
+    if (av_frame) {
+        FSOverlayAttach *attach = [[FSOverlayAttach alloc] init];
+        attach.w = frame->disp_w;
+        attach.h = frame->disp_h;
+
+        attach.sarNum = frame->sar.num;
+        attach.sarDen = frame->sar.den;
+        attach.autoZRotate = frame->auto_z_rotate_degrees;
+        // Carry the full frame (with DoVi/HDR side data) to the renderer.
+        attach.avframe = av_frame_clone(av_frame);
+        attach.overlay = SDL_TextureOverlay_Retain(sub_overlay);
+        return [gl_view displayAttach:attach];
+    } else {
+        ALOGE("vout_display_overlay_l: no video picture.\n");
+        return -5;
+    }
+}
+
+static int vout_display_overlay(SDL_Vout *vout, const Frame *frame, SDL_TextureOverlay *sub_overlay)
+{
+    @autoreleasepool {
+        SDL_LockMutex(vout->mutex);
+        int retval = vout_display_overlay_l(vout, frame, sub_overlay);
+        SDL_UnlockMutex(vout->mutex);
+        return retval;
+    }
+}
+
+SDL_Vout *SDL_Vout_CreateForMetal(void)
+{
+    SDL_Vout *vout = SDL_Vout_CreateInternal(sizeof(SDL_Vout_Opaque));
+    if (!vout)
+        return NULL;
+    vout->create_overlay = vout_create_overlay;
+    vout->free_l = vout_free_l;
+    vout->display_overlay = vout_display_overlay;
+    return vout;
+}
+
+static void SDL_Vout_SetOutputView_l(SDL_Vout *vout, UIView<FSVideoOutputProtocol>* view)
+{
+    SDL_Vout_Opaque *opaque = vout->opaque;
+    if (opaque->outputView != view) {
+        opaque->outputView = view;
+        opaque->renderer_id = __atomic_add_fetch(&next_renderer_id, 1, __ATOMIC_RELAXED);
+    }
+}
+
+void SDL_Vout_SetOutputView(SDL_Vout *vout, UIView<FSVideoOutputProtocol>* view)
+{
+    SDL_LockMutex(vout->mutex);
+    SDL_Vout_SetOutputView_l(vout, view);
+    SDL_UnlockMutex(vout->mutex);
+}
+
+SDL_TextureOverlay * SDL_TextureOverlay_Retain(SDL_TextureOverlay *t)
+{
+    if (t) {
+        __atomic_add_fetch(&t->refCount, 1, __ATOMIC_RELEASE);
+    }
+    return t;
+}
+
+void SDL_TextureOverlay_Release(SDL_TextureOverlay **tp)
+{
+    if (tp) {
+        if (*tp) {
+            if (__atomic_add_fetch(&(*tp)->refCount, -1, __ATOMIC_RELEASE) == 0) {
+                (*tp)->dealloc(*tp);
+                free(*tp);
+            }
+        }
+        *tp = NULL;
+    }
+}
+
+void SDL_FBOOverlayFreeP(SDL_FBOOverlay **poverlay)
+{
+    if (poverlay) {
+        if (*poverlay) {
+            (*poverlay)->dealloc(*poverlay);
+            free(*poverlay);
+        }
+        *poverlay = NULL;
+    }
+}
+
+SDL_GPU *SDL_CreateGPU_WithContext(id context)
+{
+    return SDL_CreateGPU_WithMTLDevice(context);
+}
+
+void SDL_GPUFreeP(SDL_GPU **pgpu)
+{
+    if (pgpu) {
+        if (*pgpu) {
+            (*pgpu)->dealloc(*pgpu);
+            free(*pgpu);
+        }
+        *pgpu = NULL;
+    }
+}
+
+#if TARGET_OS_OSX
+#pragma mark - save image for debug ass
+
+static CGContextRef _CreateCGBitmapContext(size_t w, size_t h, size_t bpc, size_t bpp, size_t bpr, uint32_t bmi)
+{
+    assert(bpp != 24);
+    /*
+     AV_PIX_FMT_RGB24 bpp is 24! not supported!
+     Crash:
+     2020-06-06 00:08:20.245208+0800 FFmpegTutorial[23649:2335631] [Unknown process name] CGBitmapContextCreate: unsupported parameter combination: set CGBITMAP_CONTEXT_LOG_ERRORS environmental variable to see the details
+     2020-06-06 00:08:20.245417+0800 FFmpegTutorial[23649:2335631] [Unknown process name] CGBitmapContextCreateImage: invalid context 0x0. If you want to see the backtrace, please set CG_CONTEXT_SHOW_BACKTRACE environmental variable.
+     */
+    //Update: Since 10.8, CGColorSpaceCreateDeviceRGB is equivalent to sRGB, and is closer to option 2)
+    //CGColorSpaceCreateWithName(kCGColorSpaceSRGB)
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef bitmapContext = CGBitmapContextCreate(
+                                                       NULL,
+                                                       w,
+                                                       h,
+                                                       bpc,
+                                                       bpr,
+                                                       colorSpace,
+                                                       bmi
+                                                       );
+    
+    CGColorSpaceRelease(colorSpace);
+    return bitmapContext;
+}
+
+static NSError * mr_mkdirP(NSString *aDir)
+{
+    BOOL isDirectory = NO;
+    if ([[NSFileManager defaultManager] fileExistsAtPath:aDir isDirectory:&isDirectory]) {
+        if (isDirectory) {
+            return nil;
+        } else {
+            //remove the file
+            [[NSFileManager defaultManager] removeItemAtPath:aDir error:NULL];
+        }
+    }
+    //aDir is not exist
+    NSError *err = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:aDir withIntermediateDirectories:YES attributes:nil error:&err];
+    return err;
+}
+
+static NSString * mr_DirWithType(NSSearchPathDirectory directory,NSArray<NSString *>*pathArr)
+{
+    NSString *directoryDir = [NSSearchPathForDirectoriesInDomains(directory, NSUserDomainMask, YES) firstObject];
+    NSString *aDir = directoryDir;
+    for (NSString *dir in pathArr) {
+        aDir = [aDir stringByAppendingPathComponent:dir];
+    }
+    if (mr_mkdirP(aDir)) {
+        return nil;
+    }
+    return aDir;
+}
+
+static BOOL saveImageToFile(CGImageRef img,NSString *imgPath)
+{
+    CFStringRef imageUTType = NULL;
+    NSString *fileType = [[imgPath pathExtension] lowercaseString];
+    if ([fileType isEqualToString:@"jpg"] || [fileType isEqualToString:@"jpeg"]) {
+        imageUTType = kUTTypeJPEG;
+    } else if ([fileType isEqualToString:@"png"]) {
+        imageUTType = kUTTypePNG;
+    } else if ([fileType isEqualToString:@"tiff"]) {
+        imageUTType = kUTTypeTIFF;
+    } else if ([fileType isEqualToString:@"bmp"]) {
+        imageUTType = kUTTypeBMP;
+    } else if ([fileType isEqualToString:@"gif"]) {
+        imageUTType = kUTTypeGIF;
+    } else if ([fileType isEqualToString:@"pdf"]) {
+        imageUTType = kUTTypePDF;
+    }
+    
+    if (imageUTType == NULL) {
+        imageUTType = kUTTypePNG;
+    }
+    
+    CFStringRef key = kCGImageDestinationLossyCompressionQuality;
+    CFStringRef value = CFSTR("0.5");
+    const void * keys[] = {key};
+    const void * values[] = {value};
+    CFDictionaryRef opts = CFDictionaryCreate(CFAllocatorGetDefault(), keys, values, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    NSURL *fileUrl = [NSURL fileURLWithPath:imgPath];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef) fileUrl, imageUTType, 1, opts);
+    CFRelease(opts);
+    
+    if (destination) {
+        CGImageDestinationAddImage(destination, img, NULL);
+        CGImageDestinationFinalize(destination);
+        CFRelease(destination);
+        return YES;
+    } else {
+        return NO;
+    }
+}
+
+void SaveIMGToFile(uint8_t *data,int width,int height,IMG_FORMAT format, char *tag, int pts)
+{
+    const GLint bytesPerRow = width * 4;
+    
+    uint32_t bmi;
+    if (format == IMG_FORMAT_RGBA) {
+        bmi = (uint32_t)kCGBitmapByteOrderDefault | (uint32_t)kCGImageAlphaNoneSkipLast;
+    } else {
+        bmi = (uint32_t)kCGBitmapByteOrder32Little | (uint32_t)kCGImageAlphaPremultipliedFirst;
+    }
+    CGContextRef ctx = _CreateCGBitmapContext(width, height, 8, 32, bytesPerRow, bmi);
+    if (ctx) {
+        void * bitmapData = CGBitmapContextGetData(ctx);
+        if (bitmapData) {
+            memcpy(bitmapData, data, bytesPerRow * height);
+            CGImageRef img = CGBitmapContextCreateImage(ctx);
+            if (img) {
+                NSString *dir = mr_DirWithType(NSPicturesDirectory, @[@"ijkplayer"]);
+                if (!tag) {
+                    tag = "";
+                }
+                if (pts == -1) {
+                    pts = (int)CFAbsoluteTimeGetCurrent();
+                }
+                NSString *fileName = [NSString stringWithFormat:@"%s-%d.png",tag,pts];
+                NSString *filePath = [dir stringByAppendingPathComponent:fileName];
+                ALOGI("save img:%@",filePath);
+                saveImageToFile(img, filePath);
+                CFRelease(img);
+            }
+        }
+        CGContextRelease(ctx);
+    }
+}
+#endif

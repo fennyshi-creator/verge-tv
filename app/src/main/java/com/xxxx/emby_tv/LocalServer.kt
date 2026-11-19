@@ -1,0 +1,491 @@
+package com.xxxx.emby_tv
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import android.graphics.Color as AndroidColor
+import com.xxxx.emby_tv.ui.connect.ConnectForm
+import com.xxxx.emby_tv.ui.connect.PairingPage
+import com.xxxx.emby_tv.util.DiscoveredServer
+import com.xxxx.emby_tv.util.ErrorHandler
+import fi.iki.elonen.NanoHTTPD
+import java.io.IOException
+
+class LocalServer private constructor(
+    port: Int,
+    private val mode: Mode,
+    private val onLoginConfigReceived: ((String, String, String, String, String) -> Unit)? = null,
+    private val onSearchReceived: ((String) -> Unit)? = null,
+    private val onProxyConfigReceived: ((Boolean, String, String, Int, String, String) -> Unit)? = null,
+    private val serversProvider: (() -> List<DiscoveredServer>)? = null,
+    // 服务器Id -> 唯一用户名（发现的服务器只有一个用户时提供，用于网页自动填入）
+    private val serverUserHintsProvider: (() -> Map<String, String>)? = null
+) : NanoHTTPD(port) {
+
+    enum class Mode {
+        LOGIN, SEARCH, PROXY
+    }
+
+    companion object {
+        private var themePrimary: String = "#448AFF"
+        private var themeSecondary: String = "#E040FB"
+
+        fun startServer(
+            themePrimaryDark: Color,
+            themeSecondaryLight: Color,
+            serversProvider: (() -> List<DiscoveredServer>)? = null,
+            serverUserHintsProvider: (() -> Map<String, String>)? = null,
+            onConfigReceived: (String, String, String, String, String) -> Unit
+        ): LocalServer? {
+            updateThemeColors(themePrimaryDark, themeSecondaryLight)
+            return startInternal(
+                Mode.LOGIN,
+                serversProvider = serversProvider,
+                serverUserHintsProvider = serverUserHintsProvider,
+                onLoginConfigReceived = onConfigReceived
+            )
+        }
+
+        fun startSearchServer(
+            onSearchReceived: (String) -> Unit
+        ): LocalServer? {
+            return startInternal(Mode.SEARCH, onSearchReceived = onSearchReceived)
+        }
+
+        fun startProxyServer(
+            themePrimaryDark: Color,
+            themeSecondaryLight: Color,
+            onProxyConfigReceived: (Boolean, String, String, Int, String, String) -> Unit
+        ): LocalServer? {
+            updateThemeColors(themePrimaryDark, themeSecondaryLight)
+            return startInternal(Mode.PROXY, onProxyConfigReceived = onProxyConfigReceived)
+        }
+
+        private fun updateThemeColors(primary: Color, secondary: Color) {
+            val primaryArgb = primary.toArgb()
+            val primaryRgb = AndroidColor.rgb(
+                AndroidColor.red(primaryArgb),
+                AndroidColor.green(primaryArgb),
+                AndroidColor.blue(primaryArgb)
+            )
+            val secondaryArgb = secondary.toArgb()
+            val secondaryRgb = AndroidColor.rgb(
+                AndroidColor.red(secondaryArgb),
+                AndroidColor.green(secondaryArgb),
+                AndroidColor.blue(secondaryArgb)
+            )
+            themePrimary = String.format("#%06X", 0xFFFFFF and primaryRgb)
+            themeSecondary = String.format("#%06X", 0xFFFFFF and secondaryRgb)
+        }
+
+        private fun startInternal(
+            mode: Mode,
+            onLoginConfigReceived: ((String, String, String, String, String) -> Unit)? = null,
+            onSearchReceived: ((String) -> Unit)? = null,
+            onProxyConfigReceived: ((Boolean, String, String, Int, String, String) -> Unit)? = null,
+            serversProvider: (() -> List<DiscoveredServer>)? = null,
+            serverUserHintsProvider: (() -> Map<String, String>)? = null
+        ): LocalServer? {
+            var port = 4000
+            while (port < 4010) {
+                try {
+                    val server = LocalServer(
+                        port, mode,
+                        onLoginConfigReceived, onSearchReceived, onProxyConfigReceived,
+                        serversProvider, serverUserHintsProvider
+                    )
+                    server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+                    return server
+                } catch (e: IOException) {
+                    port++
+                }
+            }
+            return null
+        }
+    }
+
+    override fun serve(session: IHTTPSession): Response {
+        return when (mode) {
+            Mode.LOGIN -> serveLogin(session)
+            Mode.SEARCH -> serveSearch(session)
+            Mode.PROXY -> serveProxy(session)
+        }
+    }
+
+    private fun serveSearch(session: IHTTPSession): Response {
+        if (session.method == Method.POST) {
+            try {
+                val files = HashMap<String, String>()
+                session.parseBody(files)
+                val params = session.parameters
+                val query = params["query"]?.firstOrNull() ?: ""
+
+                if (query.isNotEmpty()) {
+                    onSearchReceived?.invoke(query)
+                    return serveSuccessPage("Search Sent!", "The search query has been sent to your TV.", "搜索已发送", "搜索词已发送到电视。")
+                }
+            } catch (e: Exception) {
+                ErrorHandler.logError("LocalServer", "Error processing search", e)
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error parsing request")
+            }
+        }
+
+        return newFixedLengthResponse(com.xxxx.emby_tv.ui.connect.PairingPage.searchDocument())
+    }
+
+    private fun serveLogin(session: IHTTPSession): Response {
+        if (session.method == Method.POST) {
+            try {
+                val files = HashMap<String, String>()
+                session.parseBody(files)
+                val params = session.parameters
+
+                val protocol = params["protocol"]?.firstOrNull() ?: "https"
+                val host = params["host"]?.firstOrNull() ?: ""
+                val port = params["port"]?.firstOrNull()?.takeIf { it.isNotBlank() }
+                    ?: if (protocol.equals("http", true)) ConnectForm.HTTP_PORT else ConnectForm.HTTPS_PORT
+                val username = params["username"]?.firstOrNull() ?: ""
+                val password = params["password"]?.firstOrNull() ?: ""
+
+                if (host.isNotEmpty()) {
+                    onLoginConfigReceived?.invoke(protocol, host, port, username, password)
+                    return serveSuccessPage(
+                        "Signing in",
+                        "The TV is signing in now.",
+                        "正在登录",
+                        "电视正在登录，请稍候。",
+                    )
+                }
+            } catch (e: Exception) {
+                ErrorHandler.logError("LocalServer", "服务器错误", e)
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error parsing request")
+            }
+        }
+        
+        // 局域网发现的服务器列表（由 TV 端扫描提供），点击自动填入表单；
+        // 若该服务器只有一个用户，同时自动填入用户名
+        val userHints = serverUserHintsProvider?.invoke().orEmpty()
+        val serversBlock = buildString {
+            val servers = serversProvider?.invoke().orEmpty()
+            if (servers.isNotEmpty()) {
+                append("""<label id="label-servers">Servers found in LAN</label>""")
+                append("""<div class="server-list">""")
+                servers.forEach { server ->
+                    val safeAddress = server.address.replace("'", "")
+                    val username = userHints[server.id]?.let { escapeHtml(it) } ?: ""
+                    append(
+                        """<div class="server-item" data-username="$username" """ +
+                            """onclick="selectServer(this, '$safeAddress')">""" +
+                            """<span class="server-name">${escapeHtml(server.name)}</span>""" +
+                            """<span class="server-addr">$safeAddress →</span></div>"""
+                    )
+                }
+                append("</div>")
+            }
+        }
+
+        // Serve the form
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Emby TV Login</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta charset="UTF-8">
+                <style>
+                    ${PairingPage.css()}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2 id="form-title">Emby TV Login</h2>
+                    <form method="POST" id="login-form">
+                        $serversBlock
+                        <label id="label-url">Server URL</label>
+                        <div class="input-row">
+                            ${ConnectForm.loginFormFragment().substringBefore("<button type=\"submit\"")}
+                        </div>
+                        <label id="label-user">Username</label>
+                        <input type="text" name="username" id="input-username" placeholder="Username" required>
+                        <label id="label-pass">Password</label>
+                        <input type="password" name="password" id="input-password" placeholder="Password">
+                        ${ConnectForm.loginFormFragment().substringAfter("<input type=\"text\" name=\"port\" class=\"port\" placeholder=\"Port\" value=\"443\">").trim()}
+                    </form>
+                </div>
+                <script>
+                    function setProtocol(p) {
+                        var btn = document.getElementById('btn-protocol');
+                        var input = document.getElementById('protocol-input');
+                        input.value = p;
+                        btn.innerText = p.toUpperCase();
+                    }
+                    function toggleProtocol() {
+                        var next = document.getElementById('protocol-input').value === 'http' ? 'https' : 'http';
+                        setProtocol(next);
+                        var port = document.querySelector('input[name=port]');
+                        if (!port) return;
+                        if (next === 'https' && (port.value === '' || port.value === '8096')) port.value = '443';
+                        if (next === 'http' && (port.value === '' || port.value === '443')) port.value = '8096';
+                    }
+                    // 解析 http(s)://host[:port] 并自动填充协议、地址、端口
+                    function parseAndFillUrl(text) {
+                        text = (text || '').trim();
+                        var m = text.match(/^(https?):\/\/([^\/:\s]+)(?::(\d+))?(?:\/|$|\s)/i);
+                        if (!m) return false;
+                        var protocol = m[1].toLowerCase();
+                        var host = m[2];
+                        var port = m[3] || (protocol === 'https' ? '443' : '8096');
+                        setProtocol(protocol);
+                        document.querySelector('input[name=host]').value = host;
+                        document.querySelector('input[name=port]').value = port;
+                        return true;
+                    }
+                    // 点击发现的服务器：填地址端口；若该服务器只有一个用户则同时填用户名
+                    function selectServer(el, address) {
+                        if (!parseAndFillUrl(address)) return;
+                        var u = el.getAttribute('data-username');
+                        if (u) document.getElementById('input-username').value = u;
+                    }
+                    // 页面打开时尝试自动读取剪贴板（需浏览器支持且在安全上下文）
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                        navigator.clipboard.readText().then(function(text) {
+                            if (text && /^https?:\/\//i.test(text.trim())) {
+                                parseAndFillUrl(text);
+                            }
+                        }).catch(function() {});
+                    }
+                    // 兜底：用户粘贴时识别（非安全上下文也可用）
+                    document.addEventListener('paste', function(e) {
+                        var text = (e.clipboardData || window.clipboardData).getData('text');
+                        if (text && /^https?:\/\//i.test(text.trim())) {
+                            parseAndFillUrl(text);
+                            e.preventDefault();
+                        }
+                    });
+                    // 地址框内直接粘贴/输入完整 URL 时自动拆解
+                    document.querySelector('input[name=host]').addEventListener('input', function(e) {
+                        var v = e.target.value.trim();
+                        if (/^https?:\/\//i.test(v) && parseAndFillUrl(v)) {
+                            e.target.blur();
+                            e.target.focus();
+                        }
+                    });
+                    if (navigator.language.startsWith('zh')) {
+                        document.getElementById('form-title').innerText = 'Emby TV 登录';
+                        document.getElementById('label-url').innerText = '服务器地址';
+                        var labelServers = document.getElementById('label-servers');
+                        if (labelServers) labelServers.innerText = '局域网内的服务器';
+                        document.getElementById('label-user').innerText = '用户名';
+                        document.getElementById('input-username').placeholder = '用户名';
+                        document.getElementById('label-pass').innerText = '密码';
+                        document.getElementById('input-password').placeholder = '密码';
+                        document.querySelector('input[name=host]').placeholder = '${ConnectForm.HOST_PLACEHOLDER}';
+                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_LOGIN_SUBMIT}';
+                    }
+                    var lastScrollY = 0;
+                    if (window.visualViewport) {
+                        window.visualViewport.addEventListener('resize', function() {
+                            var container = document.querySelector('.container');
+                            if (window.visualViewport.height < window.innerHeight) {
+                                var diff = window.innerHeight - window.visualViewport.height;
+                                var containerBottom = container.getBoundingClientRect().bottom;
+                                if (containerBottom > window.visualViewport.height - 50) {
+                                    var scrollAmount = containerBottom - (window.visualViewport.height - 100);
+                                    window.scrollTo({ top: scrollAmount, behavior: 'smooth' });
+                                }
+                            } else {
+                                if (lastScrollY > 0) {
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }
+                            }
+                        });
+                    }
+                    var inputs = document.querySelectorAll('input');
+                    inputs.forEach(function(input) {
+                        input.addEventListener('focus', function() {
+                            setTimeout(function() {
+                                var btn = document.getElementById('btn-submit');
+                                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 300);
+                        });
+                    });
+                </script>
+            </body>
+            </html>
+        """.trimIndent()
+        
+        return newFixedLengthResponse(html)
+    }
+
+    private fun serveProxy(session: IHTTPSession): Response {
+        if (session.method == Method.POST) {
+            try {
+                val files = HashMap<String, String>()
+                session.parseBody(files)
+                val params = session.parameters
+
+                val enabled = params["enabled"]?.firstOrNull() == "on"
+                val type = params["type"]?.firstOrNull() ?: "http"
+                val host = params["host"]?.firstOrNull() ?: ""
+                val portStr = params["port"]?.firstOrNull() ?: "1080"
+                val port = portStr.toIntOrNull() ?: 1080
+                val username = params["username"]?.firstOrNull() ?: ""
+                val password = params["password"]?.firstOrNull() ?: ""
+
+                onProxyConfigReceived?.invoke(enabled, type, host, port, username, password)
+                return serveSuccessPage("Configuration Sent!", "Proxy settings have been sent to your TV.", "配置已发送！", "代理设置已发送到电视。")
+            } catch (e: Exception) {
+                ErrorHandler.logError("LocalServer", "Error processing proxy config", e)
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Error parsing request")
+            }
+        }
+
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Emby TV Proxy Settings</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta charset="UTF-8">
+                <style>
+                    :root { --theme-primary: $themePrimary; --theme-secondary: $themeSecondary; }
+                    body {
+                        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        padding: 0; margin: 0;
+                        background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+                        color: white;
+                        display: flex; justify-content: center; align-items: center;
+                        min-height: 100vh;
+                    }
+                    .container {
+                        background: rgba(0, 0, 0, 0.2);
+                        padding: 40px;
+                        border-radius: 16px;
+                        backdrop-filter: blur(10px);
+                        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+                        width: 90%; max-width: 420px;
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                    }
+                    h2 { text-align: center; margin-bottom: 30px; font-weight: 300; }
+                    .toggle-row {
+                        display: flex; align-items: center; justify-content: space-between;
+                        margin-bottom: 24px; padding: 12px 16px;
+                        background: rgba(0, 0, 0, 0.2); border-radius: 10px;
+                    }
+                    .toggle-row label { font-size: 16px; }
+                    .switch { position: relative; width: 52px; height: 28px; }
+                    .switch input { opacity: 0; width: 0; height: 0; }
+                    .slider {
+                        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+                        background-color: rgba(255,255,255,0.2); border-radius: 28px; transition: .3s;
+                    }
+                    .slider:before {
+                        position: absolute; content: ""; height: 22px; width: 22px;
+                        left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s;
+                    }
+                    input:checked + .slider { background-color: var(--theme-primary); }
+                    input:checked + .slider:before { transform: translateX(24px); }
+                    label { display: block; margin-bottom: 8px; font-size: 14px; color: #ccc; }
+                    .type-row {
+                        display: flex; gap: 8px; margin-bottom: 20px;
+                    }
+                    .type-btn {
+                        flex: 1; padding: 10px; text-align: center;
+                        background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255,255,255,0.15);
+                        border-radius: 8px; color: white; font-size: 15px; cursor: pointer; transition: .2s;
+                    }
+                    .type-btn.active { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); }
+                    .input-row {
+                        display: flex; gap: 8px; margin-bottom: 16px;
+                    }
+                    .input-row input {
+                        width: 100%; padding: 12px; box-sizing: border-box;
+                        background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+                        border-radius: 8px; color: white; font-size: 16px;
+                    }
+                    .input-row input:focus { border-color: var(--theme-primary); outline: none; }
+                    .host { flex: 1; }
+                    .port { flex: 0 0 90px; }
+                    input {
+                        width: 100%; padding: 12px; margin-bottom: 16px; box-sizing: border-box;
+                        background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+                        border-radius: 8px; color: white; font-size: 16px;
+                    }
+                    input::placeholder { color: rgba(255,255,255,0.4); }
+                    input:focus { border-color: var(--theme-primary); outline: none; }
+                    .scope-text { 
+                        text-align: center; color: rgba(255,255,255,0.5); 
+                        font-size: 13px; margin-bottom: 24px; 
+                    }
+                    button {
+                        width: 100%; padding: 14px;
+                        background: white; color: black;
+                        border: none; border-radius: 8px;
+                        font-size: 16px; font-weight: bold; cursor: pointer;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2 id="form-title">Proxy Settings</h2>
+                    <form method="POST" id="proxy-form">
+                        <input type="hidden" name="enabled" id="input-enabled" value="off">
+                        <input type="hidden" name="type" id="input-type" value="http">
+                        <div class="toggle-row">
+                            <label id="label-enable">Enable Proxy</label>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-enable" onchange="document.getElementById('input-enabled').value=this.checked?'on':'off'">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <label id="label-type">Proxy Type</label>
+                        <div class="type-row">
+                            <div class="type-btn active" id="btn-http" onclick="setType('http')">HTTP</div>
+                            <div class="type-btn" id="btn-socks5" onclick="setType('socks5')">SOCKS5</div>
+                        </div>
+                        <label id="label-host">Proxy Host</label>
+                        <div class="input-row">
+                            <input type="text" name="host" class="host" id="input-host" placeholder="192.168.1.x">
+                            <input type="text" name="port" class="port" id="input-port" placeholder="Port" value="1080">
+                        </div>
+                        <label id="label-user">Username (optional)</label>
+                        <input type="text" name="username" id="input-username" placeholder="">
+                        <label id="label-pass">Password (optional)</label>
+                        <input type="password" name="password" id="input-password" placeholder="">
+                        <div class="scope-text" id="scope-text">Proxy for Emby service only</div>
+                        <button type="submit" id="btn-submit">Send to TV</button>
+                    </form>
+                </div>
+                <script>
+                    function setType(t) {
+                        document.getElementById('input-type').value = t;
+                        document.getElementById('btn-http').className = 'type-btn' + (t==='http'?' active':'');
+                        document.getElementById('btn-socks5').className = 'type-btn' + (t==='socks5'?' active':'');
+                    }
+                    if (navigator.language.startsWith('zh')) {
+                        document.getElementById('form-title').innerText = '代理设置';
+                        document.getElementById('label-enable').innerText = '启用代理';
+                        document.getElementById('label-type').innerText = '代理类型';
+                        document.getElementById('label-host').innerText = '代理地址';
+                        document.getElementById('input-host').placeholder = '代理服务器地址';
+                        document.getElementById('input-port').placeholder = '端口';
+                        document.getElementById('label-user').innerText = '用户名（可选）';
+                        document.getElementById('label-pass').innerText = '密码（可选）';
+                        document.getElementById('scope-text').innerText = '仅代理Emby服务';
+                        document.getElementById('btn-submit').innerText = '${ConnectForm.PHONE_PROXY_SUBMIT}';
+                    }
+                </script>
+            </body>
+            </html>
+        """.trimIndent()
+        return newFixedLengthResponse(html)
+    }
+
+    private fun escapeHtml(text: String): String {
+        return text.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace("\"", "&quot;")
+    }
+
+    private fun serveSuccessPage(enTitle: String, enDesc: String, zhTitle: String, zhDesc: String): Response {
+        return newFixedLengthResponse(PairingPage.successDocument(enTitle, enDesc, zhTitle, zhDesc))
+    }
+}

@@ -1,0 +1,2897 @@
+{
+  "meta": {
+    "source": "Emby localhost metadata only; MediaSources slimmed; secrets stripped",
+    "user_role": "admin",
+    "note": "Use these shapes for mapping tests. Ids are opaque library ids."
+  },
+  "views": {
+    "Items": [
+      {
+        "Name": "电影Movies",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "3",
+        "Guid": "b65c8692f9714dd48bdbe2f66af8060b",
+        "Etag": "d27e1b0271e75b2d95526ac05018eeb6",
+        "DateCreated": "2026-06-07T02:08:12.0000000Z",
+        "DateModified": "0001-01-01T00:00:00.0000000Z",
+        "CanDelete": false,
+        "CanDownload": false,
+        "PresentationUniqueKey": "b65c8692f9714dd48bdbe2f66af8060b",
+        "SortName": "电影Movies",
+        "ForcedSortName": "电影Movies",
+        "ExternalUrls": [],
+        "Taglines": [],
+        "RemoteTrailers": [],
+        "ProviderIds": {},
+        "IsFolder": true,
+        "ParentId": "2",
+        "Type": "CollectionFolder",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "DisplayPreferencesId": "b65c8692f9714dd48bdbe2f66af8060b",
+        "PrimaryImageAspectRatio": 1.7777777777777777,
+        "CollectionType": "movies",
+        "ImageTags": {
+          "Primary": "e7d19115a5278ce9f74bb8f937bd598c"
+        },
+        "BackdropImageTags": [],
+        "LockedFields": [],
+        "LockData": false
+      },
+      {
+        "Name": "剧集Series",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "237",
+        "Guid": "c09d55636b5a483ca4ae3557136c3565",
+        "Etag": "f768502b04a0a42af1f81b436df22300",
+        "DateCreated": "2026-06-07T06:28:16.0000000Z",
+        "DateModified": "0001-01-01T00:00:00.0000000Z",
+        "CanDelete": false,
+        "CanDownload": false,
+        "PresentationUniqueKey": "c09d55636b5a483ca4ae3557136c3565",
+        "SortName": "剧集Series",
+        "ForcedSortName": "剧集Series",
+        "ExternalUrls": [],
+        "Taglines": [],
+        "RemoteTrailers": [],
+        "ProviderIds": {},
+        "IsFolder": true,
+        "ParentId": "2",
+        "Type": "CollectionFolder",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "DisplayPreferencesId": "c09d55636b5a483ca4ae3557136c3565",
+        "PrimaryImageAspectRatio": 1.7777777777777777,
+        "CollectionType": "tvshows",
+        "ImageTags": {
+          "Primary": "7989e1c75afa3259fb3e48efc776d593"
+        },
+        "BackdropImageTags": [],
+        "LockedFields": [],
+        "LockData": false
+      },
+      {
+        "Name": "专题影单",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "107548",
+        "Guid": "8a49fdbb9a234a69a656aba7decf0c85",
+        "Etag": "f768502b04a0a42af1f81b436df22300",
+        "DateCreated": "2026-07-22T13:28:48.0000000Z",
+        "DateModified": "0001-01-01T00:00:00.0000000Z",
+        "CanDelete": false,
+        "CanDownload": false,
+        "PresentationUniqueKey": "8a49fdbb9a234a69a656aba7decf0c85",
+        "SortName": "z合集",
+        "ForcedSortName": "z合集",
+        "ExternalUrls": [],
+        "Taglines": [],
+        "RemoteTrailers": [],
+        "ProviderIds": {},
+        "IsFolder": true,
+        "ParentId": "2",
+        "Type": "CollectionFolder",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "DisplayPreferencesId": "8a49fdbb9a234a69a656aba7decf0c85",
+        "PrimaryImageAspectRatio": 1.7777777777777777,
+        "CollectionType": "boxsets",
+        "ImageTags": {
+          "Primary": "24aa2a69b92cbe771992deda3385f7cb"
+        },
+        "BackdropImageTags": [],
+        "LockedFields": [
+          "SortName"
+        ],
+        "LockData": false
+      }
+    ],
+    "TotalRecordCount": 3
+  },
+  "resume": {
+    "Items": [
+      {
+        "Name": "奥德赛",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225365",
+        "RunTimeTicks": 103550000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 5.782926122646065,
+          "PlaybackPositionTicks": 5988220000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "ee57d3370325475907aa4e7eed9d96f7",
+          "Logo": "f4fa4c904984cf891254deb040d4a49e",
+          "Thumb": "a5b2a57cbb84818388ba1190ce4051af"
+        },
+        "BackdropImageTags": [
+          "bf00cb6646c63d29e058916526d70cf5"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "西西里的美丽传说",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82425",
+        "RunTimeTicks": 64850000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 46.34999228989977,
+          "PlaybackPositionTicks": 30057970000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "493b34ec3efc2fd97738c3a8dd110eca",
+          "Thumb": "e623985d27612cf75cb19216f6704ac1",
+          "Primary": "1f07ba566c461aeb89bae968c639fc02"
+        },
+        "BackdropImageTags": [
+          "ea9dd348bf16542bc4d4a90db50644f4"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "林肯律师",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81698",
+        "RunTimeTicks": 71080000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 30.261676983680356,
+          "PlaybackPositionTicks": 21510000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "9225f38ed76523aa397592c0d5e590bf",
+          "Thumb": "f4c01e95efeb3e621ece93ff745b4d68",
+          "Primary": "ccbabf1554cc8d72f9fd11940e5af7a6"
+        },
+        "BackdropImageTags": [
+          "4127916c8f4ba3e712f0956e965bb569"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "不速之客们",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224971",
+        "RunTimeTicks": 28080000000,
+        "IndexNumber": 7,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "224963",
+        "ParentBackdropItemId": "224963",
+        "ParentBackdropImageTags": [
+          "15f158206960ee42ccaec8235d71bfdf"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "现在不是出轨的问题",
+        "SeriesId": "224963",
+        "SeasonId": "224964",
+        "SeriesPrimaryImageTag": "78a8619c3714d2e4832a35b0365b74e8",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "cd86d791ae24dac81ff88e40816a78c8"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "6fd8682489fbbdaf9ac5ae0a1bdd1295",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "星际穿越",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224947",
+        "RunTimeTicks": 101442176860,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 25.569068806357237,
+          "PlaybackPositionTicks": 25937820000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "a6185d022ac2910db64302de9d436af8",
+          "Logo": "3db816e497e89210637e920f23def6f7",
+          "Thumb": "ffce9d339e556cfa8a44b639fd70968a"
+        },
+        "BackdropImageTags": [
+          "cff20e004345ee7ce9f1266904471d86",
+          "d9169288c65ee7b54ca94e91018e7b6e"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "一代宗师",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225148",
+        "RunTimeTicks": 64950000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 14.82678983833718,
+          "PlaybackPositionTicks": 9630000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "6e75302df7dd1a7130c46786cb8719d8",
+          "Logo": "fb55b11220688e572ec2e2815c2cecf5",
+          "Thumb": "a4d71254b3b2dee6f0ae244cbb0a2bc4"
+        },
+        "BackdropImageTags": [
+          "07b2d2ccff9001bd457593ddab436406"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "生化危机：爆发夜",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224951",
+        "RunTimeTicks": 56290000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 60.5080831408776,
+          "PlaybackPositionTicks": 34060000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "a8a415ec3fda2d45035a1cd7bf73e71a",
+          "Logo": "b384119eca8fe8fc312e40dfea64db3c",
+          "Thumb": "1bb39dbab3485c7d5d68f8600adb7437"
+        },
+        "BackdropImageTags": [
+          "22342fca64f4dface589359b03b82b73"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "生存支援",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "79088",
+        "RunTimeTicks": 24050000000,
+        "IndexNumber": 7,
+        "ParentIndexNumber": 2,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77420",
+        "ParentBackdropItemId": "77420",
+        "ParentBackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ],
+        "UserData": {
+          "PlayedPercentage": 71.97571725571726,
+          "PlaybackPositionTicks": 17310160000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "塔尔萨之王",
+        "SeriesId": "77420",
+        "SeasonId": "79077",
+        "SeriesPrimaryImageTag": "b5ab9ad13b0d62af645f755e8e59ec23",
+        "SeasonName": "第 2 季",
+        "ImageTags": {
+          "Primary": "f8e8a8481d4e37a4baa51128377d5267"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "9056d97c171bb6e81753280b27707458",
+        "ParentThumbItemId": "77420",
+        "ParentThumbImageTag": "88bdf4bcb7104ea8215d709cb965726e",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "人生密密缝",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224850",
+        "RunTimeTicks": 76590000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 34.52359315837577,
+          "PlaybackPositionTicks": 26441620000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "9c745bc84b97d8241938af95c579bfdb"
+        },
+        "BackdropImageTags": [
+          "830d454b8d3d2507a11e8992df0bc81a"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "重启",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224040",
+        "RunTimeTicks": 31190000000,
+        "IndexNumber": 3,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "223780",
+        "ParentBackdropItemId": "223780",
+        "ParentBackdropImageTags": [
+          "6c9bbffb630c745cbb2a77fb5085aa0c"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "幻视任务",
+        "SeriesId": "223780",
+        "SeasonId": "223781",
+        "SeriesPrimaryImageTag": "cf5d79bbc3daf581f73a9d612c005cbe",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "2f2dd7e9610e197e6db0845a816e92fc"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "220ac5a5f3bed6a7f5e0aa8d2375fe7c",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "理智与情感",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224578",
+        "RunTimeTicks": 79460000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 31.04520513465895,
+          "PlaybackPositionTicks": 24668520000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "1bf124ead9e093e192b9715b63e30daa",
+          "Logo": "1d89fc547134a48e04e0672ebaf70af2"
+        },
+        "BackdropImageTags": [
+          "682c0062cf2fc06901560f9ed24135ea"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "忘却之岛",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224680",
+        "RunTimeTicks": 65320000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 2.674664543784446,
+          "PlaybackPositionTicks": 1747090880,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "4d300badf6dfb8f04d7ba23334be710f",
+          "Logo": "7b385f54d544d2fd28f7b3ee6ed561ca"
+        },
+        "BackdropImageTags": [
+          "80922229ab23e58d103ea6113ac1a030"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "固有决心",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224692",
+        "RunTimeTicks": 39060000000,
+        "IndexNumber": 1,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "224681",
+        "ParentBackdropItemId": "224681",
+        "ParentBackdropImageTags": [
+          "68d1e8db4bfd68d92de49d65e2333af6"
+        ],
+        "UserData": {
+          "PlayedPercentage": 14.925755248335893,
+          "PlaybackPositionTicks": 5830000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "终极名单：黑狼",
+        "SeriesId": "224681",
+        "SeasonId": "224683",
+        "SeriesPrimaryImageTag": "a03e82a46f5eb653b188f07065bf4c3c",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "fd7de08f4cb247e7dd4e5c26256f3d46"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "19838bafac7d88b204708ee2e053d7fb",
+        "ParentThumbItemId": "224681",
+        "ParentThumbImageTag": "4b717cb7839bc621fa16b069b0cd4254",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "末世行者",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224531",
+        "RunTimeTicks": 71360000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 73.16423766816143,
+          "PlaybackPositionTicks": 52210000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "068e8ed21c84aa6215328c062e6ccafc",
+          "Logo": "9fce8c5218313624c281e04df75b3c1d"
+        },
+        "BackdropImageTags": [
+          "dea1fb4e6399fbde1abfb2e957e54085"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "苹果",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82351",
+        "RunTimeTicks": 68710000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 16.95531945859409,
+          "PlaybackPositionTicks": 11650000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "f372a1f56ee0c14401fbbab8323f1786",
+          "Primary": "51d4a2c96a4ac5133b000b3c5802237e"
+        },
+        "BackdropImageTags": [
+          "b914e55d0223e0dee0a4c3c041b61b6e"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "性爱故事：五十度灰",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81707",
+        "RunTimeTicks": 77090000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 10.143987547022961,
+          "PlaybackPositionTicks": 7820000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "575987fb9a6cd9344f8b5fd6efbec681",
+          "Logo": "3819b88e5ffb9d75a9981805d0299f16"
+        },
+        "BackdropImageTags": [
+          "8e8bb936e328b20b260eb813ec5bfe23"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "芝加哥",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224365",
+        "IndexNumber": 5,
+        "ParentIndexNumber": 4,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "224144",
+        "ParentBackdropItemId": "224144",
+        "ParentBackdropImageTags": [
+          "de9103ae85adf6a014eefcb729664578"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "使女的故事",
+        "SeriesId": "224144",
+        "SeasonId": "224360",
+        "SeriesPrimaryImageTag": "0aafd74c2e9fcd79df76d8fc03d25ff5",
+        "SeasonName": "第 4 季",
+        "ImageTags": {
+          "Primary": "881dd15a54a7934b4f2806d1d4df8d72"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "a57a6ecac4ed60a2f8653abeb82f01e5",
+        "ParentThumbItemId": "224144",
+        "ParentThumbImageTag": "63e2e82719b0021376feeda9cadf9ee8",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "失而复得",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "222646",
+        "RunTimeTicks": 29970000000,
+        "IndexNumber": 4,
+        "ParentIndexNumber": 6,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77353",
+        "ParentBackdropItemId": "77353",
+        "ParentBackdropImageTags": [
+          "678e67f9d6aa415c23f0e57c7aa01462"
+        ],
+        "UserData": {
+          "PlayedPercentage": 52.98785035035035,
+          "PlaybackPositionTicks": 15880458750,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "流人",
+        "SeriesId": "77353",
+        "SeasonId": "222044",
+        "SeriesPrimaryImageTag": "a85291c809ad0b64e871223754eeba19",
+        "SeasonName": "第 6 季",
+        "ImageTags": {
+          "Primary": "5bf2b268ecd30b6185a5653b17533392"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "43ad662aa1132ab537211d818e6fc368",
+        "ParentThumbItemId": "77353",
+        "ParentThumbImageTag": "14cb282bc967ef8fcd281ed3ca1aa721",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "电击唤魔",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "78444",
+        "RunTimeTicks": 40832479690,
+        "IndexNumber": 5,
+        "ParentIndexNumber": 5,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "77387",
+        "ParentBackdropItemId": "77387",
+        "ParentBackdropImageTags": [
+          "2d02a706338c500cd89444dba094eefc"
+        ],
+        "UserData": {
+          "PlayedPercentage": 58.417025321735984,
+          "PlaybackPositionTicks": 23853120000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "怪奇物语",
+        "SeriesId": "77387",
+        "SeasonId": "78411",
+        "SeriesPrimaryImageTag": "755558c1dc6def9e6218e9052f0d11fc",
+        "SeasonName": "第五季",
+        "ImageTags": {
+          "Primary": "8c0bacddf198422f72d043481a0c54af"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "e37c13ea5e14e5a65d0a5a3b2441e942",
+        "ParentThumbItemId": "77387",
+        "ParentThumbImageTag": "8e6d26dcd70e854550f062bebcc25615",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "分手",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "197324",
+        "IndexNumber": 4,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "197319",
+        "ParentBackdropItemId": "197319",
+        "ParentBackdropImageTags": [
+          "f4776f34935d692190898944a06fb832"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "校园之外",
+        "SeriesId": "197319",
+        "SeasonId": "197320",
+        "SeriesPrimaryImageTag": "4f8a1f3b28569523c872fbace4339772",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "f6cdccd4258815847eb4fdcb83957d30"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "cc80ba82c542abc316c90c773c1b8135",
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 86
+  },
+  "movie": {
+    "Name": "奥德赛",
+    "OriginalTitle": "The Odyssey",
+    "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+    "Id": "225365",
+    "Etag": "7eee348c59e5467a04fbc9e80191d9e2",
+    "DateCreated": "2026-11-09T10:23:09.0000000Z",
+    "DateModified": "2026-11-09T10:23:09.0000000Z",
+    "CanDelete": true,
+    "CanDownload": true,
+    "PresentationUniqueKey": "p-tmdb-Movie-1368337-b65c8692f9714dd48bdbe2f66af8060b",
+    "SupportsSync": true,
+    "SortName": "奥德赛",
+    "ForcedSortName": "奥德赛",
+    "PremiereDate": "2026-07-14T16:00:00.0000000Z",
+    "ExternalUrls": [
+      {
+        "Name": "IMDb",
+        "Url": "https://www.imdb.com/title/tt33764258"
+      },
+      {
+        "Name": "TheMovieDb",
+        "Url": "https://www.themoviedb.org/movie/1368337"
+      },
+      {
+        "Name": "Trakt",
+        "Url": "https://trakt.tv/search/tmdb/1368337?id_type=movie"
+      }
+    ],
+    "MediaSources": [
+      {
+        "Id": "mediasource_225366",
+        "Name": "2160p",
+        "Container": "hls",
+        "Protocol": "Http",
+        "Width": null,
+        "Height": null,
+        "RunTimeTicks": 103557204160,
+        "Bitrate": 192,
+        "MediaStreams": [
+          {
+            "Type": "Video",
+            "Index": 0,
+            "Codec": "hevc",
+            "DisplayTitle": "4K HDR 10 HEVC",
+            "Width": 3840,
+            "Height": 2160,
+            "IsDefault": false,
+            "IsExternal": false,
+            "BitRate": 192
+          },
+          {
+            "Type": "Audio",
+            "Index": 1,
+            "Codec": "aac",
+            "Channels": 6,
+            "ChannelLayout": "5.1",
+            "DisplayTitle": "AAC 5.1",
+            "IsDefault": false,
+            "IsExternal": false,
+            "BitRate": 320000
+          },
+          {
+            "Type": "Subtitle",
+            "Index": 2,
+            "Codec": "srt",
+            "DisplayTitle": "Chinese Simplified (SRT)",
+            "Language": "zh-CN",
+            "IsDefault": false,
+            "IsExternal": true
+          }
+        ]
+      },
+      {
+        "Id": "mediasource_225365",
+        "Name": "1080p",
+        "Container": "strm",
+        "Protocol": "Http",
+        "Width": null,
+        "Height": null,
+        "RunTimeTicks": 103550000000,
+        "Bitrate": null,
+        "MediaStreams": [
+          {
+            "Type": "Subtitle",
+            "Index": 0,
+            "Codec": "srt",
+            "DisplayTitle": "Chinese Simplified (SRT)",
+            "Language": "zh-CN",
+            "IsDefault": false,
+            "IsExternal": true
+          }
+        ]
+      },
+      {
+        "Id": "mediasource_225431",
+        "Name": "奥德赛",
+        "Container": "strm",
+        "Protocol": "Http",
+        "Width": null,
+        "Height": null,
+        "RunTimeTicks": null,
+        "Bitrate": null,
+        "MediaStreams": [
+          {
+            "Type": "Subtitle",
+            "Index": 0,
+            "Codec": "srt",
+            "DisplayTitle": "Chinese Simplified (SRT)",
+            "Language": "zh-CN",
+            "IsDefault": false,
+            "IsExternal": true
+          }
+        ]
+      }
+    ],
+    "ProductionLocations": [
+      "United Kingdom",
+      "United States of America"
+    ],
+    "OfficialRating": "R",
+    "Overview": "特洛伊战争结束后，奥德修斯在返回伊萨卡的途中历经艰险，沿途遇到了独眼巨人波吕斐摩斯、塞壬女妖和喀耳刻等神奇生物。",
+    "Taglines": [
+      "违抗神明，逆天而行。"
+    ],
+    "Genres": [
+      "冒险",
+      "动作",
+      "奇幻"
+    ],
+    "CommunityRating": 8.01,
+    "RunTimeTicks": 103550000000,
+    "Size": 0,
+    "FileName": "奥德赛 (2026) - 1080p.strm",
+    "ProductionYear": 2026,
+    "RemoteTrailers": [
+      {
+        "Url": "https://www.youtube.com/watch?v=Mzw2ttJD2qQ"
+      },
+      {
+        "Url": "https://www.youtube.com/watch?v=f_bKjZeJBBI"
+      },
+      {
+        "Url": "https://www.youtube.com/watch?v=AyIZ9tiiN8I"
+      }
+    ],
+    "ProviderIds": {
+      "Tmdb": "1368337",
+      "Imdb": "tt33764258"
+    },
+    "IsFolder": false,
+    "ParentId": "225339",
+    "Type": "Movie",
+    "People": [
+      {
+        "Name": "马特·达蒙",
+        "Id": "8298",
+        "Role": "Odysseus",
+        "Type": "Actor",
+        "PrimaryImageTag": "ab24019ab38f3a211b954be2d33dbee6"
+      },
+      {
+        "Name": "汤姆·赫兰德",
+        "Id": "17086",
+        "Role": "Telemachus",
+        "Type": "Actor",
+        "PrimaryImageTag": "19e53b26a794c048595c89260827dd0f"
+      },
+      {
+        "Name": "安妮·海瑟薇",
+        "Id": "9199",
+        "Role": "Penelope",
+        "Type": "Actor",
+        "PrimaryImageTag": "93f75e754d5dcb41d955505f14e1166e"
+      },
+      {
+        "Name": "罗伯特·帕丁森",
+        "Id": "9731",
+        "Role": "Antinous",
+        "Type": "Actor",
+        "PrimaryImageTag": "16b9eff4e95fb18242f7f730666605dc"
+      },
+      {
+        "Name": "希米什·帕特尔",
+        "Id": "12232",
+        "Role": "Eurylochus",
+        "Type": "Actor",
+        "PrimaryImageTag": "687309bd96b3ca60e830411ff2903f8c"
+      },
+      {
+        "Name": "查理兹·塞隆",
+        "Id": "3912",
+        "Role": "Calypso",
+        "Type": "Actor",
+        "PrimaryImageTag": "950f6fa15a349588bc6aed5ff7c8a7ab"
+      },
+      {
+        "Name": "约翰·雷吉扎莫",
+        "Id": "12704",
+        "Role": "Eumaeus",
+        "Type": "Actor",
+        "PrimaryImageTag": "81faf37386c4e1dd3a803db0664b9803"
+      },
+      {
+        "Name": "Travis Scott",
+        "Id": "225341",
+        "Role": "Bard",
+        "Type": "Actor",
+        "PrimaryImageTag": "67a91aa2aae4641feddf71441353ee32"
+      },
+      {
+        "Name": "科里·霍金斯",
+        "Id": "10303",
+        "Role": "Polybus",
+        "Type": "Actor",
+        "PrimaryImageTag": "9c5f003eec032622caf70691276e7aa8"
+      },
+      {
+        "Name": "Jarreth J. Merz",
+        "Id": "41925",
+        "Role": "Leodes",
+        "Type": "Actor",
+        "PrimaryImageTag": "61cfbb1f87087d40c9c38579a9c008e1"
+      },
+      {
+        "Name": "Niko Nicotera",
+        "Id": "51735",
+        "Role": "Peisander",
+        "Type": "Actor",
+        "PrimaryImageTag": "e8c2115cc4519d275ed7b868c377b706"
+      },
+      {
+        "Name": "艾利奥特·佩吉",
+        "Id": "1722",
+        "Role": "Sinon",
+        "Type": "Actor",
+        "PrimaryImageTag": "564c16e5053545d564b3a3285898a89d"
+      },
+      {
+        "Name": "希洛·费尔南德斯",
+        "Id": "225342",
+        "Role": "First Trojan",
+        "Type": "Actor",
+        "PrimaryImageTag": "5b2ad4a1c8145985d54fdeea4c728b20"
+      },
+      {
+        "Name": "拉菲·加夫隆",
+        "Id": "31472",
+        "Role": "Second Trojan",
+        "Type": "Actor",
+        "PrimaryImageTag": "4236c7f5f9661f06a32b1241d4386111"
+      },
+      {
+        "Name": "伊莱耶斯·加贝尔",
+        "Id": "28201",
+        "Role": "Elatus",
+        "Type": "Actor",
+        "PrimaryImageTag": "5be5131a00b9c2c76e65df8e07f18a22"
+      },
+      {
+        "Name": "伊多·戈德堡",
+        "Id": "85185",
+        "Role": "Amphimedon",
+        "Type": "Actor",
+        "PrimaryImageTag": "850e476f053f29f2a55de750fca85cfc"
+      },
+      {
+        "Name": "Jamie Harris",
+        "Id": "4578",
+        "Role": "Agelus",
+        "Type": "Actor",
+        "PrimaryImageTag": "12d882d0ff0b02308aa8baa657ca6b43"
+      },
+      {
+        "Name": "约翰·艾尔斯",
+        "Id": "45330",
+        "Role": "Beggar in Ithaca",
+        "Type": "Actor",
+        "PrimaryImageTag": "e16028d13ed7df11bc75ed8c4b804c05"
+      },
+      {
+        "Name": "Raimy Lang",
+        "Id": "225343",
+        "Role": "Teenage Antinous",
+        "Type": "Actor",
+        "PrimaryImageTag": "e5ced64036987b68051640dc7e360a6c"
+      },
+      {
+        "Name": "Mason Cufari",
+        "Id": "70757",
+        "Role": "Teenage Sinon",
+        "Type": "Actor",
+        "PrimaryImageTag": "8fb1a1d209906659ac183d827e3f748b"
+      },
+      {
+        "Name": "米娅·高斯",
+        "Id": "18864",
+        "Role": "Melantho",
+        "Type": "Actor",
+        "PrimaryImageTag": "3d7dd478c611c2319663a8de1572d0af"
+      },
+      {
+        "Name": "瑞恩·赫斯特",
+        "Id": "43287",
+        "Role": "Mentor",
+        "Type": "Actor",
+        "PrimaryImageTag": "a483fd958090dd12dc54feea6ce1e4d6"
+      },
+      {
+        "Name": "Kate Fuglei",
+        "Id": "225344",
+        "Role": "Eurycleia",
+        "Type": "Actor",
+        "PrimaryImageTag": "204f64569c36d51bb0bc0431db06f379"
+      },
+      {
+        "Name": "本杰明·萨夫迪",
+        "Id": "1697",
+        "Role": "Agamemnon",
+        "Type": "Actor",
+        "PrimaryImageTag": "69bcc7702dc35e3b1c6580a1e166b198"
+      },
+      {
+        "Name": "Adam Croasdell",
+        "Id": "225345",
+        "Role": "Antinous' Father",
+        "Type": "Actor",
+        "PrimaryImageTag": "5f1f1fb4b15e01245cd3e873241f90b3"
+      },
+      {
+        "Name": "Mickey Shilowich",
+        "Id": "225346",
+        "Role": "Infant Telemachus",
+        "Type": "Actor"
+      },
+      {
+        "Name": "Katerina Antemel",
+        "Id": "225347",
+        "Role": "Iphigenia",
+        "Type": "Actor"
+      },
+      {
+        "Name": "约翰·艾德坡",
+        "Id": "17297",
+        "Role": "Elpenor",
+        "Type": "Actor",
+        "PrimaryImageTag": "405aa7f78a55829ea89a495412cc523a"
+      },
+      {
+        "Name": "安德鲁·霍华德",
+        "Id": "12238",
+        "Role": "Polites",
+        "Type": "Actor",
+        "PrimaryImageTag": "5fab085c3eb2722676874b8a55adf018"
+      },
+      {
+        "Name": "乔什·斯图沃特",
+        "Id": "380",
+        "Role": "Antiphates",
+        "Type": "Actor",
+        "PrimaryImageTag": "dc731cdf3ecd6683e6984f7431d72616"
+      },
+      {
+        "Name": "罗根·马歇尔-格林",
+        "Id": "108730",
+        "Role": "Melanthius",
+        "Type": "Actor",
+        "PrimaryImageTag": "ca3fce38e5f25fb67c437f2db21e9658"
+      },
+      {
+        "Name": "尼克·塔拉贝",
+        "Id": "24047",
+        "Role": "Pilot",
+        "Type": "Actor",
+        "PrimaryImageTag": "41d9cb3b2171a1258627489de48b4bb4"
+      },
+      {
+        "Name": "赞达亚·科尔曼",
+        "Id": "11467",
+        "Role": "Athena",
+        "Type": "Actor",
+        "PrimaryImageTag": "78ded3d9078f381356c870daa1627782"
+      },
+      {
+        "Name": "乔·博恩瑟",
+        "Id": "11734",
+        "Role": "Menelaus",
+        "Type": "Actor",
+        "PrimaryImageTag": "d0ef53bcb1cd4a08f654d0caed7e902b"
+      },
+      {
+        "Name": "吉米·冈萨雷斯",
+        "Id": "9633",
+        "Role": "Cepheus",
+        "Type": "Actor",
+        "PrimaryImageTag": "28f6cd589e76a78b0069d032d7a73616"
+      },
+      {
+        "Name": "杰西·加西亚",
+        "Id": "51722",
+        "Role": "Menetus",
+        "Type": "Actor",
+        "PrimaryImageTag": "e62ab2595070504d24a55e7067e7db44"
+      },
+      {
+        "Name": "Ryan de Quintal",
+        "Id": "27503",
+        "Role": "Ilus",
+        "Type": "Actor",
+        "PrimaryImageTag": "8ee446fde10e2f8a56487cfccf4403b2"
+      },
+      {
+        "Name": "李威尹",
+        "Id": "225348",
+        "Role": "Anchialus",
+        "Type": "Actor",
+        "PrimaryImageTag": "ecd2a6ae65b8322d649bf3590547987a"
+      },
+      {
+        "Name": "安东尼·莫利纳里",
+        "Id": "8262",
+        "Role": "Perimedes",
+        "Type": "Actor",
+        "PrimaryImageTag": "0968bd3a8c2e54e4488a8b261943c46d"
+      },
+      {
+        "Name": "Stephen Murphy",
+        "Id": "93875",
+        "Role": "Phemius",
+        "Type": "Actor",
+        "PrimaryImageTag": "41a4743ca8c65d265ee6ddfb671c427e"
+      },
+      {
+        "Name": "Matt Lasky",
+        "Id": "109383",
+        "Role": "Peisenor",
+        "Type": "Actor",
+        "PrimaryImageTag": "1f96a628c36c9c0709fc864109c243ef"
+      },
+      {
+        "Name": "Ian Casselberry",
+        "Id": "12049",
+        "Role": "Dolios",
+        "Type": "Actor",
+        "PrimaryImageTag": "74a75757b2a477f377b08f4415b1d074"
+      },
+      {
+        "Name": "Sean Avery",
+        "Id": "12255",
+        "Role": "Laodamas",
+        "Type": "Actor",
+        "PrimaryImageTag": "1dcf99d3322436f19c0c34546f2b8705"
+      },
+      {
+        "Name": "Γιάννης Κοκιασμένος",
+        "Id": "225349",
+        "Role": "Old Man at Coastal Village",
+        "Type": "Actor",
+        "PrimaryImageTag": "53768eb90e37cb9549328b2d1eb0f803"
+      },
+      {
+        "Name": "威廉·欧文",
+        "Id": "51721",
+        "Role": "Cyclops",
+        "Type": "Actor",
+        "PrimaryImageTag": "a4ca54b647e1b3953cfeee64499838e4"
+      },
+      {
+        "Name": "莫里斯·孔特",
+        "Id": "3386",
+        "Role": "Steward of Menelaus",
+        "Type": "Actor",
+        "PrimaryImageTag": "963919e282bd13bb5e8cb915e463e07e"
+      },
+      {
+        "Name": "露皮塔·尼永奥",
+        "Id": "46181",
+        "Role": "Helen / Clytemnestra",
+        "Type": "Actor",
+        "PrimaryImageTag": "9796a0a92d08baf97192dfb455ac7480"
+      },
+      {
+        "Name": "Xavier Brown",
+        "Id": "225350",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "784996f2f6271827550b7f5c26a89f03"
+      },
+      {
+        "Name": "Jessie Cohen",
+        "Id": "225351",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "7cf05b8fbd3eca244d9f478816e377f3"
+      },
+      {
+        "Name": "Chess Lopez",
+        "Id": "76922",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "5713d3fa0db30ea3c26cfa31fb7d0748"
+      },
+      {
+        "Name": "Craig Gellis",
+        "Id": "225352",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "265152558c56c1bb250ef8c82dd2a479"
+      },
+      {
+        "Name": "Artoun Nazareth",
+        "Id": "225353",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "aa507e7b2ff64af2ac89bcfba7008e0a"
+      },
+      {
+        "Name": "Chris Riggi",
+        "Id": "26873",
+        "Role": "Trojan Civilian",
+        "Type": "Actor",
+        "PrimaryImageTag": "c01d2b9dded29dafd4dcfb5982b050e4"
+      },
+      {
+        "Name": "Tyler Beardsley",
+        "Id": "26689",
+        "Role": "Third Trojan",
+        "Type": "Actor",
+        "PrimaryImageTag": "3b2e9f20617a3f9046ab9cfe5089bcfe"
+      },
+      {
+        "Name": "Daniel Dorr",
+        "Id": "225354",
+        "Role": "Fourth Trojan",
+        "Type": "Actor",
+        "PrimaryImageTag": "fc20328f9ec8467e7e2b1802c44a2d83"
+      },
+      {
+        "Name": "Barnaby Nolan",
+        "Id": "225355",
+        "Role": "Laestrygonian Child",
+        "Type": "Actor"
+      },
+      {
+        "Name": "John King",
+        "Id": "38201",
+        "Role": "Laestrygonian Child",
+        "Type": "Actor",
+        "PrimaryImageTag": "5b8c24799aa16c006e5a0c0ce42cf154"
+      },
+      {
+        "Name": "萨曼莎·莫顿",
+        "Id": "6984",
+        "Role": "Circe",
+        "Type": "Actor",
+        "PrimaryImageTag": "2d1fa598f33b02235b4fba2601e8fcd3"
+      },
+      {
+        "Name": "詹姆斯·瑞马尔",
+        "Id": "2919",
+        "Role": "Tiresias",
+        "Type": "Actor",
+        "PrimaryImageTag": "8f8434edcbec38a592ad03eb30427499"
+      },
+      {
+        "Name": "布莱恩·维内尔",
+        "Id": "47233",
+        "Role": "Irus",
+        "Type": "Actor",
+        "PrimaryImageTag": "a7b1451218ad76a606f6d94bd0335d87"
+      },
+      {
+        "Name": "Michael Vlamis",
+        "Id": "225356",
+        "Role": "Bandit / Priest in Pylos",
+        "Type": "Actor",
+        "PrimaryImageTag": "97c3b54169b1d078ca6cede7b129084c"
+      },
+      {
+        "Name": "Kamden Riley",
+        "Id": "225357",
+        "Role": "Young Farmhand",
+        "Type": "Actor",
+        "PrimaryImageTag": "a83aabe0726dd54a81ae04747c12351a"
+      },
+      {
+        "Name": "Andrei Lenart",
+        "Id": "225358",
+        "Role": "Rower (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "5948811e9af1932946ac7ccb987780f5"
+      },
+      {
+        "Name": "Jorge Leon",
+        "Id": "109622",
+        "Role": "Odysseus Crew (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "5ce6888010460204cd374c4eec614f31"
+      },
+      {
+        "Name": "J·P·曼诺克斯",
+        "Id": "5911",
+        "Role": "Beggar (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "fdfe89e7dfd2c5315a31dac3273e3eda"
+      },
+      {
+        "Name": "Douglas Rouillard",
+        "Id": "225359",
+        "Role": "Suitor (uncredited)",
+        "Type": "Actor"
+      },
+      {
+        "Name": "Evan Shafran",
+        "Id": "12056",
+        "Role": "Suitor (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "33ff71f0a8ac9a605db635bfcb639818"
+      },
+      {
+        "Name": "Marco Tazioli",
+        "Id": "225360",
+        "Role": "Suitor (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "a363d9c7aed5867677bcad972d8335a5"
+      },
+      {
+        "Name": "Guðmundur Karl Sigurdórsson",
+        "Id": "33259",
+        "Role": "Shade (uncredited)",
+        "Type": "Actor",
+        "PrimaryImageTag": "ae6106758b2674707fd16d3264c72c5e"
+      },
+      {
+        "Name": "克里斯托弗·诺兰",
+        "Id": "12278",
+        "Role": "Director",
+        "Type": "Director",
+        "PrimaryImageTag": "f7b6da4a204f1e0c3c6ffc4eb9b8f4b7"
+      },
+      {
+        "Name": "克里斯托弗·诺兰",
+        "Id": "12278",
+        "Role": "Writer",
+        "Type": "Writer",
+        "PrimaryImageTag": "f7b6da4a204f1e0c3c6ffc4eb9b8f4b7"
+      },
+      {
+        "Name": "克里斯托弗·诺兰",
+        "Id": "12278",
+        "Role": "Producer",
+        "Type": "Producer",
+        "PrimaryImageTag": "f7b6da4a204f1e0c3c6ffc4eb9b8f4b7"
+      },
+      {
+        "Name": "艾玛·托马斯",
+        "Id": "12279",
+        "Role": "Producer",
+        "Type": "Producer",
+        "PrimaryImageTag": "cdb29b6af09aa2d91617c9e77d86972c"
+      }
+    ],
+    "Studios": [
+      {
+        "Name": "Universal Pictures",
+        "Id": 7011
+      },
+      {
+        "Name": "Syncopy",
+        "Id": 12280
+      }
+    ],
+    "GenreItems": [
+      {
+        "Name": "冒险",
+        "Id": 468
+      },
+      {
+        "Name": "动作",
+        "Id": 356
+      },
+      {
+        "Name": "奇幻",
+        "Id": 2331
+      }
+    ],
+    "TagItems": [],
+    "LocalTrailerCount": 0,
+    "UserData": {
+      "PlayedPercentage": 5.782926122646065,
+      "PlaybackPositionTicks": 5988220000,
+      "PlayCount": 8,
+      "IsFavorite": false,
+      "LastPlayedDate": "2026-11-11T06:27:36.0000000Z",
+      "Played": true
+    },
+    "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+    "PrimaryImageAspectRatio": 0.6666666666666666,
+    "MediaStreams": [
+      {
+        "Codec": "srt",
+        "Language": "zh-CN",
+        "DisplayTitle": "Chinese Simplified (SRT)",
+        "DisplayLanguage": "Chinese Simplified",
+        "IsInterlaced": false,
+        "IsDefault": false,
+        "IsForced": false,
+        "IsHearingImpaired": false,
+        "Type": "Subtitle",
+        "Index": 0,
+        "IsExternal": true,
+        "IsTextSubtitleStream": true,
+        "SupportsExternalStream": true,
+        "Protocol": "File",
+        "ExtendedVideoType": "None",
+        "ExtendedVideoSubType": "None",
+        "ExtendedVideoSubTypeDescription": "None",
+        "AttachmentSize": 0
+      }
+    ],
+    "PartCount": 1,
+    "ImageTags": {
+      "Primary": "ee57d3370325475907aa4e7eed9d96f7",
+      "Logo": "f4fa4c904984cf891254deb040d4a49e",
+      "Thumb": "a5b2a57cbb84818388ba1190ce4051af"
+    },
+    "BackdropImageTags": [
+      "bf00cb6646c63d29e058916526d70cf5"
+    ],
+    "Chapters": [],
+    "MediaType": "Video",
+    "LockedFields": [],
+    "LockData": false
+  },
+  "movie_similar": {
+    "Items": [
+      {
+        "Name": "木乃伊2：木乃伊归来",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "113818",
+        "OfficialRating": "PG-13",
+        "Overview": "　　续集的故事背景安排在9年后，冒险家里克和他的图书馆情人艾弗琳已是一对恩爱夫妻，还有了个活泼可爱，同样富有冒险精神的儿子艾里克斯。全家赴埃及度假，无意中里克发现了一只古手镯，不料却因为这只手镯而遭到一伙盗墓人的追杀。大家千辛万苦回到伦敦，手镯竟在艾里克斯手腕上生了根，再也无法取下。原来这只手镯是召唤大魔头蝎子王的法器。这时一伙盗挖死亡之城的狂人已通过死亡之书将木乃伊与他的情人复活，只要再将蝎子王收编麾下，就可以达到他们统治世界的险恶目的。不过他们必须先把手镯弄到手，把大魔头蝎子王召唤回来才行，一场神鬼恶斗由此在伦敦上演……",
+        "CommunityRating": 6.417,
+        "ProductionYear": 2001,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "860b48b04863cdc978b9ceab69e2a7d0",
+          "Logo": "2287ab25c8918da43c215853dc523e9d",
+          "Thumb": "a90dd7711bc1241142bdd6b67d9c0464"
+        },
+        "BackdropImageTags": [
+          "ea0cdeaeae57933be0cb3c4b45b3569a"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "木乃伊3：龙帝之墓",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "113819",
+        "OfficialRating": "PG-13",
+        "Overview": "　　一名公元前50年的中国帝王，由于太过残暴受到女巫的诅咒，他和他的军队全部变成了兵马俑被封在地下宫殿中，等待着被人重新唤醒。1946年，里克·奥康纳和伊芙琳俩人已经隐退到英国牛津郡居住，他们在二战期间曾为英国政府担任间谍。平静的生活有些乏味，于是他们很高兴地接受了一个外国办事处提供的“最后的任务”——负责把一件从中国上海博物馆偷走的珍贵文物物归原主。与此同时，当年被诅咒的那个中国帝王被唤醒，一场惊心动魄的大战随即开始。",
+        "CommunityRating": 5.521,
+        "ProductionYear": 2008,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "74794e4c86e7ff9670be690a34f25db9",
+          "Logo": "517f0869ecd44e0674e44bb607d38976",
+          "Thumb": "321e709c87341e1e3a351de9e3f0c8b2"
+        },
+        "BackdropImageTags": [
+          "89fefcd170bb923c00d224d5c0c79b65"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "浪客剑心：传说的完结篇",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "108989",
+        "OfficialRating": "R",
+        "Overview": "为了救神谷薰（武井咲 饰），绯村剑心（佐藤健 饰）纵身跃入大海，昏迷中他飘到某座小岛，最终为传授了他飞天御剑流的师父比古清十郎（福山雅治 饰）所救。深感到自身与志志雄真实（藤原龙也 饰）的巨大差距，为了拯救全日本，剑心恳请师傅传授他飞天御剑流的最高奥义。与此同时，志志雄剑指东京，迈出武力夺国的下一步。他强迫伊藤博文（小泽征悦 饰）对刽子手拔刀斋发布全国通缉令，得知消息的薰、左之助（青木崇高 饰）则匆匆向东京赶去。再度上路的剑心率先遭到御庭番众的首领四乃森苍紫（伊势谷友介 饰）的阻击，他一路披荆斩棘，将迎来与宿命的对手志志雄最终的对决……",
+        "CommunityRating": 7.692,
+        "ProductionYear": 2014,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "5bbc9a4e9ef092d572978391c4f3a73d",
+          "Logo": "fe4a2b3f820061736b8478ae9834ef2b",
+          "Thumb": "e9a169085bc0f3f974dcf5cc2d37e645"
+        },
+        "BackdropImageTags": [
+          "666996fe897edc926161b98f8e407490"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "扎克·施奈德版正义联盟",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82413",
+        "OfficialRating": "R",
+        "Overview": "为了确保超人没有白白牺牲，蝙蝠侠和神奇女侠计划招募一支超人类团队来保护世界。这项任务比布鲁斯的设想要困难得多，因为每个新人都必须面对并跨越自己过去的心魔，团结起来，最终形成前所未有的联盟，否则就无法阻止从荒原狼、狄萨德和达克赛德毁灭地球。",
+        "CommunityRating": 8.069,
+        "RunTimeTicks": 145230000000,
+        "ProductionYear": 2021,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "a4d0f1ba9b2b7947d4d8f8e2ebb01d78",
+          "Thumb": "e91e9b169f235af93f970c654276a65f",
+          "Primary": "45b6d8058dc3b59fbd359ceb7181d45d"
+        },
+        "BackdropImageTags": [
+          "5669e9a317762040335832d5185fc82d"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "绿区",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82605",
+        "OfficialRating": "R",
+        "Overview": "　　2003年，伊拉克战争爆发。萨达姆政府受到重创，大规模杀伤性武器（WMD）成为美国出兵伊拉克的有力借口。罗伊·米勒所率领的小分队奉命在伊拉克境内寻找WMD，然而无数次的搜寻皆无所获，这令米勒对线报的来源心生疑惑。某次行动中，他遇到当地的独腿男子法哈迪，从对方口中米勒得知一众伊拉克关键人物正在某地集会，行动中意外发现扑克牌通缉令上的艾尔·拉威也在其中，而艾尔·拉威似乎和美国政府有着错综复杂的关系。米勒不顾劝阻展开独立调查，发现所谓的WMD不过是包藏了无数丑恶真相的谎言而已……",
+        "CommunityRating": 6.485,
+        "RunTimeTicks": 68860000000,
+        "ProductionYear": 2010,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Thumb": "d2ea6ecbefc0cb25360086cd6773ad7c",
+          "Primary": "4092466e6d46cb100c3fa0aa9f829dbd",
+          "Logo": "b052ae18cc64996fc36bf631a50bfa31"
+        },
+        "BackdropImageTags": [
+          "41cb4198cda75bc2cf55bc39922ee1e5"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "角斗士",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81717",
+        "OfficialRating": "R",
+        "Overview": "马克西蒙斯是罗马帝国战功显赫，受人拥戴的大将军。老国王马库斯·奥利利乌斯对大将军赏识有加，有意加冕于他。老国王对将军这种超越亲情的宠爱自然招来太子康莫迪乌斯的妒忌与不安，太子伺机杀害父亲，抢先登上王位，并马上下令诛杀大将军一家。马克西蒙斯死里逃生躲过暴君的魔爪，可是他所有的家人都未能幸免于难，返回家园，他只看到满目疮痍的破败景象。走投无路的马克西蒙斯只能投身为奴，从昔日的大将军沦为一名角斗士，在血腥厮杀中苟且求生。凭借英勇的气魄和高超的武艺，马克西蒙斯渐渐脱颖而出，晋级到罗马的大角斗场。这一次，他的剑直指暴君康莫迪乌斯，失去亲人的痛苦，沦为奴隶的屈辱，在马克西蒙斯的内心燃起了熊熊怒火。",
+        "CommunityRating": 8.231,
+        "RunTimeTicks": 102580000000,
+        "ProductionYear": 2000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "1ab57eababf537d732b7ea003719a62e",
+          "Thumb": "28eceefa5980456dd04b913366105718",
+          "Primary": "188cbcdab0df4e1a87d6f563eedc87a6"
+        },
+        "BackdropImageTags": [
+          "90017c0c7fc880e5b1427615d4645b6f"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "北欧人",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81955",
+        "OfficialRating": "R",
+        "Overview": "来自富有远见的导演罗伯特·艾格斯，这部动作史诗讲述一位年轻的维京王子为父报仇踏上复仇之路的故事。",
+        "CommunityRating": 7.025,
+        "RunTimeTicks": 82370000000,
+        "ProductionYear": 2022,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "2bb94d5e5653c338fbedb9465977b02d",
+          "Thumb": "2f12c80a6f64ece66be495a058dd073c",
+          "Primary": "a39dd696b49451bcf8f1591afd8b552e"
+        },
+        "BackdropImageTags": [
+          "77f114f078239bbe5350a72fd234bb42"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "浪客剑心：京都大火篇",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "108991",
+        "OfficialRating": "PG-13",
+        "Overview": "进入了明治时代，曾经的“刽子手拔刀斋”绯村剑心已经习惯了神谷道场的安宁生活。谁知就在这一天，倒幕战争时的旧友——号称维新三杰之一的大久保利通将其请去。原来继承了剑心刽子手身份的志志雄真实当年被新政府背叛，侥幸活下来的志志雄正秘密筹措称霸日本的可怕计划。大久保死后，深感背负不可推卸责任的剑心只身上路，在途中不仅偶遇京都女忍卷町操，还在新月村和志志雄有了第一次的遭遇。与此同时，相乐左之助、神谷薫、明神弥彦、斋藤一也相继赶往京都。阴云密布的时代，酝酿着一场席卷全国的风暴。",
+        "CommunityRating": 7.56,
+        "ProductionYear": 2014,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "f6e987534f5b297465d08b224af076c8",
+          "Logo": "32226a8576cb7ac156cc62a022600192",
+          "Thumb": "e46807134e43dcf8592590470de8c9dc"
+        },
+        "BackdropImageTags": [
+          "ae507df115165d99e79a22b3dedc573f"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "怪物少女妮莫娜",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82481",
+        "OfficialRating": "PG",
+        "Overview": "为了证明自己的清白，一名被诬陷犯下重罪的骑士与擅长变形的好斗少女联手。但如果这名少女正是他曾立誓要消灭的怪物，他又该如何是好？",
+        "CommunityRating": 7.856,
+        "RunTimeTicks": 61650000000,
+        "ProductionYear": 2023,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Thumb": "c0f80895fa78d17c7e1424a1c5a6bc91",
+          "Primary": "0ae3c8f925248652cb537a306a125063",
+          "Logo": "dcd187acc4c5a34ebf0b88306705022d"
+        },
+        "BackdropImageTags": [
+          "9c586e9d8d280c79f456d9b953f75eda"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "侏罗纪公园3",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "113775",
+        "OfficialRating": "PG-13",
+        "Overview": "经历努布拉岛的灾难多年后，古生物学家艾伦·格兰特始终不愿再次接近任何生活着恐龙的岛屿。然而研究经费的困境让他接受了富商保罗·科比和阿曼达夫妇的高价邀请，陪同他们乘飞机从空中参观已经成为恐龙禁区的索纳岛。格兰特原以为这只是一趟不会降落的短暂旅程，却很快发现科比夫妇隐瞒了真正的目的：他们来到这里，是为了寻找在岛附近失踪的儿子。意外发生后，一行人被困在索纳岛深处，而格兰特也发现，这座岛上的危险远比自己曾经面对的更加陌生……",
+        "CommunityRating": 6.178,
+        "ProductionYear": 2001,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "643ca4f61419146629ef7baad331ddab",
+          "Logo": "e7d11f6edbe8e6e94e9c8bac818ef91f",
+          "Thumb": "8717ac13832eb1b11c9f4c96b0eb2b7f"
+        },
+        "BackdropImageTags": [
+          "57286f4ecc7198a901c21fa0b88f9a6b"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "侏罗纪世界2",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "113771",
+        "OfficialRating": "PG-13",
+        "Overview": "侏罗纪世界关闭三年后，失去人类管理的恐龙继续生活在努布拉岛上，但岛上的休眠火山开始重新活动，它们再次面临灭绝的危险。已经投身恐龙保护工作的克莱尔受到本杰明·洛克伍德方面邀请，希望协助将岛上的恐龙转移到新的安全栖息地。为了救回自己曾经训练的迅猛龙布鲁，欧文·格雷迪也同意重返这座让他们死里逃生的岛屿。随着火山喷发迫在眉睫，救援行动必须与时间赛跑，而当欧文和克莱尔真正深入其中后，也逐渐发现这场看似为了拯救恐龙而展开的行动并不像表面那么简单……",
+        "CommunityRating": 6.526,
+        "RunTimeTicks": 76970000000,
+        "ProductionYear": 2018,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "3efd2e0a2bd152b7b1536223bc17d470",
+          "Logo": "3c726a0e8bb98cbdaed33e17374e77bd",
+          "Thumb": "4ae9e8add3f9c26302451d12cf297fb2"
+        },
+        "BackdropImageTags": [
+          "6438b71f3591a38dc6a3d66cc8ea5d2f"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "盗梦空间",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "82289",
+        "OfficialRating": "PG-13",
+        "Overview": "道姆·柯布与同事阿瑟和纳什在一次针对日本能源大亨齐藤（渡边谦 饰）的盗梦行动中失败，反被齐藤利用。齐藤威逼利诱因遭通缉而流亡海外的柯布帮他拆分他竞争对手的公司，采取极端措施在其唯一继承人罗伯特·费希尔的深层潜意识中种下放弃家族公司、自立门户的想法。为了重返美国，柯布偷偷求助于岳父迈尔斯，吸收了年轻的梦境设计师艾里阿德妮、梦境演员艾姆斯和药剂师约瑟夫加入行动。在一层层递进的梦境中，柯布不仅要对付费希尔潜意识的本能反抗，还必须直面已逝妻子梅尔的处处破坏，实际情况远比预想危险得多……",
+        "CommunityRating": 8.373,
+        "RunTimeTicks": 88880000000,
+        "ProductionYear": 2010,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "eb43795c4e53428545474500f01b150c",
+          "Thumb": "78c184a026b7d968a4d383cbf08d918b",
+          "Primary": "5043dceeb3719f4cb0707b6e832ccb0a"
+        },
+        "BackdropImageTags": [
+          "7a0f6e7439b14b843bb65322fe35d36c"
+        ],
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 12
+  },
+  "series": {
+    "Name": "库比蒂诺",
+    "OriginalTitle": "Cupertino",
+    "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+    "Id": "225367",
+    "Etag": "ae6464f2d98439aa1e62ada34f0c0aa5",
+    "DateCreated": "2026-11-11T07:45:12.0000000Z",
+    "DateModified": "2026-11-11T07:45:12.0000000Z",
+    "CanDelete": true,
+    "CanDownload": false,
+    "PresentationUniqueKey": "463435-zh-CN-c09d55636b5a483ca4ae3557136c3565",
+    "SupportsSync": true,
+    "SortName": "库比蒂诺",
+    "ForcedSortName": "库比蒂诺",
+    "PremiereDate": "2026-10-08T00:00:00.0000000Z",
+    "ExternalUrls": [
+      {
+        "Name": "IMDb",
+        "Url": "https://www.imdb.com/title/tt33270224"
+      },
+      {
+        "Name": "TheMovieDb",
+        "Url": "https://www.themoviedb.org/tv/303630"
+      },
+      {
+        "Name": "TheTVDB",
+        "Url": "https://thetvdb.com/?tab=series&id=463435"
+      },
+      {
+        "Name": "Trakt",
+        "Url": "https://trakt.tv/search/tmdb/303630?id_type=show"
+      }
+    ],
+    "OfficialRating": "TV-14",
+    "Overview": "一名律师遭前雇主科技初创公司侵吞股票期权。他拒绝妥协，与另一名刚被解雇的律师联手创办律所，帮助遭科技巨头侵害的人们维权，向掌控硅谷的强大企业发起挑战。",
+    "Taglines": [],
+    "Genres": [
+      "剧情"
+    ],
+    "CommunityRating": 5.542,
+    "FileName": "库比蒂诺",
+    "ProductionYear": 2026,
+    "RemoteTrailers": [
+      {
+        "Url": "http://www.youtube.com/watch?v=GMQXI9SP7T0"
+      },
+      {
+        "Url": "http://www.youtube.com/watch?v=0jWymvJolAM"
+      }
+    ],
+    "ProviderIds": {
+      "Tmdb": "303630",
+      "Imdb": "tt33270224",
+      "Tvdb": "463435",
+      "Official Website": "https://www.cbs.com/shows/cupertino/"
+    },
+    "IsFolder": true,
+    "ParentId": "238",
+    "Type": "Series",
+    "People": [
+      {
+        "Name": "麦克·柯尔特",
+        "Id": "13417",
+        "Role": "Michael Price",
+        "Type": "Actor",
+        "PrimaryImageTag": "3096c617ae509b471701621459db7526"
+      },
+      {
+        "Name": "瑞秋·凯勒",
+        "Id": "19027",
+        "Role": "Olivia Siffre",
+        "Type": "Actor",
+        "PrimaryImageTag": "3c574c0ca913218ca63bd238fe65a716"
+      },
+      {
+        "Name": "Ella Stiller",
+        "Id": "225375",
+        "Role": "Christy Palladino",
+        "Type": "Actor",
+        "PrimaryImageTag": "a6906a37bb6c2776ebb51ebd4603f40b"
+      },
+      {
+        "Name": "尼克·多达尼",
+        "Id": "36203",
+        "Role": "Vikram Malhotra",
+        "Type": "Actor",
+        "PrimaryImageTag": "a2a82b6a0f6ecd6b12816662e0da7195"
+      },
+      {
+        "Name": "贝茜·菲利普斯",
+        "Id": "225376",
+        "Role": "Natalia Boutella",
+        "Type": "Actor",
+        "PrimaryImageTag": "f3841e3763f5aa1c6be156350e77f17b"
+      },
+      {
+        "Name": "芮妮·戈兹贝里",
+        "Id": "14639",
+        "Role": "Nichole E. Ferebee",
+        "Type": "Actor",
+        "PrimaryImageTag": "668c2738cbb82619609b487caf140bf4"
+      }
+    ],
+    "Studios": [
+      {
+        "Name": "CBS",
+        "Id": 225377
+      }
+    ],
+    "GenreItems": [
+      {
+        "Name": "剧情",
+        "Id": 169
+      }
+    ],
+    "TagItems": [],
+    "LocalTrailerCount": 0,
+    "UserData": {
+      "UnplayedItemCount": 6,
+      "PlaybackPositionTicks": 0,
+      "PlayCount": 0,
+      "IsFavorite": false,
+      "Played": false
+    },
+    "RecursiveItemCount": 6,
+    "ChildCount": 1,
+    "DisplayPreferencesId": "f63033ff6886ecc7083a696cbeced1b0",
+    "Status": "Continuing",
+    "AirDays": [],
+    "PrimaryImageAspectRatio": 0.68,
+    "DisplayOrder": "Aired",
+    "ImageTags": {
+      "Primary": "f8a737862f32453351c233b624e30346",
+      "Logo": "f103d962d50bfc59032a3140e6a3daf0"
+    },
+    "BackdropImageTags": [
+      "afda8cb020a48d14f78db022efdcc566"
+    ],
+    "LockedFields": [],
+    "LockData": false
+  },
+  "seasons": {
+    "Items": [
+      {
+        "Name": "第 1 季",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225368",
+        "IndexNumber": 1,
+        "IsFolder": true,
+        "Type": "Season",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "UnplayedItemCount": 6,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ChildCount": 6,
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "ImageTags": {
+          "Primary": "0142a2365c32f1e8ab629b6ee29864b1"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0"
+      }
+    ],
+    "TotalRecordCount": 1
+  },
+  "episodes": {
+    "Items": [
+      {
+        "Name": "迈克尔与奥利维娅",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225369",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225369",
+            "Name": "库比蒂诺 - S01E01",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": 25640000000,
+            "Bitrate": null,
+            "MediaStreams": [
+              {
+                "Type": "Subtitle",
+                "Index": 0,
+                "Codec": "srt",
+                "DisplayTitle": "Chinese Simplified (SRT)",
+                "Language": "zh-CN",
+                "IsDefault": false,
+                "IsExternal": true
+              }
+            ]
+          }
+        ],
+        "Overview": "迈克尔与奥利维娅联手创办律所，帮助遭科技精英侵害的人们维权，向硅谷巨头发起挑战。迈克尔的前助理克里斯蒂也利用家族人脉，协助律所起步。",
+        "RunTimeTicks": 25640000000,
+        "Size": 0,
+        "IndexNumber": 1,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "1ac2353589d12d281047991c14ebc331"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "维克与博",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225370",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225370",
+            "Name": "库比蒂诺 - S01E02",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": null,
+            "Bitrate": null,
+            "MediaStreams": [
+              {
+                "Type": "Subtitle",
+                "Index": 0,
+                "Codec": "srt",
+                "DisplayTitle": "Chinese Simplified (SRT)",
+                "Language": "zh-CN",
+                "IsDefault": false,
+                "IsExternal": true
+              }
+            ]
+          }
+        ],
+        "Overview": "迈克尔与奥利维娅为程序员维克·马尔霍特拉辩护。他因一场无人机表演发生意外、导致观众死亡而受到追责。与此同时，克里斯蒂考察潜在的举报人客户，奥利维娅则寻求科技亿万富翁前妻娜塔莉娅的资金支持。",
+        "Size": 0,
+        "IndexNumber": 2,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "5d188bcd77c0b56b757827e6bd0e3755"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "朱诺",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225371",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225371",
+            "Name": "库比蒂诺 - S01E03",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": null,
+            "Bitrate": null,
+            "MediaStreams": [
+              {
+                "Type": "Subtitle",
+                "Index": 0,
+                "Codec": "srt",
+                "DisplayTitle": "Chinese Simplified (SRT)",
+                "Language": "zh-CN",
+                "IsDefault": false,
+                "IsExternal": true
+              }
+            ]
+          }
+        ],
+        "Overview": "作为资助律所的条件，娜塔莉娅要求迈克尔与奥利维娅接手一宗案件。一位悲痛的母亲认为，陪伴型聊天机器人导致儿子弑父。为扰乱迈克尔的判断，聊天机器人公司的代理律师找来了他的前女友妮可。",
+        "Size": 0,
+        "IndexNumber": 3,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "3ba9ab44025d55dfe1280b8b13eacc44"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "第 4 集",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225372",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225372",
+            "Name": "库比蒂诺 - S01E04",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": null,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "Michael and Olivia defend the young founders of a prediction market site, one of whom has been arrested while the other flees on his private jet with Christy in tow after a night out together. Meanwhile, Natalia and Nichole spend quality time together at the firm.",
+        "Size": 0,
+        "IndexNumber": 4,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "ad5c2afa702eea90007505eb449db765"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "第 5 集",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225373",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225373",
+            "Name": "库比蒂诺 - S01E05",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": null,
+            "Bitrate": null,
+            "MediaStreams": [
+              {
+                "Type": "Subtitle",
+                "Index": 0,
+                "Codec": "srt",
+                "DisplayTitle": "Chinese Simplified (SRT)",
+                "Language": "zh-CN",
+                "IsDefault": false,
+                "IsExternal": true
+              }
+            ]
+          }
+        ],
+        "Overview": "Olivia recruits her friend Celeste to be the lead plaintiff in a class-action lawsuit against an AI training company accused of wage and overtime abuse. Meanwhile, Michael, Christy and Natalia track down someone with information on Bo.",
+        "Size": 0,
+        "IndexNumber": 5,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "fe78273dee255f17dde9405097ae0d4e"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      },
+      {
+        "Name": "第 6 集",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225374",
+        "MediaSources": [
+          {
+            "Id": "mediasource_225374",
+            "Name": "库比蒂诺 - S01E06",
+            "Container": "strm",
+            "Protocol": "Http",
+            "Width": null,
+            "Height": null,
+            "RunTimeTicks": null,
+            "Bitrate": null,
+            "MediaStreams": []
+          }
+        ],
+        "Overview": "When Christy’s roommate is denied a transplant due to an AI algorithm swapping the order of the list to put a wealthy man above her, Michael and Olivia race to get a judge on board to stop the surgery. Meanwhile, due to a traffic jam, everyone involved must fight this legal battle remotely from their cars.",
+        "Size": 0,
+        "IndexNumber": 6,
+        "ParentIndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Episode",
+        "ParentLogoItemId": "225367",
+        "ParentBackdropItemId": "225367",
+        "ParentBackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ],
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "SeriesName": "库比蒂诺",
+        "SeriesId": "225367",
+        "SeasonId": "225368",
+        "SeriesPrimaryImageTag": "f8a737862f32453351c233b624e30346",
+        "SeasonName": "第 1 季",
+        "ImageTags": {
+          "Primary": "ff769a083dd4ef0d401c78a1c96880fd"
+        },
+        "BackdropImageTags": [],
+        "ParentLogoImageTag": "f103d962d50bfc59032a3140e6a3daf0",
+        "MediaType": "Video"
+      }
+    ],
+    "TotalRecordCount": 6
+  },
+  "series_resume": {
+    "Items": [],
+    "TotalRecordCount": 0
+  },
+  "next_up": {
+    "Items": [],
+    "TotalRecordCount": 0
+  },
+  "series_similar": {
+    "Items": [
+      {
+        "Name": "洛基",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77447",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 12,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "09f79d55e2ea0ffeeb50fe5192c692a1",
+          "Primary": "7f55bd39a23e7fbefc973afa762839f1",
+          "Logo": "9c233aa40b5e03285e53616c47597636"
+        },
+        "BackdropImageTags": [
+          "f4c51ca8149da261c50e6c59b7f96caa"
+        ]
+      },
+      {
+        "Name": "神探夏洛克",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77453",
+        "RunTimeTicks": 54000000000,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 9,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "3348a4d4964ea6997dfa236e4e21f58b",
+          "Primary": "b8eef887e0caba8cad98501c01fe5a4e",
+          "Logo": "81402b5ec75633eb1528f2ab4e3769d8"
+        },
+        "BackdropImageTags": [
+          "21c323539bca227a73ce020b86a32ec1"
+        ]
+      },
+      {
+        "Name": "镀金时代",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77431",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 25,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "e24c52d661e1b4851b3ec399f1536df7",
+          "Primary": "16ce0ef4d5bfbc8dbaf6d817357dbc62",
+          "Logo": "9c5c8a75a05f28600e0791ae3b8748c0"
+        },
+        "BackdropImageTags": [
+          "eefc668ca6cceb8a2cec32f5e2a7875a"
+        ]
+      },
+      {
+        "Name": "指环王：力量之戒",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77415",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 16,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "4da5b893f393f355ddb799cd0942e34e",
+          "Primary": "1a4e72cf0989c50b2c1ba4098028ffc3",
+          "Logo": "148f4fded810b755bbd9f9966a5ebed6"
+        },
+        "BackdropImageTags": [
+          "8a8cce0faabdc276dc7eccb9a9d96d3f"
+        ]
+      },
+      {
+        "Name": "幸运汉克",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77342",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 8,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "ae64efa0d24703d14563dd2cca3cc17d",
+          "Thumb": "8a3efb3e510c771a6cefb83b7fbef2e2",
+          "Primary": "7a0ed8795a92e23becd2b9cd2b4739b1"
+        },
+        "BackdropImageTags": [
+          "1b5e82aede3fbcb48d6ff6240080f653"
+        ]
+      },
+      {
+        "Name": "根西岛文学与土豆皮馅饼俱乐部",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "81774",
+        "RunTimeTicks": 74080000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Logo": "1439a0236f3259172582f24bb2cd4bb3",
+          "Thumb": "a339dd13ea1e5251ac5dfe5197bce92a",
+          "Primary": "3d3264bde75aae037e63cbf15eac8378"
+        },
+        "BackdropImageTags": [
+          "9a79ee288b48c405e89e062879258795",
+          "e7d994c22dca5d42335ce44326ac8dc4"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "鹰眼",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77410",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 6,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "d4a9dab70aadfd2574c5fb008241d948",
+          "Thumb": "970a2caa62a5fe05894583d46e94c2d0",
+          "Primary": "3f259535c4f81c166e8d32f6902b03e7"
+        },
+        "BackdropImageTags": [
+          "cadda7a5ec61a942103b134d78bb68cf"
+        ]
+      },
+      {
+        "Name": "回魂计",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77424",
+        "RunTimeTicks": 36000000000,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 9,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "04313955f43291f41af0055dd249213d",
+          "Logo": "b04858776cbbf64136ad6292416ba2a4"
+        },
+        "BackdropImageTags": [
+          "cdf161ffc163d92a3a1dd587a43c2d68"
+        ]
+      },
+      {
+        "Name": "我的大叔",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "83981",
+        "RunTimeTicks": 54000000000,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 16,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "c6e9c7453213076edd2ec18dc36d21cc",
+          "Logo": "56693f50ada11533e1bd9c1d91455601"
+        },
+        "BackdropImageTags": [
+          "665f4f9c02edd559af76bf64d41feefc"
+        ]
+      },
+      {
+        "Name": "苦尽柑来遇见你",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77335",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 16,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "d6a44da8939a5c394e89a3b3c8f64507",
+          "Logo": "1a4af8b58eb1da19469bdb712c798fec"
+        },
+        "BackdropImageTags": [
+          "74c528cd778ebc21b9ef1257891d181a"
+        ]
+      },
+      {
+        "Name": "宛如阿修罗",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77350",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 7,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "6d9824ee4300ab2dab351a8b2adf544d",
+          "Primary": "f2065e55a409e5cd587aa3d6c8b9b64f"
+        },
+        "BackdropImageTags": [
+          "ee0ba8486a6505de3c32fea155fba83c"
+        ]
+      },
+      {
+        "Name": "噬亡村",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77437",
+        "RunTimeTicks": 30000000000,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 15,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "a4d26955af1b817137d5f125a51472c3",
+          "Primary": "cebbf535d61a2c61758f18aa8d7bf1c7"
+        },
+        "BackdropImageTags": [
+          "0ecf282ccf5a2e6c226d687f3325ffad"
+        ]
+      }
+    ],
+    "TotalRecordCount": 12
+  },
+  "latest_by_view": {
+    "3": [
+      {
+        "Name": "奥德赛",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225365",
+        "RunTimeTicks": 103550000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 5.782926122646065,
+          "PlaybackPositionTicks": 5988220000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "ee57d3370325475907aa4e7eed9d96f7",
+          "Logo": "f4fa4c904984cf891254deb040d4a49e",
+          "Thumb": "a5b2a57cbb84818388ba1190ce4051af"
+        },
+        "BackdropImageTags": [
+          "bf00cb6646c63d29e058916526d70cf5"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "可能的爱",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225284",
+        "RunTimeTicks": 99900000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "f2364993f90ce4c3d043dcfb476007fb",
+          "Logo": "d1728242a782ec5577e68f427f2fd5e0"
+        },
+        "BackdropImageTags": [
+          "af736c02179d3a61e9a63ec8d23a4e63"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "生化危机：爆发夜",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224951",
+        "RunTimeTicks": 56290000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 60.5080831408776,
+          "PlaybackPositionTicks": 34060000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "ImageTags": {
+          "Primary": "a8a415ec3fda2d45035a1cd7bf73e71a",
+          "Logo": "b384119eca8fe8fc312e40dfea64db3c",
+          "Thumb": "1bb39dbab3485c7d5d68f8600adb7437"
+        },
+        "BackdropImageTags": [
+          "22342fca64f4dface589359b03b82b73"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "空枪",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224851",
+        "RunTimeTicks": 96250833290,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "c96f0b19304f81e4f407e8cd689901d0",
+          "Logo": "a5a85a791bcbec044bec0bfdf55c8bf7"
+        },
+        "BackdropImageTags": [
+          "f3e4907b6e29d12014d007e15537aa60"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "人生密密缝",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224850",
+        "RunTimeTicks": 76590000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 34.52359315837577,
+          "PlaybackPositionTicks": 26441620000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "9c745bc84b97d8241938af95c579bfdb"
+        },
+        "BackdropImageTags": [
+          "830d454b8d3d2507a11e8992df0bc81a"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "忘却之岛",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224680",
+        "RunTimeTicks": 65320000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 2.674664543784446,
+          "PlaybackPositionTicks": 1747090880,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "4d300badf6dfb8f04d7ba23334be710f",
+          "Logo": "7b385f54d544d2fd28f7b3ee6ed561ca"
+        },
+        "BackdropImageTags": [
+          "80922229ab23e58d103ea6113ac1a030"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "理智与情感",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224578",
+        "RunTimeTicks": 79460000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 31.04520513465895,
+          "PlaybackPositionTicks": 24668520000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "1bf124ead9e093e192b9715b63e30daa",
+          "Logo": "1d89fc547134a48e04e0672ebaf70af2"
+        },
+        "BackdropImageTags": [
+          "682c0062cf2fc06901560f9ed24135ea"
+        ],
+        "MediaType": "Video"
+      },
+      {
+        "Name": "末世行者",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224531",
+        "RunTimeTicks": 71360000000,
+        "IsFolder": false,
+        "Type": "Movie",
+        "UserData": {
+          "PlayedPercentage": 73.16423766816143,
+          "PlaybackPositionTicks": 52210000000,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": true
+        },
+        "ImageTags": {
+          "Primary": "068e8ed21c84aa6215328c062e6ccafc",
+          "Logo": "9fce8c5218313624c281e04df75b3c1d"
+        },
+        "BackdropImageTags": [
+          "dea1fb4e6399fbde1abfb2e957e54085"
+        ],
+        "MediaType": "Video"
+      }
+    ],
+    "237": [
+      {
+        "Name": "库比蒂诺",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "225367",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 6,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "f8a737862f32453351c233b624e30346",
+          "Logo": "f103d962d50bfc59032a3140e6a3daf0"
+        },
+        "BackdropImageTags": [
+          "afda8cb020a48d14f78db022efdcc566"
+        ]
+      },
+      {
+        "Name": "塔尔萨之王",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77420",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 33,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Thumb": "88bdf4bcb7104ea8215d709cb965726e",
+          "Primary": "b5ab9ad13b0d62af645f755e8e59ec23",
+          "Logo": "9056d97c171bb6e81753280b27707458"
+        },
+        "BackdropImageTags": [
+          "5d551989eb1d21d4c60f2119a0fe036a"
+        ]
+      },
+      {
+        "Name": "律界战争",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224770",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 6,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "82a73780fbd00bd846d514be0bfc3db7",
+          "Logo": "ba57bf7e945111eac0544a19f9355c58"
+        },
+        "BackdropImageTags": [
+          "0e753a2ad819662168804f7e7bc004b9"
+        ]
+      },
+      {
+        "Name": "嗜血法医：杀魔复生",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77341",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 12,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "b3cef4893aa0fb4134a09a82a4bf1970",
+          "Thumb": "e50eb63e3e59f9c716d4ce0a277485fb",
+          "Primary": "23fbe9c6aa17b4e64841c4d5250ebd19"
+        },
+        "BackdropImageTags": [
+          "bbd6597914f13db46b1c54a3c334fc2d"
+        ]
+      },
+      {
+        "Name": "黑帮领地",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "77399",
+        "RunTimeTicks": 72000000000,
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 10,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Logo": "0a8cc8cf80a6424b7cf54a9b9e5a03c2",
+          "Thumb": "451575692929d2709050ad63335ab047",
+          "Primary": "0c5714b51ffedf993d5c72bd5404aa7b"
+        },
+        "BackdropImageTags": [
+          "fc69b9228d4ae22d6b5a37c47a2357c0"
+        ]
+      },
+      {
+        "Name": "幻视任务",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "223780",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 6,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "cf5d79bbc3daf581f73a9d612c005cbe",
+          "Logo": "220ac5a5f3bed6a7f5e0aa8d2375fe7c"
+        },
+        "BackdropImageTags": [
+          "6c9bbffb630c745cbb2a77fb5085aa0c"
+        ]
+      },
+      {
+        "Name": "Doctor X：白色黑手党时代",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224769",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 8,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Continuing",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "eb46250a058500b1ee4bcdac251c84a3",
+          "Logo": "37747a7131383ed8e46d2919e11e93d0"
+        },
+        "BackdropImageTags": [
+          "fada91a5051ed1b259054e45e9d69a33"
+        ]
+      },
+      {
+        "Name": "现在不是出轨的问题",
+        "ServerId": "ff12cda0b1724b7f8b5b6ac9ce963cf8",
+        "Id": "224963",
+        "IsFolder": true,
+        "Type": "Series",
+        "UserData": {
+          "UnplayedItemCount": 3,
+          "PlaybackPositionTicks": 0,
+          "PlayCount": 0,
+          "IsFavorite": false,
+          "Played": false
+        },
+        "Status": "Ended",
+        "AirDays": [],
+        "ImageTags": {
+          "Primary": "78a8619c3714d2e4832a35b0365b74e8",
+          "Logo": "6fd8682489fbbdaf9ac5ae0a1bdd1295"
+        },
+        "BackdropImageTags": [
+          "15f158206960ee42ccaec8235d71bfdf"
+        ],
+        "EndDate": "2026-09-04T00:00:00.0000000Z"
+      }
+    ],
+    "107548": []
+  }
+}

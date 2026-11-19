@@ -1,0 +1,725 @@
+package com.xxxx.emby_tv.data.repository
+
+import android.content.Context
+import com.xxxx.emby_tv.data.remote.EmbyApi
+import com.xxxx.emby_tv.data.session.SessionManager
+import com.google.gson.JsonObject
+import com.xxxx.emby_tv.data.model.BaseItemDto
+import com.xxxx.emby_tv.data.model.MediaDto
+import com.xxxx.emby_tv.data.model.RecommendationDto
+import com.xxxx.emby_tv.data.model.SessionDto
+import com.xxxx.emby_tv.data.model.VirtualFolderInfoDto
+import com.xxxx.emby_tv.util.ErrorHandler
+
+/**
+ * 数据仓库 - ViewModel 唯一依赖的数据源
+ * 内部组合 SessionManager + EmbyApi
+ */
+class EmbyRepository private constructor(private val context: Context) {
+    private val session = SessionManager.getInstance(context)
+
+    // === 代理 SessionManager 的属性 ===
+    val isLoggedIn: Boolean get() = session.isLoggedIn
+    val isLoaded: Boolean get() = session.isLoaded
+    val savedServerUrl: String? get() = session.savedServerUrl
+    val savedUsername: String get() = session.savedUsername
+    val savedPassword: String get() = session.savedPassword
+
+    val serverUrl: String? get() = session.serverUrl
+    val apiKey: String? get() = session.apiKey
+    val userId: String? get() = session.userId
+    val deviceId: String get() = session.deviceId
+
+    // 多账号支持
+    val savedAccounts get() = session.savedAccounts
+    val currentAccountId get() = session.currentAccountId
+
+    // === 认证 ===
+
+    /**
+     * 加载已保存的凭证
+     */
+    suspend fun loadCredentials(): Boolean {
+        return session.loadCredentials(object : SessionManager.CredentialValidator {
+            override suspend fun validate(serverUrl: String, userId: String, apiKey: String): Boolean {
+                return EmbyApi.testKey(context, serverUrl, userId, apiKey)
+            }
+        })
+    }
+
+    /**
+     * 登录
+     */
+    suspend fun login(serverUrl: String, username: String, password: String) {
+        val result = EmbyApi.authenticate(context, serverUrl, session.deviceId, username, password)
+        session.saveCredentials(
+            serverUrl,
+            result.accessToken ?: "",
+            result.user?.id ?: "",
+            username,
+            password
+        )
+    }
+
+    /**
+     * 退出登录
+     */
+    fun logout() {
+        session.logout()
+    }
+
+    /**
+     * 切换账号
+     */
+    fun switchAccount(accountId: String): Boolean {
+        return session.switchAccount(accountId)
+    }
+
+    /**
+     * 删除账号
+     */
+    fun removeAccount(accountId: String) {
+        session.removeAccount(accountId)
+    }
+
+    // === 媒体库 ===
+
+    /**
+     * 获取继续观看列表
+     */
+    suspend fun getResumeItems(seriesId: String = ""): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getResumeItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            seriesId
+        )
+    }
+
+    /**
+     * 获取最新媒体（按视图分组）
+     */
+    suspend fun getLatestItems(): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getLatestItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!
+        )
+    }
+
+    /**
+     * 获取媒体库列表（支持分页）
+     * 
+     * @param parentId 父级ID
+     * @param type 类型
+     * @param startIndex 起始索引
+     * @param limit 每页数量
+     * @return Pair<List<BaseItemDto>, Int> 数据列表和总数
+     */
+    suspend fun getLibraryList(
+        parentId: String, 
+        type: String,
+        startIndex: Int = 0,
+        limit: Int = 20,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending",
+        filters: String? = null,
+        genre: String? = null,
+        officialRatings: String? = null,
+        seriesStatus: String? = null,
+        minYear: Int? = null,
+        maxYear: Int? = null,
+    ): Pair<List<BaseItemDto>, Int> {
+        requireLoggedIn()
+        return EmbyApi.getLibraryList(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId,
+            type,
+            startIndex,
+            limit,
+            sortBy,
+            sortOrder,
+            filters,
+            genre,
+            officialRatings,
+            seriesStatus,
+            minYear,
+            maxYear,
+        )
+    }
+
+    suspend fun getLibraryGenres(parentId: String, type: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getLibraryGenres(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId,
+            type,
+        )
+    }
+
+    suspend fun getRecentlyPlayedSeries(parentId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getRecentlyPlayedSeries(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId,
+        )
+    }
+
+    /**
+     * 建议 tab: 最近添加, then 因为你看过 rows scoped to this library.
+     * Movies use /Movies/Recommendations. Series use Similar on recently played series.
+     */
+    suspend fun getLibrarySuggestions(parentId: String, type: String): List<RecommendationDto> {
+        requireLoggedIn()
+        val rows = mutableListOf<RecommendationDto>()
+        val latest = try {
+            EmbyApi.getLatestItemsByViews(
+                context,
+                session.serverUrl!!,
+                session.apiKey!!,
+                session.deviceId,
+                session.userId!!,
+                parentId,
+                type,
+            )
+        } catch (e: Exception) {
+            ErrorHandler.logError("EmbyRepository", "最近添加加载失败", e)
+            emptyList()
+        }
+        if (latest.isNotEmpty()) {
+            rows += RecommendationDto(
+                baselineItemName = null,
+                recommendationType = "Latest",
+                items = latest,
+            )
+        }
+        if (type == "Series") {
+            val resume = try {
+                getResumeItems(parentId)
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "继续观看加载失败", e)
+                emptyList()
+            }
+            val played = try {
+                getRecentlyPlayedSeries(parentId)
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "最近播放剧集加载失败", e)
+                emptyList()
+            }
+            val seeds = com.xxxx.emby_tv.util.EmbyPresentation.recentSeriesSeeds(resume, played)
+            for ((id, name) in seeds) {
+                val similar = try {
+                    EmbyApi.getSimilarItems(
+                        context,
+                        session.serverUrl!!,
+                        session.apiKey!!,
+                        session.deviceId,
+                        session.userId!!,
+                        id,
+                    )
+                } catch (e: Exception) {
+                    ErrorHandler.logError("EmbyRepository", "相似剧集加载失败", e)
+                    emptyList()
+                }
+                if (similar.isEmpty()) continue
+                rows += RecommendationDto(
+                    baselineItemName = name,
+                    recommendationType = "SimilarToRecentlyPlayed",
+                    items = similar,
+                )
+            }
+        } else {
+            val recs = try {
+                EmbyApi.getMovieRecommendations(
+                    context,
+                    session.serverUrl!!,
+                    session.apiKey!!,
+                    session.deviceId,
+                    session.userId!!,
+                    parentId = parentId,
+                )
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "电影推荐不可用", e)
+                emptyList()
+            }
+            rows += recs.filter { !it.baselineItemName.isNullOrBlank() && !it.items.isNullOrEmpty() }
+        }
+        return rows
+    }
+
+    /**
+     * 搜索媒体项（支持分页）
+     * 
+     * @param query 搜索关键词
+     * @param startIndex 起始索引
+     * @param limit 每页数量
+     * @return Pair<List<BaseItemDto>, Int> 数据列表和总数
+     */
+    suspend fun searchItems(
+        query: String,
+        startIndex: Int = 0,
+        limit: Int = 20
+    ): Pair<List<BaseItemDto>, Int> {
+        requireLoggedIn()
+        return EmbyApi.searchItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            query,
+            startIndex,
+            limit
+        )
+    }
+
+    /**
+     * 获取收藏列表
+     */
+    suspend fun getFavoriteItems(): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getFavoriteItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!
+        )
+    }
+
+    /**
+     * "因为你看过" rows. Prefers Emby's movie recommendations, then similar-to-recent.
+     */
+    suspend fun getBecauseYouWatched(resumeItems: List<BaseItemDto>): List<RecommendationDto> {
+        requireLoggedIn()
+        val fromServer = try {
+            EmbyApi.getMovieRecommendations(
+                context,
+                session.serverUrl!!,
+                session.apiKey!!,
+                session.deviceId,
+                session.userId!!,
+            )
+        } catch (e: Exception) {
+            ErrorHandler.logError("EmbyRepository", "电影推荐不可用，改用相似条目", e)
+            emptyList()
+        }
+        val usable = fromServer.filter {
+            !it.baselineItemName.isNullOrBlank() && !it.items.isNullOrEmpty()
+        }
+        if (usable.isNotEmpty()) return usable.take(4)
+
+        val seeds = linkedMapOf<String, String>()
+        for (item in resumeItems) {
+            val id = if (item.type == "Episode") item.seriesId ?: item.id else item.id
+            val name = if (item.type == "Episode") item.seriesName ?: item.name else item.name
+            if (!id.isNullOrBlank() && !name.isNullOrBlank() && !seeds.containsKey(id)) {
+                seeds[id] = name
+            }
+            if (seeds.size >= 2) break
+        }
+        return seeds.mapNotNull { (id, name) ->
+            val similar = try {
+                EmbyApi.getSimilarItems(
+                    context,
+                    session.serverUrl!!,
+                    session.apiKey!!,
+                    session.deviceId,
+                    session.userId!!,
+                    id,
+                )
+            } catch (e: Exception) {
+                ErrorHandler.logError("EmbyRepository", "相似条目加载失败", e)
+                emptyList()
+            }
+            if (similar.isEmpty()) null
+            else RecommendationDto(
+                baselineItemName = name,
+                recommendationType = "SimilarToRecentlyPlayed",
+                items = similar,
+            )
+        }
+    }
+
+    // === 标记片头（服务端媒体库设置） ===
+
+    /**
+     * 获取媒体库列表（VirtualFolders 是 Emby 对媒体库的 API 叫法，即真实库），
+     * 需管理员权限
+     */
+    suspend fun getVirtualFolders(): List<VirtualFolderInfoDto> {
+        requireLoggedIn()
+        return EmbyApi.getVirtualFolders(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId
+        )
+    }
+
+    /**
+     * 更新媒体库的标记片头设置（需管理员权限）
+     * 失败时抛出异常（HTTP Error: 4xx 表示权限不足或未开通 Premiere）
+     */
+    suspend fun updateLibraryMarkerDetection(
+        itemId: String,
+        libraryOptions: JsonObject,
+        wrapInArray: Boolean
+    ) {
+        requireLoggedIn()
+        EmbyApi.updateLibraryMarkerDetection(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            itemId,
+            libraryOptions,
+            wrapInArray
+        )
+    }
+
+    /**
+     * 获取媒体项的祖先（含所属媒体库文件夹），普通用户权限即可
+     */
+    suspend fun getItemAncestors(itemId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getItemAncestors(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId
+        )
+    }
+
+    // === 详情 ===
+
+    /**
+     * 获取媒体详情
+     */
+    suspend fun getMediaInfo(mediaId: String): BaseItemDto {
+        requireLoggedIn()
+        return EmbyApi.getMediaInfo(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            mediaId
+        )
+    }
+
+    /**
+     * 获取季列表
+     */
+    suspend fun getSeasonList(seriesId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSeasonList(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            seriesId
+        )
+    }
+
+    /**
+     * 获取剧集列表
+     */
+    suspend fun getSeriesList(parentId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSeriesList(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            parentId
+        )
+    }
+
+    suspend fun getSeasonEpisodes(seriesId: String, seasonId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSeasonEpisodes(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            seriesId,
+            seasonId,
+        )
+    }
+
+    /**
+     * 获取下一集
+     */
+    suspend fun getShowsNextUp(seriesId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getShowsNextUp(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            seriesId
+        )
+    }
+
+    // === 播放 ===
+
+    /**
+     * 获取播放信息
+     */
+    suspend fun getPlaybackInfo(
+        mediaId: String,
+        startPosition: Long,
+        selectedAudioIndex: Int? = null,
+        selectedSubtitleIndex: Int? = null,
+        disableHevc: Boolean = false,
+        mediaSourceId: String? = null
+    ): MediaDto {
+        requireLoggedIn()
+        return EmbyApi.getPlaybackInfo(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            mediaId,
+            startPosition,
+            selectedAudioIndex,
+            selectedSubtitleIndex,
+            disableHevc,
+            mediaSourceId
+        )
+    }
+
+    /**
+     * 上报播放进度
+     */
+    suspend fun reportPlaybackProgress(body: Any) {
+        requireLoggedIn()
+        EmbyApi.reportPlaybackProgress(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            body
+        )
+    }
+
+    /**
+     * 上报开始播放
+     */
+    suspend fun playing(body: Any) {
+        requireLoggedIn()
+        EmbyApi.playing(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            body
+        )
+    }
+
+    /**
+     * 上报停止播放
+     */
+    suspend fun stopped(body: Any) {
+        requireLoggedIn()
+        EmbyApi.stopped(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            body
+        )
+    }
+
+    /**
+     * 停止活动编码
+     */
+    suspend fun stopActiveEncodings(playSessionId: String?) {
+        requireLoggedIn()
+        EmbyApi.stopActiveEncodings(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            playSessionId
+        )
+    }
+
+    /**
+     * 获取播放会话列表
+     */
+    suspend fun getPlayingSessions(): List<SessionDto> {
+        requireLoggedIn()
+        return EmbyApi.getPlayingSessions(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId
+        )
+    }
+
+    // === 收藏 ===
+
+    /**
+     * 添加收藏
+     */
+    suspend fun addToFavorites(itemId: String): Boolean {
+        requireLoggedIn()
+        return EmbyApi.addToFavorites(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId
+        )
+    }
+
+    /**
+     * 取消收藏
+     */
+    suspend fun removeFromFavorites(itemId: String): Boolean {
+        requireLoggedIn()
+        return EmbyApi.removeFromFavorites(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId
+        )
+    }
+
+    suspend fun getItemCollections(
+        itemId: String,
+        onPartial: suspend (List<Pair<BaseItemDto, List<BaseItemDto>>>) -> Unit = {},
+    ): List<Pair<BaseItemDto, List<BaseItemDto>>> {
+        requireLoggedIn()
+        return EmbyApi.getItemCollections(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+            onPartial,
+        )
+    }
+
+    suspend fun getSimilarItems(itemId: String, limit: Int = 16): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getSimilarItems(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+            limit,
+        )
+    }
+
+    suspend fun getBoxSetChildren(boxId: String, limit: Int = 80): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getBoxSetChildren(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            boxId,
+            limit,
+        )
+    }
+
+    suspend fun getPersonWorks(personId: String): List<BaseItemDto> {
+        requireLoggedIn()
+        return EmbyApi.getPersonWorks(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            personId,
+        )
+    }
+
+    suspend fun getMovieItem(itemId: String): BaseItemDto {
+        requireLoggedIn()
+        return EmbyApi.getMovieItem(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+        )
+    }
+
+    suspend fun setPlayed(itemId: String, played: Boolean): Boolean {
+        requireLoggedIn()
+        return EmbyApi.setPlayed(
+            context,
+            session.serverUrl!!,
+            session.apiKey!!,
+            session.deviceId,
+            session.userId!!,
+            itemId,
+            played,
+        )
+    }
+
+    // === 内部方法 ===
+
+    private fun requireLoggedIn() {
+        require(session.serverUrl != null) { "Not logged in: serverUrl is null" }
+        require(session.apiKey != null) { "Not logged in: apiKey is null" }
+        require(session.userId != null) { "Not logged in: userId is null" }
+    }
+
+    companion object {
+        @Volatile
+        private var instance: EmbyRepository? = null
+
+        fun getInstance(context: Context): EmbyRepository {
+            return instance ?: synchronized(this) {
+                instance ?: EmbyRepository(context.applicationContext).also { instance = it }
+            }
+        }
+
+        /**
+         * 重置实例（用于测试或账号切换后的完全重置）
+         */
+        fun reset() {
+            synchronized(this) {
+                instance = null
+            }
+        }
+    }
+}
