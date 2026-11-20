@@ -221,7 +221,14 @@ fun EmbyTvApp() {
 
                     // 播放设置页面
                     composable("settings") {
-                        com.xxxx.emby_tv.ui.SettingsScreen(onBack = { navController.popBackStack() })
+                        com.xxxx.emby_tv.ui.SettingsScreen(
+                            onBack = { navController.popBackStack() },
+                            currentVersion = mainViewModel.currentVersion,
+                            onCheckUpdate = {
+                                mainViewModel.checkUpdate()
+                                navController.navigate("update")
+                            },
+                        )
                     }
 
                     composable("playback_settings") {
@@ -248,7 +255,8 @@ fun EmbyTvApp() {
                     // 更新页面
                     composable("update") {
                         UpdateScreen(
-                            mainViewModel = mainViewModel
+                            mainViewModel = mainViewModel,
+                            onBack = { navController.popBackStack() },
                         )
                     }
 

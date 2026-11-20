@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.outlined.Info
+import com.xxxx.emby_tv.ui.player.StreamInfoLine
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -151,6 +153,7 @@ fun PlayerTransportBar(
     positionMs: Long,
     durationMs: Long,
     showVersionButton: Boolean,
+    streamLines: List<StreamInfoLine> = emptyList(),
     episodes: List<BaseItemDto>,
     restoreButton: Int,
     timelineFocus: FocusRequester,
@@ -196,21 +199,35 @@ fun PlayerTransportBar(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                val infoIndex = TransportSlots.info(showVersionButton)
+                val settingsIndex = TransportSlots.settings(showVersionButton)
+                var infoFocused by remember { mutableStateOf(false) }
+                val relayMenu: (Int, Boolean) -> Unit = { index, focused ->
+                    if (index == infoIndex) infoFocused = focused
+                    onMenuFocus(index, focused)
+                }
+                if (infoFocused && streamLines.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        StreamInfoCard(streamLines)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val settingsIndex = if (showVersionButton) 3 else 2
-                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[0]), pictureFocus, 0, onButtonFocused, onMenuFocus) {
+                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[TransportSlots.SUBTITLES]), pictureFocus, TransportSlots.SUBTITLES, onButtonFocused, relayMenu) {
                             onOpenSheet(PlayerSheet.Subtitles)
                         }
-                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[1]), pictureFocus, 1, onButtonFocused, onMenuFocus) {
+                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[TransportSlots.AUDIO]), pictureFocus, TransportSlots.AUDIO, onButtonFocused, relayMenu) {
                             onOpenSheet(PlayerSheet.Audio)
                         }
                         if (showVersionButton) {
-                            RoundAction(Icons.Default.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[2]), pictureFocus, 2, onButtonFocused, onMenuFocus) {
+                            val versionIndex = TransportSlots.version(true)!!
+                            RoundAction(Icons.Filled.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[versionIndex]), pictureFocus, versionIndex, onButtonFocused, relayMenu) {
                                 onOpenSheet(PlayerSheet.Versions)
                             }
                         }
-                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), pictureFocus, settingsIndex, onButtonFocused, onMenuFocus) {
+                        RoundAction(Icons.Outlined.Info, "信息", onInteract, Modifier.focusRequester(buttonFocus[infoIndex]), pictureFocus, infoIndex, onButtonFocused, relayMenu) {}
+                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), pictureFocus, settingsIndex, onButtonFocused, relayMenu) {
                             onOpenSheet(PlayerSheet.Settings)
                         }
                     }
@@ -390,6 +407,24 @@ fun PlayerSeekReadout(
         Text(readout.direction, color = Color.White.copy(alpha = 0.9f), fontSize = SEEK_READOUT_CUE_SP.sp, fontWeight = FontWeight.Medium)
         Text(readout.target, color = Color.White, fontSize = SEEK_READOUT_TARGET_SP.sp, fontWeight = FontWeight.SemiBold)
         Text(readout.total, color = Color.White.copy(alpha = 0.72f), fontSize = SEEK_READOUT_CUE_SP.sp)
+    }
+}
+
+@Composable
+private fun StreamInfoCard(lines: List<StreamInfoLine>) {
+    Column(
+        Modifier
+            .widthIn(max = 360.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xF223262C))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        lines.forEach { line ->
+            Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(line.label, color = Color.White.copy(0.62f), fontSize = 12.sp, modifier = Modifier.width(48.dp))
+                Text(line.value, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 

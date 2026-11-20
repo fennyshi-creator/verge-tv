@@ -1,6 +1,7 @@
 package com.xxxx.emby_tv.ui
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,11 +24,13 @@ import com.xxxx.emby_tv.ui.viewmodel.MainViewModel
 
 @Composable
 fun UpdateScreen(
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onBack: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? Activity ?: return
     val updateManager = remember { AppUpdateManager(activity) }
+    BackHandler(onBack = onBack)
     var downloadProgress by remember { mutableStateOf(0) }
     var isDownloading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
