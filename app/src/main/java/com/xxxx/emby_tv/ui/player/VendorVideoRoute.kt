@@ -3,26 +3,47 @@ package com.xxxx.emby_tv.ui.player
 import android.os.Build
 
 /**
- * Dune and Realtek RTD1619 boxes skip the Vulkan video output.
+ * Devices that must not create a Vulkan video output.
  * The same strings are implemented in native `verge_vendor_wants_gles`.
+ * Realtek tv794a reports manufacturer Realtek, hardware thor, and board mjolnir.
  * Other devices stay on Vulkan and hardware decode.
  */
 object VendorVideoRoute {
-    fun wantsGles(hardware: String?, boardPlatform: String?, manufacturer: String?): Boolean {
-        if (chip(hardware) || chip(boardPlatform)) return true
-        return manufacturer?.contains("dune", ignoreCase = true) == true
+    fun wantsGles(
+        hardware: String?,
+        boardPlatform: String?,
+        manufacturer: String?,
+        model: String? = null,
+    ): Boolean {
+        if (vendorName(manufacturer)) return true
+        return boardToken(hardware) || boardToken(boardPlatform) || boardToken(model)
     }
 
     fun current(): Boolean {
-        val hardware = first(systemProperty("ro.hardware"), Build.HARDWARE)
-        val board = first(systemProperty("ro.board.platform"), Build.BOARD)
-        val manufacturer = first(Build.MANUFACTURER, systemProperty("ro.product.manufacturer"))
-        return wantsGles(hardware, board, manufacturer)
+        if (wantsGles(Build.HARDWARE, Build.BOARD, Build.MANUFACTURER, Build.MODEL)) return true
+        if (wantsGles(Build.BRAND, Build.DEVICE, systemProperty("ro.product.manufacturer"), systemProperty("ro.product.model"))) {
+            return true
+        }
+        return wantsGles(
+            systemProperty("ro.hardware"),
+            first(systemProperty("ro.board.platform"), systemProperty("ro.product.board")),
+            systemProperty("ro.product.brand"),
+            systemProperty("ro.product.device"),
+        )
     }
 
-    private fun chip(value: String?): Boolean {
+    private fun vendorName(value: String?): Boolean {
         val text = value?.lowercase() ?: return false
-        return text.contains("rtd1619") || text.contains("realtek")
+        return text.contains("dune") || text.contains("realtek")
+    }
+
+    private fun boardToken(value: String?): Boolean {
+        val text = value?.lowercase() ?: return false
+        return text.contains("rtd1619") ||
+            text.contains("realtek") ||
+            text.contains("tv794a") ||
+            text.contains("mjolnir") ||
+            text == "thor"
     }
 
     private fun first(primary: String?, secondary: String?): String? {

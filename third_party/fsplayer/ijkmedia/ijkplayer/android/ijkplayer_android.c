@@ -24,6 +24,7 @@
 #include "ijkplayer_android.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include "ijksdl/android/ijksdl_android.h"
 #include "../ff_fferror.h"
 #include "../ff_ffplay.h"
@@ -39,16 +40,23 @@ IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
     if (!mp)
         goto fail;
 
-    if (verge_vendor_wants_gles_device()) {
-        ALOGI("vendor match: OpenGL ES 3 video output, Vulkan instance is not created\n");
-        fs_passthrough_log_line("video-output request backend=gles3 reason=vendor-match");
-        mp->ffplayer->vout = SDL_VoutAndroid_CreateForOpenGLES3();
-    } else {
-        mp->ffplayer->vout = SDL_VoutAndroid_CreateForVulkan();
-        if (mp->ffplayer->vout)
-            fs_passthrough_log_line("video-output request backend=vulkan result=created");
-        else
-            fs_passthrough_log_line("video-output request backend=vulkan result=create-failed");
+    {
+        char detail[512];
+        char line[640];
+        int gles = verge_vendor_wants_gles_device(detail, sizeof(detail));
+        snprintf(line, sizeof(line), "video-output props %s gles=%d", detail, gles);
+        fs_passthrough_log_line(line);
+        if (gles) {
+            ALOGI("vendor match: OpenGL ES 3 video output, Vulkan instance is not created\n");
+            fs_passthrough_log_line("video-output request backend=gles3 reason=vendor-match stage=native-setup");
+            mp->ffplayer->vout = SDL_VoutAndroid_CreateForOpenGLES3();
+        } else {
+            mp->ffplayer->vout = SDL_VoutAndroid_CreateForVulkan();
+            if (mp->ffplayer->vout)
+                fs_passthrough_log_line("video-output request backend=vulkan result=created stage=native-setup");
+            else
+                fs_passthrough_log_line("video-output request backend=vulkan result=create-failed stage=native-setup");
+        }
     }
     if (!mp->ffplayer->vout)
         goto fail;

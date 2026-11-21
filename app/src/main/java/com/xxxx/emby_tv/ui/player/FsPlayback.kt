@@ -393,13 +393,13 @@ class FsPlayback(private val appContext: Context) {
             FSPlayer()
         } catch (error: UnsatisfiedLinkError) {
             Log.e(TAG, "libfsplayer.so failed to load", error)
-            noteEngine("fatal engine-create UnsatisfiedLinkError: ${error.stackTraceToString()}")
-            dispatchError(error.message ?: "libfsplayer.so")
+            noteEngine("fatal engine-create stage=native-setup UnsatisfiedLinkError: ${error.stackTraceToString()}")
+            dispatchError("${PlaybackErrorPolicy.ENGINE_CREATE}: ${error.message ?: "libfsplayer.so"}")
             return
         } catch (error: Error) {
             Log.e(TAG, "engine create failed", error)
-            noteEngine("fatal engine-create ${error.javaClass.name}: ${error.stackTraceToString()}")
-            dispatchError(error.message ?: error.javaClass.simpleName)
+            noteEngine("fatal engine-create stage=native-setup ${error.javaClass.name}: ${error.stackTraceToString()}")
+            dispatchError("${PlaybackErrorPolicy.ENGINE_CREATE}: ${error.message ?: error.javaClass.simpleName}")
             return
         }
         if (released) {

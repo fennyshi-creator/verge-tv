@@ -885,6 +885,7 @@ fun PlayerScreen(
     }
 
     var isBuffering by remember { mutableStateOf(true) } // Start true assuming we wait for load
+    var engineFailure by remember { mutableStateOf<String?>(null) }
     var downloadSpeed by remember { mutableStateOf(0L) }
     var lastSpeedUpdate by remember { mutableStateOf(0L) }
 
@@ -1578,9 +1579,13 @@ fun PlayerScreen(
 
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    FsPlayback.STATE_BUFFERING -> isBuffering = true
+                    FsPlayback.STATE_BUFFERING -> {
+                        isBuffering = true
+                        engineFailure = null
+                    }
                     FsPlayback.STATE_READY -> {
                         isBuffering = false
+                        engineFailure = null
                         val rawDuration = player.duration
                         if (rawDuration > 0) duration = rawDuration
                         // HLS often learns the real length after prepare. A resume
@@ -1622,6 +1627,11 @@ fun PlayerScreen(
             override fun onError(message: String) {
                 Log.e("PlayerScreen", "播放器错误: $message")
                 if (message.contains("429") || message.contains("限流")) {
+                    return
+                }
+                if (com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.stopsWithoutReopen(message)) {
+                    isBuffering = false
+                    engineFailure = context.getString(R.string.player_engine_failed)
                     return
                 }
                 if (com.xxxx.emby_tv.ui.player.VendorVideoRoute.current() && !player.preferSoftwareVideo) {
@@ -2108,7 +2118,11 @@ fun PlayerScreen(
             )
 
 
-            if (isBuffering && !userPaused) {
+            if (engineFailure != null) {
+                Box(Modifier.fillMaxSize().padding(48.dp), contentAlignment = Alignment.Center) {
+                    Text(engineFailure!!, color = Color.White, fontSize = 18.sp)
+                }
+            } else if (isBuffering && !userPaused) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
                 }

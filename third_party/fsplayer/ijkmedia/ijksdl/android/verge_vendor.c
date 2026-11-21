@@ -1,6 +1,7 @@
 #include "verge_vendor.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef VERGE_VENDOR_HOST
@@ -29,31 +30,77 @@ static int contains_ci(const char *haystack, const char *needle)
     return 0;
 }
 
-static int chip_match(const char *value)
+static int equals_ci(const char *value, const char *token)
 {
-    return contains_ci(value, "rtd1619") || contains_ci(value, "realtek");
+    if (!value || !token)
+        return 0;
+    while (*value && *token) {
+        if (tolower((unsigned char)*value) != tolower((unsigned char)*token))
+            return 0;
+        value++;
+        token++;
+    }
+    return *value == '\0' && *token == '\0';
 }
 
-int verge_vendor_wants_gles(const char *hardware, const char *board_platform, const char *manufacturer)
+static int vendor_name(const char *value)
 {
-    if (chip_match(hardware) || chip_match(board_platform))
+    return contains_ci(value, "dune") || contains_ci(value, "realtek");
+}
+
+static int board_token(const char *value)
+{
+    return contains_ci(value, "rtd1619")
+        || contains_ci(value, "realtek")
+        || contains_ci(value, "tv794a")
+        || contains_ci(value, "mjolnir")
+        || equals_ci(value, "thor");
+}
+
+int verge_vendor_wants_gles(const char *hardware, const char *board_platform,
+                            const char *manufacturer, const char *model)
+{
+    if (vendor_name(manufacturer))
         return 1;
-    return contains_ci(manufacturer, "dune");
+    return board_token(hardware) || board_token(board_platform) || board_token(model);
 }
 
 #ifndef VERGE_VENDOR_HOST
-int verge_vendor_wants_gles_device(void)
+static void read_prop(const char *key, char *out, size_t cap)
+{
+    if (!out || cap == 0)
+        return;
+    out[0] = '\0';
+    __system_property_get(key, out);
+    out[cap - 1] = '\0';
+}
+
+int verge_vendor_wants_gles_device(char *detail, size_t detail_cap)
 {
     char hardware[PROP_VALUE_MAX];
+    char platform[PROP_VALUE_MAX];
     char board[PROP_VALUE_MAX];
     char manufacturer[PROP_VALUE_MAX];
+    char model[PROP_VALUE_MAX];
+    char brand[PROP_VALUE_MAX];
+    char device[PROP_VALUE_MAX];
+    int match;
 
-    hardware[0] = '\0';
-    board[0] = '\0';
-    manufacturer[0] = '\0';
-    __system_property_get("ro.hardware", hardware);
-    __system_property_get("ro.board.platform", board);
-    __system_property_get("ro.product.manufacturer", manufacturer);
-    return verge_vendor_wants_gles(hardware, board, manufacturer);
+    read_prop("ro.hardware", hardware, sizeof(hardware));
+    read_prop("ro.board.platform", platform, sizeof(platform));
+    read_prop("ro.product.board", board, sizeof(board));
+    read_prop("ro.product.manufacturer", manufacturer, sizeof(manufacturer));
+    read_prop("ro.product.model", model, sizeof(model));
+    read_prop("ro.product.brand", brand, sizeof(brand));
+    read_prop("ro.product.device", device, sizeof(device));
+    match = verge_vendor_wants_gles(hardware, platform, manufacturer, model)
+        || verge_vendor_wants_gles(hardware, board, brand, device);
+    if (detail && detail_cap > 0) {
+        snprintf(detail, detail_cap,
+                 "hw=%s platform=%s board=%s mfg=%s model=%s brand=%s device=%s",
+                 hardware, platform, board, manufacturer, model, brand, device);
+        detail[detail_cap - 1] = '\0';
+    }
+    return match;
 }
 #endif
