@@ -121,7 +121,7 @@ set(XML2_LIB      ${UNI_DIR}/xml2/xml2-${ARCH}/lib/libxml2.a)
 set(BLURAY_LIB    ${UNI_DIR}/bluray/bluray-${ARCH}/lib/libbluray.a)
 # 不链 libdvdnav/libdvdread：它们是 GPL，会把 FFmpeg 从 LGPL 拉成 nonfree；
 # 预编译 product 里也不再有它们（ffconfig 的 auto-detect 只在探测到才启用）
-set(SMB2_LIB      ${UNI_DIR}/smb2/smb2-${ARCH}/lib/libsmb2.so)
+set(SMB2_LIB      ${UNI_DIR}/smb2/smb2-${ARCH}/lib/libsmb2.a)
 set(FONTCONFIG_LIB ${UNI_DIR}/fontconfig/fontconfig-${ARCH}/lib/libfontconfig.a)
 
 find_library(z-lib z REQUIRED)
@@ -132,6 +132,9 @@ find_library(jnigraphics-lib jnigraphics)
 find_library(m-lib m)
 find_library(mediandk-lib mediandk)
 find_library(dl-lib dl)
+find_library(egl-lib EGL)
+find_library(gles-lib GLESv3)
+set(SDR_HOOK ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libfsmediacodec_sdr.so)
 
 target_link_libraries(fsplayer
     "-Wl,--start-group"
@@ -151,12 +154,15 @@ target_link_libraries(fsplayer
     ${FONTCONFIG_LIB}
     "-Wl,--end-group"
     ${SMB2_LIB}
+    ${SDR_HOOK}
     ${z-lib}
     ${dl-lib}
     ${mediandk-lib}
     ${log-lib}
     ${android-lib}
     ${vulkan-lib}
+    ${egl-lib}
+    ${gles-lib}
     ${jnigraphics-lib}
     ${m-lib}
     "-Wl,-z,max-page-size=16384"

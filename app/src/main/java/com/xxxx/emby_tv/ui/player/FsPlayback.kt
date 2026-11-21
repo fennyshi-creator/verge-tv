@@ -5,8 +5,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Surface
+import android.os.Build
 import com.debugly.fsplayer.audio.FsPassthroughLog
 import com.debugly.fsplayer.player.FSPlayer
+import com.xxxx.emby_tv.data.remote.ClientLogText
 import com.debugly.fsplayer.player.FSSubtitlePreference
 import com.debugly.fsplayer.player.IMediaPlayer
 import com.debugly.fsplayer.player.misc.FSTrackInfo
@@ -68,6 +70,9 @@ class FsPlayback(private val appContext: Context) {
         private set
     var passthroughEnabled: Boolean = true
     var mapHdrToSdr: Boolean = false
+    /** Vendor GLES path only. HDR on that path, or one video-decode retry. */
+    var preferSoftwareVideo: Boolean = false
+        private set
     var jocHint: Boolean = false
         private set
     var playWhenReady: Boolean = true
@@ -151,7 +156,19 @@ class FsPlayback(private val appContext: Context) {
         this.playbackSpeed = speed
         this.jocHint = joc
         this.passthroughEnabled = passthrough && speed == 1f
+        noteEngine(
+            "playback-open softwareVideo=$preferSoftwareVideo passthrough=${this.passthroughEnabled} " +
+                deviceSnapshot()
+        )
         onEngine { swapEngine() }
+    }
+
+    /**
+     * HDR on the Dune GLES output, or the one video-decode retry.
+     * Does not change passthrough.
+     */
+    fun useSoftwareVideo(enabled: Boolean) {
+        preferSoftwareVideo = enabled
     }
 
     /** Reopen the current item after playback stops advancing. */
@@ -376,7 +393,13 @@ class FsPlayback(private val appContext: Context) {
             FSPlayer()
         } catch (error: UnsatisfiedLinkError) {
             Log.e(TAG, "libfsplayer.so failed to load", error)
+            noteEngine("fatal engine-create UnsatisfiedLinkError: ${error.stackTraceToString()}")
             dispatchError(error.message ?: "libfsplayer.so")
+            return
+        } catch (error: Error) {
+            Log.e(TAG, "engine create failed", error)
+            noteEngine("fatal engine-create ${error.javaClass.name}: ${error.stackTraceToString()}")
+            dispatchError(error.message ?: error.javaClass.simpleName)
             return
         }
         if (released) {
@@ -460,7 +483,10 @@ class FsPlayback(private val appContext: Context) {
         val pass = if (passthroughEnabled) 1L else 0L
         // Shader fallback only. Hardware HDR-to-SDR stays on MediaCodec and
         // the configure hook sends color-transfer-request.
-        val videoHardware = if (mapHdrToSdr) 0L else 1L
+        val videoHardware = if (mapHdrToSdr || preferSoftwareVideo) 0L else 1L
+        noteEngine(
+            "video-decoder mediacodec=$videoHardware hdrShader=$mapHdrToSdr software=$preferSoftwareVideo"
+        )
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", videoHardware)
@@ -708,6 +734,17 @@ class FsPlayback(private val appContext: Context) {
 
     private fun dispatchVideoDecoder(name: String) {
         dispatch { it.onVideoDecoder(name) }
+    }
+
+    private fun deviceSnapshot(): String {
+        val abis = Build.SUPPORTED_ABIS.joinToString(",")
+        return "manufacturer=${Build.MANUFACTURER} model=${Build.MODEL} abi=$abis " +
+            "hardware=${Build.HARDWARE} board=${Build.BOARD} sdk=${Build.VERSION.SDK_INT} " +
+            "release=${Build.VERSION.RELEASE} glesRoute=${VendorVideoRoute.current()}"
+    }
+
+    private fun noteEngine(line: String) {
+        FsPassthroughLog.note(ClientLogText.redact(line))
     }
 
     private fun dispatch(block: (Listener) -> Unit) {

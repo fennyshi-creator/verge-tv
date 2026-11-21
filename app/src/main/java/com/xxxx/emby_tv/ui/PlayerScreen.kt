@@ -847,6 +847,17 @@ fun PlayerScreen(
         val mode = hdrMode(video)
         player.mapHdrToSdr = mode == com.xxxx.emby_tv.ui.player.HdrMap.SHADER
         com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(mode == com.xxxx.emby_tv.ui.player.HdrMap.HARDWARE)
+        val sourceHdr = com.xxxx.emby_tv.ui.player.PlaybackDebug.sourceIsHdr(
+            video?.videoRange,
+            video?.videoRangeType,
+            video?.colorTransfer,
+            video?.codec,
+        )
+        if (com.xxxx.emby_tv.ui.player.VendorVideoRoute.current() &&
+            (sourceHdr || player.preferSoftwareVideo)
+        ) {
+            player.useSoftwareVideo(true)
+        }
     }
     // 当前播放器实例是否出现过音频输出错误（播放器重建时自动重置）
     var currentPlayerAudioError by remember { mutableStateOf(false) }
@@ -1611,6 +1622,25 @@ fun PlayerScreen(
             override fun onError(message: String) {
                 Log.e("PlayerScreen", "播放器错误: $message")
                 if (message.contains("429") || message.contains("限流")) {
+                    return
+                }
+                if (com.xxxx.emby_tv.ui.player.VendorVideoRoute.current() && !player.preferSoftwareVideo) {
+                    Log.w(AUDIO_RECOVERY_TAG, "厂商设备视频解码失败，关闭硬解重开一次")
+                    player.useSoftwareVideo(true)
+                    val current = player.currentMediaItem
+                    if (current != null) {
+                        armHdr()
+                        player.open(
+                            url = current,
+                            headers = playbackHeaders(),
+                            startMs = player.currentPosition.coerceAtLeast(0L),
+                            passthrough = bitstreamAllowed(),
+                            joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
+                                audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                            ),
+                            speed = playbackSpeed,
+                        )
+                    }
                     return
                 }
                 // Stay on this screen. An audio open/decode failure reopens

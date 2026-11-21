@@ -26,6 +26,14 @@ class ClientLogTextTest {
     }
 
     @Test
+    fun urlsAreRedacted() {
+        val cleaned = ClientLogText.redact("play https://media.example/video.mkv?api_key=abc")
+        assertFalse(cleaned.contains("media.example"))
+        assertFalse(cleaned.contains("video.mkv"))
+        assertTrue(cleaned.contains("[redacted-url]"))
+    }
+
+    @Test
     fun diagnosticNumbersAreNotRedacted() {
         val raw = "diag session=1 t=40931 raw_media_bytes=27525120 last_pts=1234567890 " +
             "last_serial=2 audio_qbytes=3080 " +

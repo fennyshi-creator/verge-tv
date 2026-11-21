@@ -41,6 +41,9 @@
 
 SDL_Vout *SDL_VoutAndroid_CreateForVulkan(void);
 
+/* Dune / RTD1619 only. Does not create a Vulkan instance. */
+SDL_Vout *SDL_VoutAndroid_CreateForOpenGLES3(void);
+
 /* 由上层 (ijkmp_android_set_surface) 调用，把 Java Surface 传给渲染器。 */
 void SDL_VoutAndroid_SetAndroidSurface(JNIEnv *env, SDL_Vout *vout, jobject android_surface);
 

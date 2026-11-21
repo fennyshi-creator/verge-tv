@@ -30,6 +30,8 @@
 #include "../ijkplayer_internal.h"
 #include "../pipeline/ffpipeline_ffplay.h"
 #include "pipeline/ffpipeline_android.h"
+#include "ijksdl/android/android_audiotrack.h"
+#include "ijksdl/android/verge_vendor.h"
 
 IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
 {
@@ -37,7 +39,17 @@ IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
     if (!mp)
         goto fail;
 
-    mp->ffplayer->vout = SDL_VoutAndroid_CreateForVulkan();
+    if (verge_vendor_wants_gles_device()) {
+        ALOGI("vendor match: OpenGL ES 3 video output, Vulkan instance is not created\n");
+        fs_passthrough_log_line("video-output request backend=gles3 reason=vendor-match");
+        mp->ffplayer->vout = SDL_VoutAndroid_CreateForOpenGLES3();
+    } else {
+        mp->ffplayer->vout = SDL_VoutAndroid_CreateForVulkan();
+        if (mp->ffplayer->vout)
+            fs_passthrough_log_line("video-output request backend=vulkan result=created");
+        else
+            fs_passthrough_log_line("video-output request backend=vulkan result=create-failed");
+    }
     if (!mp->ffplayer->vout)
         goto fail;
 
