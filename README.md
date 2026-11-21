@@ -31,7 +31,7 @@
 
 ## 📥 下载 / Download
 
-> 最新版本 / Newest release: v1.0.5
+> 最新版本 / Newest release: v1.0.7
 
 | 最低 Android 版本 | 下载地址 |
 |:------------------:|:--------:|

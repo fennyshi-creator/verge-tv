@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.xxxx.emby_tv.data.local.PreferencesManager
 import com.xxxx.emby_tv.data.remote.EmbyApi
 import com.xxxx.emby_tv.data.repository.EmbyRepository
+import com.xxxx.emby_tv.ui.update.ReleaseVersions
+import com.xxxx.emby_tv.ui.update.UpdateLookup
 import com.xxxx.emby_tv.util.ErrorHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -109,28 +111,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * 检查更新
      */
     fun checkUpdate() {
-        if (newVersion.isNotEmpty()) return
+        checkForNewer { }
+    }
 
+    /**
+     * One check against releases/latest. A download is armed only when the
+     * published tag is newer than this build.
+     */
+    fun checkForNewer(onResult: (UpdateLookup) -> Unit) {
         viewModelScope.launch {
             try {
                 val context = getApplication<Application>().applicationContext
                 val res = withContext(Dispatchers.IO) {
                     EmbyApi.getNewVersion(context)
                 }
-
-                val tagName = res.safeGetString("tag_name") ?: ""
-                val body = res.safeGetString("body") ?: ""
-                val assets = res["assets"]?.asJsonArray
-
-                if (assets != null && assets.size() > 0) {
-                    downloadUrl = assets[0].asJsonObject.safeGetString("browser_download_url") ?: ""
+                val tagName = res.safeGetString("tag_name").orEmpty()
+                if (tagName.isBlank()) {
+                    onResult(UpdateLookup.Failed("检查更新失败"))
+                    return@launch
                 }
-
+                val body = res.safeGetString("body").orEmpty()
+                val assetUrl = res["assets"]?.asJsonArray
+                    ?.firstOrNull()
+                    ?.asJsonObject
+                    ?.safeGetString("browser_download_url")
+                    .orEmpty()
+                if (!ReleaseVersions.isNewer(tagName, currentVersion)) {
+                    onResult(UpdateLookup.UpToDate(tagName))
+                    return@launch
+                }
+                if (assetUrl.isBlank()) {
+                    onResult(UpdateLookup.Failed("没有可安装的安装包"))
+                    return@launch
+                }
+                downloadUrl = assetUrl
                 newVersion = tagName
                 updateLog = body
-
+                onResult(UpdateLookup.Newer(tagName))
             } catch (e: Exception) {
                 ErrorHandler.logError("MainViewModel", "操作失败", e)
+                onResult(UpdateLookup.Failed("检查更新失败"))
             }
         }
     }

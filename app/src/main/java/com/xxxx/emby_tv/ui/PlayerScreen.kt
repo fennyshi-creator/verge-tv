@@ -331,7 +331,7 @@ fun PlayerScreen(
     val menuOwners = remember { mutableStateMapOf<Int, Boolean>() }
     val okLatch = remember { OkLatch() }
     val timelineFocus = remember { FocusRequester() }
-    val transportButtons = remember { List(4) { FocusRequester() } }
+    val transportButtons = remember { List(com.xxxx.emby_tv.ui.components.TransportSlots.count(showVersion = true)) { FocusRequester() } }
     var showDiagnostics by remember { mutableStateOf(preferencesManager.showDiagnostics) }
     var decodeAudio by remember { mutableStateOf(preferencesManager.decodeToStereo) }
     var decoderPreference by remember { mutableIntStateOf(preferencesManager.decoderPreference) }
@@ -1100,12 +1100,17 @@ fun PlayerScreen(
                 modePrefs.getInt("play_mode_movie", 2)
             }
 
-            // 服务器返回完整片源列表时更新缓存（指定 MediaSourceId 时只返回单源，保留原列表）
-            if ((mediaResult.mediaSources?.size ?: 0) > 1) {
-                allMediaSources = mediaResult.mediaSources!!
-            } else if (allMediaSources.isEmpty()) {
-                allMediaSources = mediaResult.mediaSources ?: emptyList()
+            // PlaybackInfo often returns only the source about to play. The item
+            // catalog is the same MediaSources list the details page uses.
+            val itemSources = withContext(Dispatchers.IO) {
+                runCatching { repository.getMovieItem(mediaId).mediaSources.orEmpty() }
+                    .getOrDefault(emptyList())
             }
+            allMediaSources = com.xxxx.emby_tv.ui.player.VersionCatalog.choose(
+                playback = mediaResult.mediaSources.orEmpty(),
+                item = itemSources,
+                cached = allMediaSources,
+            )
 
             // 初次进入：自动选择片源。优先级：偏好策略（杜比视界/HDR/流畅优先）> 上次手动选择的片源名（仅默认排序时生效）
             if (selectedMediaSourceId == null && allMediaSources.size > 1) {
@@ -1687,7 +1692,6 @@ fun PlayerScreen(
 
     LaunchedEffect(isPlaying) {
         if (isPlaying) hasPlayed = true
-        else if (hasPlayed) chromeVisible = true
     }
 
     LaunchedEffect(seekPulse) {
@@ -1888,6 +1892,10 @@ fun PlayerScreen(
                 if (remoteKey(event) == PlayerKey.Back) {
                     dispatchPlayerBack(remotePhase(event))
                     return@onPreviewKeyEvent true
+                }
+                if (chromeVisible && menuFocused && remotePhase(event) != KeyPhase.Up) {
+                    chromeTick = System.currentTimeMillis()
+                    chromeHold = chromeHoldMs(resumed = false)
                 }
                 val decision = decideRemote(
                     RemoteContext(
@@ -2130,6 +2138,9 @@ fun PlayerScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
+            val playingSource = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
+                ?: media.mediaSources?.firstOrNull()
+            val streamLines = com.xxxx.emby_tv.ui.player.StreamInfo.lines(playingSource, selectedAudioIndex)
             PlayerTransportBar(
                 visible = chromeVisible && !episodeStrip,
                 serverUrl = serverUrl,
@@ -2137,7 +2148,7 @@ fun PlayerScreen(
                 mediaInfo = mediaInfo,
                 positionMs = shownPosition,
                 durationMs = duration,
-                showVersionButton = allMediaSources.size > 1,
+                showVersionButton = com.xxxx.emby_tv.util.EmbyPresentation.showVersionButton(allMediaSources.size),
                 episodes = if (episodeStrip) emptyList() else seriesEpisodes,
                 restoreButton = restoreButton,
                 timelineFocus = timelineFocus,
@@ -2198,6 +2209,7 @@ fun PlayerScreen(
                     com.xxxx.emby_tv.ui.components.PlayerSheet.Subtitles -> "字幕"
                     com.xxxx.emby_tv.ui.components.PlayerSheet.Audio -> "音频"
                     com.xxxx.emby_tv.ui.components.PlayerSheet.Versions -> "片源"
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Info -> "信息"
                     else -> "播放设置"
                 },
                 onDismiss = { playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None },
@@ -2235,6 +2247,9 @@ fun PlayerScreen(
                             playerSheet = com.xxxx.emby_tv.ui.components.PlayerSheet.None
                         },
                     )
+                    com.xxxx.emby_tv.ui.components.PlayerSheet.Info -> {
+                        com.xxxx.emby_tv.ui.components.StreamInfoSheet(streamLines)
+                    }
                     com.xxxx.emby_tv.ui.components.PlayerSheet.Settings -> SettingsSheetBody(
                         playbackSpeed = playbackSpeed,
                         onSpeed = {
