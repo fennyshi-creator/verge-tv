@@ -17,6 +17,11 @@ class PlaybackErrorPolicyTest {
     }
 
     @Test
+    fun audioReleaseStopsWithoutOpeningAnotherTrack() {
+        assertTrue(PlaybackErrorPolicy.stopsWithoutReopen("audio-release: previous output still closing"))
+    }
+
+    @Test
     fun decoderErrorsCanStillRecover() {
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("FSPlayer 100/1"))
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("prepare"))

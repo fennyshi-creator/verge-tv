@@ -326,6 +326,13 @@ fun PlayerScreen(
     var decodeAudio by remember { mutableStateOf(preferencesManager.decodeToStereo) }
     var decoderPreference by remember { mutableIntStateOf(preferencesManager.decoderPreference) }
     var hdrToSdr by remember { mutableStateOf(preferencesManager.hdrToSdr) }
+    var directHdrWindow by remember { mutableStateOf(false) }
+    var frameWidth by remember { mutableIntStateOf(0) }
+    var frameHeight by remember { mutableIntStateOf(0) }
+    var frameSarNum by remember { mutableIntStateOf(0) }
+    var frameSarDen by remember { mutableIntStateOf(1) }
+    var frameRotation by remember { mutableIntStateOf(0) }
+    var frameScale by remember { mutableIntStateOf(com.xxxx.emby_tv.ui.player.VideoFrameFit.FIT) }
     var aacAc3Mode by remember { mutableIntStateOf(preferencesManager.aacAc3Mode) }
     val initialRoute = remember { com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context) }
     var routeSnapshot by remember { mutableStateOf(initialRoute) }
@@ -836,6 +843,11 @@ fun PlayerScreen(
         )
         player.mapHdrToSdr = choice.mapHdrToSdr
         player.hdrWindowOutput = choice.windowSurface
+        directHdrWindow = choice.windowSurface
+        if (choice.windowSurface && frameWidth <= 0) {
+            frameWidth = video?.width ?: 0
+            frameHeight = video?.height ?: 0
+        }
         player.useSoftwareVideo(choice.softwareVideo)
         com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(choice.requestHardwareSdr)
         val audioPlan = audioTracks.firstOrNull { it.index == selectedAudioIndex }
@@ -1650,10 +1662,12 @@ fun PlayerScreen(
                 }
                 if (com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.stopsWithoutReopen(message)) {
                     isBuffering = false
-                    engineFailure = if (message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.VIDEO_DECODE)) {
-                        context.getString(R.string.player_hdr_hardware_failed)
-                    } else {
-                        context.getString(R.string.player_engine_failed)
+                    engineFailure = when {
+                        message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.VIDEO_DECODE) ->
+                            context.getString(R.string.player_hdr_hardware_failed)
+                        message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_RELEASE) ->
+                            context.getString(R.string.player_audio_release_failed)
+                        else -> context.getString(R.string.player_engine_failed)
                     }
                     return
                 }
@@ -1679,6 +1693,22 @@ fun PlayerScreen(
 
             override fun onVideoDecoder(name: String) {
                 currentVideoDecoderName = name
+            }
+
+            override fun onVideoGeometry(
+                width: Int,
+                height: Int,
+                sarNum: Int,
+                sarDen: Int,
+                rotation: Int,
+                scaleMode: Int,
+            ) {
+                frameWidth = width
+                frameHeight = height
+                frameSarNum = sarNum
+                frameSarDen = sarDen
+                frameRotation = rotation
+                frameScale = scaleMode
             }
         }
         player.addListener(listener)
@@ -1997,12 +2027,17 @@ fun PlayerScreen(
             // 1. Video Layer
             AndroidView(
                 factory = { ctx ->
-                    SurfaceView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
+                    android.widget.FrameLayout(ctx).apply {
+                        val surface = SurfaceView(ctx)
+                        addView(
+                            surface,
+                            android.widget.FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.Gravity.CENTER,
+                            ),
                         )
-                        holder.addCallback(object : SurfaceHolder.Callback {
+                        surface.holder.addCallback(object : SurfaceHolder.Callback {
                             override fun surfaceCreated(holder: SurfaceHolder) {
                                 player.setVideoSurface(holder.surface)
                             }
@@ -2021,6 +2056,31 @@ fun PlayerScreen(
                             }
                         })
                     }
+                },
+                update = { frame ->
+                    val surface = frame.getChildAt(0) as SurfaceView
+                    val params = surface.layoutParams as android.widget.FrameLayout.LayoutParams
+                    val codedW = if (frameWidth > 0) frameWidth else 0
+                    val codedH = if (frameHeight > 0) frameHeight else 0
+                    if (!directHdrWindow || frame.width <= 0 || frame.height <= 0 || codedW <= 0 || codedH <= 0) {
+                        params.width = ViewGroup.LayoutParams.MATCH_PARENT
+                        params.height = ViewGroup.LayoutParams.MATCH_PARENT
+                    } else {
+                        val placed = com.xxxx.emby_tv.ui.player.VideoFrameFit.place(
+                            frame.width,
+                            frame.height,
+                            codedW,
+                            codedH,
+                            frameSarNum,
+                            frameSarDen,
+                            frameRotation,
+                            frameScale,
+                        )
+                        params.width = placed.width
+                        params.height = placed.height
+                    }
+                    params.gravity = android.view.Gravity.CENTER
+                    surface.layoutParams = params
                 },
                 modifier = Modifier.fillMaxSize(),
             )

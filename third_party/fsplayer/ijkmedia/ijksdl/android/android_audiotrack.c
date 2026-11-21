@@ -532,6 +532,70 @@ int SDL_Android_AudioTrack_reserve_byte_buffer(JNIEnv *env, SDL_Android_AudioTra
     return capacity;
 }
 
+static jmethodID g_write_nonblock;
+static jmethodID g_playback_head;
+static int g_audio_methods_ready;
+
+static void audiotrack_cache_methods(JNIEnv *env, jobject track)
+{
+    jclass cls;
+    if (g_audio_methods_ready || !env || !track)
+        return;
+    cls = (*env)->GetObjectClass(env, track);
+    if (cls) {
+        g_write_nonblock = (*env)->GetMethodID(env, cls, "write", "([BIII)I");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        g_playback_head = (*env)->GetMethodID(env, cls, "getPlaybackHeadPosition", "()I");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, cls);
+    }
+    g_audio_methods_ready = 1;
+}
+
+int SDL_Android_AudioTrack_write_nonblock(JNIEnv *env, SDL_Android_AudioTrack *atrack,
+                                          uint8_t *data, int total, int offset)
+{
+    int accepted;
+    if (!env || !atrack || !atrack->thiz || !data || total <= 0 || offset < 0 || offset >= total)
+        return -1;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (offset == 0) {
+        if (SDL_Android_AudioTrack_reserve_byte_buffer(env, atrack, total) < total)
+            return -1;
+        (*env)->SetByteArrayRegion(env, atrack->byte_buffer, 0, total, (jbyte *)data);
+        if (J4A_ExceptionCheck__catchAll(env))
+            return -1;
+    }
+    if (!g_write_nonblock)
+        return J4AC_AudioTrack__write(env, atrack->thiz, atrack->byte_buffer, offset, total - offset);
+    /* AudioTrack.WRITE_NON_BLOCKING == 1. */
+    accepted = (*env)->CallIntMethod(env, atrack->thiz, g_write_nonblock,
+                                     atrack->byte_buffer, offset, total - offset, 1);
+    if (J4A_ExceptionCheck__catchAll(env))
+        return -1;
+    return accepted;
+}
+
+int SDL_Android_AudioTrack_playback_head(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid)
+{
+    int head;
+    if (valid)
+        *valid = 0;
+    if (!env || !atrack || !atrack->thiz)
+        return 0;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (!g_playback_head)
+        return 0;
+    head = (*env)->CallIntMethod(env, atrack->thiz, g_playback_head);
+    if (J4A_ExceptionCheck__catchAll(env))
+        return 0;
+    if (valid)
+        *valid = 1;
+    return head;
+}
+
 int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, uint8_t *data, int size_in_byte)
 {
     if (size_in_byte <= 0)

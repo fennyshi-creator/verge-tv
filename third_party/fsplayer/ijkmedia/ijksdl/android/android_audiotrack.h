@@ -111,6 +111,10 @@ void SDL_Android_AudioTrack_set_volume(JNIEnv *env, SDL_Android_AudioTrack *atra
 void SDL_Android_AudioTrack_stop(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 void SDL_Android_AudioTrack_release(JNIEnv *env, SDL_Android_AudioTrack *atrack);
 int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, uint8_t *data, int size_in_byte);
+/* API 23 write mode 1. Copies on offset 0. Returns bytes accepted, 0, or <0. */
+int SDL_Android_AudioTrack_write_nonblock(JNIEnv *env, SDL_Android_AudioTrack *atrack,
+                                          uint8_t *data, int total, int offset);
+int SDL_Android_AudioTrack_playback_head(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid);
 void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line);
 /* Attaches the calling thread if needed. Safe to call from the decoder. */
 void fs_passthrough_log_line(const char *line);

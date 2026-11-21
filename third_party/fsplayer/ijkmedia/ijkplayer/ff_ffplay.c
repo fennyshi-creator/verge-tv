@@ -65,6 +65,7 @@
 #include "libavutil/display.h"
 #include "fs_passthrough.h"
 #include "fs_aac_ac3.h"
+#include "fs_aac_ac3_clock.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/defs.h>
 
@@ -367,6 +368,8 @@ static int fs_passthrough_is_iec(FFPlayer *ffp)
 
 static double get_clock(Clock *c);
 static void set_clock(Clock *c, double pts, int serial);
+static void set_clock_at(Clock *c, double pts, int serial, double time);
+static void sync_clock_to_slave(Clock *c, Clock *slave);
 static int get_master_sync_type(VideoState *is);
 
 static int fs_diag_iec_on(FFPlayer *ffp)
@@ -492,6 +495,82 @@ static void fs_diag_maybe_second(FFPlayer *ffp)
         return;
     ffp->diag_last_snapshot_us = now;
     fs_diag_log_snapshot(ffp, "sec");
+}
+
+static FsAacAc3Clock *fs_ac3_clock(FFPlayer *ffp)
+{
+    if (!ffp)
+        return NULL;
+    if (!ffp->aac_clock) {
+        ffp->aac_clock = av_mallocz(sizeof(FsAacAc3Clock));
+        if (ffp->aac_clock)
+            fs_aac_ac3_clock_init(ffp->aac_clock,
+                                  ffp->aac_hw_buffer > 0 ? ffp->aac_hw_buffer : 65536);
+    }
+    return ffp->aac_clock;
+}
+
+static void fs_ac3_publish(FFPlayer *ffp)
+{
+    FsAacAc3Clock *clock;
+    VideoState *is;
+    const char *source = "startup";
+    double presented;
+    char line[192];
+    if (!ffp || !ffp->is || !ffp->aac_ac3_on)
+        return;
+    is = ffp->is;
+    clock = fs_ac3_clock(ffp);
+    if (!clock)
+        return;
+    if (ffp->aac_clock_serial != is->audio_clock_serial) {
+        fs_aac_ac3_clock_reset(clock);
+        ffp->aac_clock_serial = is->audio_clock_serial;
+    }
+    presented = fs_aac_ac3_clock_presented(clock, &source);
+    if (isnan(presented))
+        return;
+    set_clock_at(&is->audclk, presented, is->audio_clock_serial, av_gettime_relative() / 1000000.0);
+    sync_clock_to_slave(&is->extclk, &is->audclk);
+    if (clock->frames > 0 && (clock->frames % 32) == 0) {
+        snprintf(line, sizeof(line),
+                 "aac-ac3 clock source=%s unit=%d queued_bytes=%lld queued_ms=%lld presented_ms=%lld",
+                 source, clock->head_unit,
+                 (long long)fs_aac_ac3_clock_queued_bytes(clock),
+                 (long long)(fs_aac_ac3_clock_queued_bytes(clock) * 1000 / 48000),
+                 (long long)(presented * 1000.0));
+        fs_passthrough_log_line(line);
+    }
+}
+
+void fs_ac3_client_on_written(void *player, int bytes, int head, int head_valid)
+{
+    FFPlayer *ffp = player;
+    FsAacAc3Clock *clock;
+    VideoState *is;
+    if (!ffp || !ffp->aac_ac3_on || !ffp->is || bytes <= 0)
+        return;
+    is = ffp->is;
+    clock = fs_ac3_clock(ffp);
+    if (!clock)
+        return;
+    if (ffp->aac_clock_serial != is->audio_clock_serial) {
+        fs_aac_ac3_clock_reset(clock);
+        ffp->aac_clock_serial = is->audio_clock_serial;
+    }
+    fs_aac_ac3_clock_accept(clock, bytes, is->audio_clock);
+    fs_aac_ac3_clock_head(clock, (uint32_t)head, head_valid);
+    fs_ac3_publish(ffp);
+}
+
+void fs_ac3_client_hold(void *player)
+{
+    FFPlayer *ffp = player;
+    FsAacAc3Clock *clock = fs_ac3_clock(ffp);
+    if (!clock)
+        return;
+    fs_aac_ac3_clock_note_blocked(clock);
+    fs_ac3_publish(ffp);
 }
 
 void fs_iec_audclk_on_write(void *player, int written)
@@ -1157,9 +1236,12 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
         fs_iec61937_eac3_free(ffp->audio_iec);
         ffp->audio_iec = NULL;
         swr_free(&is->swr_ctx);
+        if (ffp->aac_ac3_state)
+            fs_passthrough_log_line("aac-ac3 encoder-close");
         fs_aac_ac3_close(ffp->aac_ac3_state);
         ffp->aac_ac3_state = NULL;
         ffp->aac_ac3_on = 0;
+        av_freep(&ffp->aac_clock);
         av_freep(&is->audio_buf1);
         is->audio_buf1_size = 0;
         is->audio_buf = NULL;
@@ -1202,6 +1284,11 @@ static void stream_close(FFPlayer *ffp)
     is->abort_request = 1;
     packet_queue_abort(&is->videoq);
     packet_queue_abort(&is->audioq);
+    /* Drop the AudioTrack before waiting on demux, so the next title cannot
+     * open a second encoded track while this write is still in the driver. */
+    fs_passthrough_log_line("audio device release begin");
+    SDL_AoutCloseAudio(ffp->aout);
+    fs_passthrough_log_line("audio device release done");
     ff_sub_abort(is->ffSub);
     SDL_WaitThread(is->read_tid, NULL);
     /* close each stream */
@@ -3770,14 +3857,9 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         stream[1] = (uint8_t) ((payload >> 8) & 0xff);
         stream[2] = (uint8_t) ((payload >> 16) & 0xff);
         stream[3] = (uint8_t) ((payload >> 24) & 0xff);
-        if (payload > 0 && !isnan(is->audio_clock)) {
-            double pts = is->audio_clock - SDL_AoutGetLatencySeconds(ffp->aout);
-            set_clock_at(&is->audclk, pts, is->audio_clock_serial, ffp->audio_callback_time / 1000000.0);
-            sync_clock_to_slave(&is->extclk, &is->audclk);
-            if (!ffp->first_audio_frame_rendered) {
-                ffp->first_audio_frame_rendered = 1;
-                ffp_notify_msg1(ffp, FFP_MSG_AUDIO_RENDERING_START);
-            }
+        if (payload > 0 && !ffp->first_audio_frame_rendered) {
+            ffp->first_audio_frame_rendered = 1;
+            ffp_notify_msg1(ffp, FFP_MSG_AUDIO_RENDERING_START);
         }
         return;
     }
@@ -4160,8 +4242,12 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
                     /* 1536-byte AC-3 frame is 32 ms at 384 kbps, so one byte is one PCM-rate tick. */
                     audio_hw_params->frame_size = 2;
                     audio_hw_params->bytes_per_sec = 48000;
+                    ffp->aac_hw_buffer = ac3_spec.size > 0 ? (int)ac3_spec.size : 65536;
+                    if (ffp->aac_clock)
+                        fs_aac_ac3_clock_init(ffp->aac_clock, ffp->aac_hw_buffer);
                     fs_passthrough_log_line("aac-ac3 encoder-open rate=48000 channels=6 bitrate=384000 encoding=ac3");
-                    SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0.064);
+                    /* The presented clock is bytes consumed, not a fixed latency. */
+                    SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0);
                     return ac3_spec.size > 0 ? (int)ac3_spec.size : 1536;
                 }
             }

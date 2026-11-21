@@ -31,6 +31,14 @@ class FsPlayback(private val appContext: Context) {
         fun onPlaybackStateChanged(state: Int) {}
         fun onError(message: String) {}
         fun onVideoDecoder(name: String) {}
+        fun onVideoGeometry(
+            width: Int,
+            height: Int,
+            sarNum: Int,
+            sarDen: Int,
+            rotation: Int,
+            scaleMode: Int,
+        ) {}
     }
 
     companion object {
@@ -45,6 +53,8 @@ class FsPlayback(private val appContext: Context) {
 
         /** The main thread must never wait on `ffp_wait_stop_l`. */
         fun joinsNativeRelease(onMainThread: Boolean): Boolean = !onMainThread
+
+        const val AUDIO_RELEASE = "audio-release"
     }
 
     private val listeners = CopyOnWriteArrayList<Listener>()
@@ -154,6 +164,25 @@ class FsPlayback(private val appContext: Context) {
         speed: Float = playbackSpeed,
     ) {
         if (released) return
+        onEngine {
+            if (!AudioDeviceGate.awaitIdle(RELEASE_TIMEOUT_MS)) {
+                noteEngine("audio release timeout; refusing overlapping open")
+                dispatchError("${AUDIO_RELEASE}: previous output still closing")
+                return@onEngine
+            }
+            openOnEngine(url, headers, startMs, passthrough, joc, speed)
+        }
+    }
+
+    private fun openOnEngine(
+        url: String,
+        headers: Map<String, String>,
+        startMs: Long,
+        passthrough: Boolean,
+        joc: Boolean,
+        speed: Float,
+    ) {
+        if (released) return
         this.url = url
         this.headers = headers
         this.startMs = startMs
@@ -164,7 +193,7 @@ class FsPlayback(private val appContext: Context) {
             "playback-open softwareVideo=$preferSoftwareVideo passthrough=${this.passthroughEnabled} " +
                 deviceSnapshot()
         )
-        onEngine { swapEngine() }
+        swapEngine()
     }
 
     /**
@@ -399,7 +428,10 @@ class FsPlayback(private val appContext: Context) {
         if (released) return
         val previous = engine
         engine = null
-        detachNative(previous)
+        if (!detachNative(previous)) {
+            dispatchError("${AUDIO_RELEASE}: previous output still closing")
+            return
+        }
         if (released) return
         val next = try {
             FSPlayer()
@@ -440,9 +472,10 @@ class FsPlayback(private val appContext: Context) {
      * on the main looper. Other callers wait at most [RELEASE_TIMEOUT_MS]
      * and then leave the instance alone.
      */
-    private fun detachNative(player: FSPlayer?) {
-        if (player == null) return
-        val worker = Thread({
+    private fun detachNative(player: FSPlayer?): Boolean {
+        if (player == null) return true
+        noteEngine("audio release begin")
+        AudioDeviceGate.begin {
             try {
                 player.setSurface(null)
             } catch (error: Exception) {
@@ -453,15 +486,17 @@ class FsPlayback(private val appContext: Context) {
             } catch (error: Exception) {
                 Log.w(TAG, "release failed", error)
             }
-        }, "verge-fs-release")
-        worker.isDaemon = true
-        worker.start()
-        val onMain = Looper.myLooper() == Looper.getMainLooper()
-        if (!joinsNativeRelease(onMain)) return
-        worker.join(RELEASE_TIMEOUT_MS)
-        if (worker.isAlive) {
-            Log.w(TAG, "native release still running after ${RELEASE_TIMEOUT_MS}ms")
+            noteEngine("audio release worker done")
         }
+        val onMain = Looper.myLooper() == Looper.getMainLooper()
+        if (!joinsNativeRelease(onMain))
+            return false
+        val finished = AudioDeviceGate.awaitIdle(RELEASE_TIMEOUT_MS)
+        if (!finished)
+            noteEngine("audio release timeout")
+        else
+            noteEngine("audio release done")
+        return finished
     }
 
     private fun onEngine(block: () -> Unit) {
@@ -542,6 +577,18 @@ class FsPlayback(private val appContext: Context) {
     }
 
     private fun wire(player: FSPlayer) {
+        player.setOnVideoSizeChangedListener { _, width, height, sarNum, sarDen ->
+            dispatch {
+                it.onVideoGeometry(
+                    width,
+                    height,
+                    sarNum,
+                    sarDen,
+                    player.zRotateDegrees.toInt(),
+                    player.scalingMode,
+                )
+            }
+        }
         player.setOnPreparedListener {
             onEngine {
                 if (released || engine !== player) return@onEngine
