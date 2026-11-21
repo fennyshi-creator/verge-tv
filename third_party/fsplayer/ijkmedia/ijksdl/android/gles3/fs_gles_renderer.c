@@ -11,6 +11,7 @@
 #include <GLES3/gl3.h>
 #include <android/log.h>
 #include <android/native_window.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <limits.h>
 #include <math.h>
@@ -65,7 +66,8 @@ struct FSGLESRenderer {
     int disp_w, disp_h, sar_num, sar_den, auto_z, mode;
     float rotation[3], adjust[3], background[3];
     float matrix[9], offset[3], scale[3];
-    int hdr, tf, allow_hdr;
+    int hdr, tf, allow_hdr, hdr_window_output;
+    jobject window_surface;
     struct SwsContext *sws;
     AVFrame *converted;
     SDL_GPU *gpu;
@@ -768,16 +770,69 @@ fail:
     fs_gles_renderer_destroy(r);
     return NULL;
 }
+static jobject (*gles_window_to_surface)(JNIEnv *, ANativeWindow *);
+
+extern void fs_passthrough_log_line(const char *line);
+
+static void gles_load_window_to_surface(void)
+{
+    static int once = 0;
+    void *lib;
+    if (once)
+        return;
+    once = 1;
+    lib = dlopen("libandroid.so", RTLD_NOW);
+    if (!lib)
+        return;
+    gles_window_to_surface = (jobject (*)(JNIEnv *, ANativeWindow *))
+        dlsym(lib, "ANativeWindow_toSurface");
+}
+
+static void gles_replace_window_surface(FSGLESRenderer *r)
+{
+    JNIEnv *env = NULL;
+    jobject local = NULL;
+    if (r->window_surface) {
+        if (SDL_JNI_SetupThreadEnv(&env) == JNI_OK && env)
+            (*env)->DeleteGlobalRef(env, r->window_surface);
+        r->window_surface = NULL;
+    }
+    if (!r->hdr_window_output || !r->window) {
+        fs_passthrough_log_line("hdr-output path=oes");
+        return;
+    }
+    gles_load_window_to_surface();
+    if (!gles_window_to_surface || SDL_JNI_SetupThreadEnv(&env) != JNI_OK || !env) {
+        fs_passthrough_log_line("hdr-output window-surface unavailable");
+        return;
+    }
+    local = gles_window_to_surface(env, r->window);
+    if (!local) {
+        fs_passthrough_log_line("hdr-output window-surface failed");
+        return;
+    }
+    r->window_surface = (*env)->NewGlobalRef(env, local);
+    (*env)->DeleteLocalRef(env, local);
+    fs_passthrough_log_line(r->window_surface
+        ? "hdr-output window-surface decoder=mediacodec map=direct"
+        : "hdr-output window-surface failed");
+}
+
 int fs_gles_renderer_set_surface(FSGLESRenderer *r, ANativeWindow *window)
 {
+    int want_egl;
+    int have_egl;
     if (!enter(r))
         return -1;
-    if (window == r->window && (!window || r->surface != EGL_NO_SURFACE)) {
+    want_egl = window && !r->hdr_window_output;
+    have_egl = r->surface != EGL_NO_SURFACE;
+    if (window == r->window && ((want_egl && have_egl) || (!want_egl && !have_egl))) {
+        gles_replace_window_surface(r);
         leave(r);
         return 0;
     }
     EGLSurface next = EGL_NO_SURFACE;
-    if (window) {
+    if (window && !r->hdr_window_output) {
         EGLint visual = 0;
         eglGetConfigAttrib(r->display, r->config, EGL_NATIVE_VISUAL_ID, &visual);
         ANativeWindow_acquire(window);
@@ -792,6 +847,8 @@ int fs_gles_renderer_set_surface(FSGLESRenderer *r, ANativeWindow *window)
             leave(r);
             return -1;
         }
+    } else if (window) {
+        ANativeWindow_acquire(window);
     }
     if (r->surface != EGL_NO_SURFACE)
         eglDestroySurface(r->display, r->surface);
@@ -799,6 +856,7 @@ int fs_gles_renderer_set_surface(FSGLESRenderer *r, ANativeWindow *window)
         ANativeWindow_release(r->window);
     r->window = window;
     r->surface = next;
+    gles_replace_window_surface(r);
     leave(r);
     return 0;
 }
@@ -1180,6 +1238,14 @@ int fs_gles_renderer_display(FSGLESRenderer *r, const AVFrame *frame, int dw, in
         return -1;
     const AVFrame *f = frame;
     int ret = -1;
+    if (f->format == AV_PIX_FMT_MEDIACODEC && r->hdr_window_output) {
+        AVMediaCodecBuffer *buffer = (AVMediaCodecBuffer *)f->data[3];
+        if (!buffer || av_mediacodec_release_buffer(buffer, 1) < 0)
+            goto done;
+        r->hdr = 1;
+        ret = 0;
+        goto done;
+    }
     if (f->format == AV_PIX_FMT_MEDIACODEC) {
         if (mc_upload(r, f))
             goto done;
@@ -1377,6 +1443,23 @@ void fs_gles_renderer_set_rotate_degrees(FSGLESRenderer *r, float x, float y, fl
     r->rotation[2] = fmodf(z, 360.f);
     pthread_mutex_unlock(&r->mutex);
 }
+void fs_gles_renderer_set_hdr_window_output(FSGLESRenderer *r, int enable)
+{
+    ANativeWindow *window;
+    if (!r)
+        return;
+    pthread_mutex_lock(&r->mutex);
+    r->hdr_window_output = enable ? 1 : 0;
+    window = r->window;
+    if (window)
+        ANativeWindow_acquire(window);
+    pthread_mutex_unlock(&r->mutex);
+    if (window) {
+        fs_gles_renderer_set_surface(r, window);
+        ANativeWindow_release(window);
+    }
+}
+
 void fs_gles_renderer_set_allow_hdr_display(FSGLESRenderer *r, int allow)
 {
     if (!r)
@@ -1405,7 +1488,8 @@ int fs_gles_renderer_is_mediacodec_supported(FSGLESRenderer *r)
     if (!r) return 0;
     pthread_mutex_lock(&r->mutex);
 #ifdef FS_GLES_ANDROID_CODEC
-    supported = !r->dead && !r->mc_failed && r->oes && r->mc_surface;
+    supported = !r->dead && ((r->hdr_window_output && r->window_surface) ||
+                             (!r->mc_failed && r->oes && r->mc_surface));
 #endif
     pthread_mutex_unlock(&r->mutex);
     return supported;
@@ -1416,10 +1500,12 @@ jobject fs_gles_renderer_get_mediacodec_surface(JNIEnv *env, FSGLESRenderer *r)
     jobject surface = NULL;
     pthread_mutex_lock(&r->mutex);
 #ifdef FS_GLES_ANDROID_CODEC
-    if (!r->dead && !r->mc_failed && r->mc_surface) {
+    if (!r->dead && r->hdr_window_output && r->window_surface)
+        surface = (*env)->NewLocalRef(env, r->window_surface);
+    else if (!r->dead && !r->mc_failed && r->mc_surface)
         surface = (*env)->NewLocalRef(env, r->mc_surface);
-        if (mc_exception(env, "surface local ref")) surface = NULL;
-    }
+    if (surface && mc_exception(env, "surface local ref"))
+        surface = NULL;
 #endif
     pthread_mutex_unlock(&r->mutex);
     return surface;
@@ -1437,6 +1523,12 @@ void fs_gles_renderer_destroy(FSGLESRenderer *r)
     fs_gles_renderer_detach_gpu(r);
     LOGI("renderer totals: oes_frames=%lu cpu_uploads=%lu", r->oes_frames, r->cpu_uploads);
     av_frame_free(&r->mc_last);
+    if (r->window_surface) {
+        JNIEnv *env = NULL;
+        if (SDL_JNI_SetupThreadEnv(&env) == JNI_OK && env)
+            (*env)->DeleteGlobalRef(env, r->window_surface);
+        r->window_surface = NULL;
+    }
     mc_cleanup(r);
     if (r->context != EGL_NO_CONTEXT && r->pbuffer != EGL_NO_SURFACE &&
         eglMakeCurrent(r->display, r->pbuffer, r->pbuffer, r->context)) {

@@ -12,6 +12,11 @@ class PlaybackErrorPolicyTest {
     }
 
     @Test
+    fun hardwareHdrFailureStopsWithoutSoftwareVideo() {
+        assertTrue(PlaybackErrorPolicy.stopsWithoutReopen("video-decode: mediacodec-hdr"))
+    }
+
+    @Test
     fun decoderErrorsCanStillRecover() {
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("FSPlayer 100/1"))
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("prepare"))

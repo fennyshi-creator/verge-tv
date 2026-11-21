@@ -28,6 +28,8 @@ void fs_gles_renderer_set_background_image(FSGLESRenderer *r, const void *pixels
                                            int height);
 void fs_gles_renderer_set_background_blur(FSGLESRenderer *r, int iterations, float sigma);
 void fs_gles_renderer_set_allow_hdr_display(FSGLESRenderer *r, int allow);
+/* 1: MediaCodec draws the Android window. The OES texture stays for SDR. */
+void fs_gles_renderer_set_hdr_window_output(FSGLESRenderer *r, int enable);
 int fs_gles_renderer_is_hdr_content(FSGLESRenderer *r);
 int fs_gles_renderer_is_hdr_display_active(FSGLESRenderer *r);
 int fs_gles_renderer_take_snapshot(FSGLESRenderer *r, int type, int *out_w, int *out_h,

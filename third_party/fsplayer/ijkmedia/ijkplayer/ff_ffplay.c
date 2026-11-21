@@ -64,6 +64,7 @@
 #include "ijkavformat/ijkavformat.h"
 #include "libavutil/display.h"
 #include "fs_passthrough.h"
+#include "fs_aac_ac3.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/defs.h>
 
@@ -1156,6 +1157,9 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
         fs_iec61937_eac3_free(ffp->audio_iec);
         ffp->audio_iec = NULL;
         swr_free(&is->swr_ctx);
+        fs_aac_ac3_close(ffp->aac_ac3_state);
+        ffp->aac_ac3_state = NULL;
+        ffp->aac_ac3_on = 0;
         av_freep(&is->audio_buf1);
         is->audio_buf1_size = 0;
         is->audio_buf = NULL;
@@ -3381,6 +3385,22 @@ static int audio_decode_frame(FFPlayer *ffp)
     if (is->paused)
         return -1;
 
+    if (ffp->aac_ac3_on && ffp->aac_ac3_state) {
+        unsigned char packet[2048];
+        int wrote;
+        if (__atomic_exchange_n(&ffp->aac_ac3_reset_req, 0, memory_order_acq_rel))
+            fs_aac_ac3_reset(ffp->aac_ac3_state);
+        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet));
+        if (wrote > 0) {
+            av_fast_malloc(&is->audio_buf1, &is->audio_buf1_size, wrote);
+            if (!is->audio_buf1)
+                return -1;
+            memcpy(is->audio_buf1, packet, wrote);
+            is->audio_buf = is->audio_buf1;
+            return wrote;
+        }
+    }
+
     if (ffp->sync_av_start &&                       /* sync enabled */
         is->video_st &&                             /* has video stream */
         !is->viddec.first_frame_decoded &&          /* not hot */
@@ -3593,6 +3613,46 @@ reload:
         is->auddec.first_frame_decoded_time = SDL_GetTickHR();
         is->auddec.first_frame_decoded = 1;
     }
+    if (ffp->aac_ac3_on && ffp->aac_ac3_state) {
+        unsigned char packet[2048];
+        int wrote;
+        if (is->audio_tgt.ch_layout.nb_channels != 6 || is->audio_tgt.fmt != AV_SAMPLE_FMT_S16 ||
+            !is->audio_buf || resampled_data_size < 12) {
+            if (!ffp->aac_ac3_failed) {
+                ffp->aac_ac3_failed = 1;
+                fs_passthrough_log_line("aac-ac3 pcm shape rejected; stopping encoded writes");
+            }
+            return -1;
+        }
+        if (af->frame_serial != ffp->aac_ac3_serial) {
+            fs_aac_ac3_reset(ffp->aac_ac3_state);
+            ffp->aac_ac3_serial = af->frame_serial;
+        }
+        if (fs_aac_ac3_push(ffp->aac_ac3_state, (const int16_t *)is->audio_buf,
+                            resampled_data_size / 12) < 0) {
+            if (!ffp->aac_ac3_failed) {
+                ffp->aac_ac3_failed = 1;
+                fs_passthrough_log_line("aac-ac3 encode failed; stopping encoded writes");
+            }
+            return -1;
+        }
+        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet));
+        if (wrote < 0) {
+            if (!ffp->aac_ac3_failed) {
+                ffp->aac_ac3_failed = 1;
+                fs_passthrough_log_line("aac-ac3 packet rejected; stopping encoded writes");
+            }
+            return -1;
+        }
+        if (wrote == 0)
+            goto reload;
+        av_fast_malloc(&is->audio_buf1, &is->audio_buf1_size, wrote);
+        if (!is->audio_buf1)
+            return -1;
+        memcpy(is->audio_buf1, packet, wrote);
+        is->audio_buf = is->audio_buf1;
+        resampled_data_size = wrote;
+    }
     return resampled_data_size;
 }
 
@@ -3696,6 +3756,31 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     }
 
     ffp->audio_callback_time = av_gettime_relative();
+
+    if (ffp->aac_ac3_on) {
+        int payload = 0;
+        if (len >= 8) {
+            int audio_size = audio_decode_frame(ffp);
+            if (audio_size > 0 && is->audio_buf && audio_size <= len - 4) {
+                memcpy(stream + 4, is->audio_buf, (size_t) audio_size);
+                payload = audio_size;
+            }
+        }
+        stream[0] = (uint8_t) (payload & 0xff);
+        stream[1] = (uint8_t) ((payload >> 8) & 0xff);
+        stream[2] = (uint8_t) ((payload >> 16) & 0xff);
+        stream[3] = (uint8_t) ((payload >> 24) & 0xff);
+        if (payload > 0 && !isnan(is->audio_clock)) {
+            double pts = is->audio_clock - SDL_AoutGetLatencySeconds(ffp->aout);
+            set_clock_at(&is->audclk, pts, is->audio_clock_serial, ffp->audio_callback_time / 1000000.0);
+            sync_clock_to_slave(&is->extclk, &is->audclk);
+            if (!ffp->first_audio_frame_rendered) {
+                ffp->first_audio_frame_rendered = 1;
+                ffp_notify_msg1(ffp, FFP_MSG_AUDIO_RENDERING_START);
+            }
+        }
+        return;
+    }
 
     if (ffp->audio_passthrough_on) {
         int payload = 0;
@@ -4041,6 +4126,49 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
             av_channel_layout_default(wanted_channel_layout, 2);
         }
     }
+    if (ffp->aac_ac3 && fs_speed_is_one(ffp) &&
+        ffp->audio_open_codec_id == AV_CODEC_ID_AAC && wanted_nb_channels > 2) {
+        SDL_AudioSpec ac3_wanted = wanted_spec;
+        SDL_AudioSpec ac3_spec;
+        memset(&ac3_spec, 0, sizeof(ac3_spec));
+        ac3_wanted.freq = 48000;
+        ac3_wanted.channels = 6;
+        ac3_wanted.format = AUDIO_AC3;
+        ac3_wanted.samples = 1536;
+        if (SDL_AoutOpenAudio(ffp->aout, &ac3_wanted, &ac3_spec) == 0) {
+            FsAacAc3 *enc = fs_aac_ac3_open();
+            if (!enc) {
+                SDL_AoutCloseAudio(ffp->aout);
+                fs_passthrough_log_line("aac-ac3 encoder-open failed fallback=pcm");
+            } else {
+                ffp->aac_ac3_on = 1;
+                ffp->aac_ac3_failed = 0;
+                ffp->aac_ac3_serial = -1;
+                ffp->aac_ac3_reset_req = 0;
+                ffp->aac_ac3_state = enc;
+                av_channel_layout_uninit(wanted_channel_layout);
+                av_channel_layout_default(wanted_channel_layout, 6);
+                audio_hw_params->fmt = AV_SAMPLE_FMT_S16;
+                audio_hw_params->freq = 48000;
+                if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0) {
+                    fs_aac_ac3_close(enc);
+                    ffp->aac_ac3_state = NULL;
+                    ffp->aac_ac3_on = 0;
+                    SDL_AoutCloseAudio(ffp->aout);
+                    fs_passthrough_log_line("aac-ac3 layout failed fallback=pcm");
+                } else {
+                    /* 1536-byte AC-3 frame is 32 ms at 384 kbps, so one byte is one PCM-rate tick. */
+                    audio_hw_params->frame_size = 2;
+                    audio_hw_params->bytes_per_sec = 48000;
+                    fs_passthrough_log_line("aac-ac3 encoder-open rate=48000 channels=6 bitrate=384000 encoding=ac3");
+                    SDL_AoutSetDefaultLatencySeconds(ffp->aout, 0.064);
+                    return ac3_spec.size > 0 ? (int)ac3_spec.size : 1536;
+                }
+            }
+        } else {
+            fs_passthrough_log_line("aac-ac3 audiotrack rejected fallback=pcm");
+        }
+    }
     wanted_spec.samples = FFMIN(0xFFFF, FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AoutGetAudioPerSecondCallBacks(ffp->aout))));
     wanted_spec.callback = sdl_audio_callback;
     wanted_spec.userdata = opaque;
@@ -4236,6 +4364,8 @@ static int ffp_android_mediacodec_init(FFPlayer *ffp, AVCodecContext *avctx, con
     if (JNI_OK != SDL_JNI_SetupThreadEnv(&env))
         return -1;
 
+    if (ffp->hdr_window_output)
+        SDL_VoutAndroid_SetHdrWindowOutput(ffp->vout, 1);
     jobject surface = SDL_VoutAndroid_GetMediaCodecSurface(env, ffp->vout);
     if (!surface)
         return -1;
@@ -4491,6 +4621,13 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
         if (mc_codec) {
             codec = mc_codec;
             ALOGI("android: use %s\n", mc_name);
+        } else if (ffp->hdr_window_output) {
+            ALOGE("android: %s unavailable; direct HDR stays on hardware\n",
+                  mc_name ? mc_name : "(none)");
+            fs_passthrough_log_line("video-decoder mediacodec-missing hdrWindow=1 softwareVideo=0");
+            ffp->video_hw_refused = 1;
+            ret = AVERROR(ENODEV);
+            goto fail;
         } else {
             ALOGI("android: %s unavailable, fallback to %s\n",
                   mc_name ? mc_name : "(none)", codec->name);
@@ -4551,8 +4688,17 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
     if (avctx->codec_type == AVMEDIA_TYPE_VIDEO &&
         !(st->disposition & AV_DISPOSITION_ATTACHED_PIC) &&
         ffp_android_mediacodec_wanted(ffp, avctx->codec_id)) {
-        if (ffp_android_mediacodec_init(ffp, avctx, codec) == 0)
+        if (ffp_android_mediacodec_init(ffp, avctx, codec) == 0) {
             ALOGI("try use mediacodec accel: %s\n", codec->name);
+        } else if (ffp->hdr_window_output) {
+            ALOGE("android: mediacodec init failed; direct HDR stays on hardware\n");
+            fs_passthrough_log_line("video-decoder mediacodec-init failed hdrWindow=1 softwareVideo=0");
+            ffp->video_hw_refused = 1;
+            ret = AVERROR(ENODEV);
+            goto fail;
+        } else {
+            ALOGW("android: mediacodec init failed\n");
+        }
 
         /*
          * MP4 里是 AVCC（长度前缀），MediaCodec 只吃 Annex-B：把 extradata
@@ -4564,6 +4710,10 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
     }
 #endif
     if ((ret = avcodec_open2(avctx, codec, &opts)) < 0) {
+        if (ffp->hdr_window_output && codec && codec->name && strstr(codec->name, "_mediacodec")) {
+            ffp->video_hw_refused = 1;
+            fs_passthrough_log_line("video-decoder mediacodec-open failed hdrWindow=1 softwareVideo=0");
+        }
         goto fail;
     }
     const AVDictionaryEntry *t = NULL;
@@ -4684,6 +4834,7 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
                            ffp->pf_playback_rate);
                 }
             }
+            ffp->audio_open_codec_id = avctx->codec_id;
             if ((ret = audio_open(ffp, &ch_layout, sample_rate, &is->audio_tgt)) < 0)
                 goto fail;
             is->audio_hw_buf_size = ret;
@@ -5132,6 +5283,12 @@ static int read_thread(void *arg)
     if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
         ret = stream_component_open(ffp, st_index[AVMEDIA_TYPE_VIDEO]);
     }
+    if (ffp->video_hw_refused) {
+        fs_passthrough_log_line("video-decoder failed path=mediacodec hdrWindow=1 softwareVideo=0 reason=no-software-fallback");
+        last_error = 11011;
+        is->abort_request = 1;
+        goto fail;
+    }
     if (is->show_mode == SHOW_MODE_NONE)
         is->show_mode = ret >= 0 ? SHOW_MODE_VIDEO : SHOW_MODE_RDFT;
     
@@ -5263,6 +5420,7 @@ static int read_thread(void *arg)
                         fs_diag_audio_add_seek_flush(&ffp->diag_audio, nb, media);
                     }
                     ffp->iec_clock_set = 0;
+                    __atomic_store_n(&ffp->aac_ac3_reset_req, 1, memory_order_release);
                     packet_queue_flush(&is->audioq);
                 }
                 if (is->video_stream >= 0) {
@@ -7149,6 +7307,10 @@ int64_t ffp_get_property_int64(FFPlayer *ffp, int id, int64_t default_value)
             if (!ffp)
                 return default_value;
             return ffp->audio_passthrough_fallback;
+        case 30012: /* FFP_PROP_INT64_AUDIO_CLIENT_AC3 */
+            if (!ffp)
+                return default_value;
+            return ffp->aac_ac3_on ? 3 : 0;
         default:
             return default_value;
     }

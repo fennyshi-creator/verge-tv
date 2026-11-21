@@ -49,8 +49,18 @@ object DolbyPassthrough {
         return Decision(encoding = wanted, joc = wanted == ENCODING_E_AC3_JOC, fallbackPcm = false)
     }
 
-    fun statusLine(stream: MediaStreamDto?, openedEncoding: Int, fellBackToPcm: Boolean): String {
+    fun statusLine(
+        stream: MediaStreamDto?,
+        openedEncoding: Int,
+        fellBackToPcm: Boolean,
+        clientAc3: Boolean = false,
+    ): String {
         val codec = stream?.codec?.lowercase().orEmpty()
+        if (clientAc3 && (codec == "aac" || codec == "aac_latm")) {
+            val layout = pcmLayout(stream?.channels)
+            val label = if (layout == null) "AAC" else "AAC $layout"
+            return "「$label · 兼容AC3」"
+        }
         val joc = wantsJoc(stream)
         val name = when {
             codec == "truehd" || codec == "mlp" -> "TrueHD"

@@ -73,6 +73,10 @@ class FsPlayback(private val appContext: Context) {
     /** Vendor GLES path only. HDR on that path, or one video-decode retry. */
     var preferSoftwareVideo: Boolean = false
         private set
+    /** GLES devices send HDR MediaCodec to the window surface instead of the SDR OES texture. */
+    var hdrWindowOutput: Boolean = false
+    /** Decode multichannel AAC and re-encode AC-3. Never set for AC-3 or E-AC-3 sources. */
+    var aacAc3: Boolean = false
     var jocHint: Boolean = false
         private set
     var playWhenReady: Boolean = true
@@ -344,6 +348,14 @@ class FsPlayback(private val appContext: Context) {
         }
     }
 
+    fun clientAc3(): Boolean {
+        return try {
+            (engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_AUDIO_CLIENT_AC3, 0L) ?: 0L) == 3L
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun passthroughFallback(): Boolean {
         return try {
             (engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_AUDIO_PASSTHROUGH_FALLBACK, 0L) ?: 0L) != 0L
@@ -485,7 +497,18 @@ class FsPlayback(private val appContext: Context) {
         // the configure hook sends color-transfer-request.
         val videoHardware = if (mapHdrToSdr || preferSoftwareVideo) 0L else 1L
         noteEngine(
-            "video-decoder mediacodec=$videoHardware hdrShader=$mapHdrToSdr software=$preferSoftwareVideo"
+            "video-decoder mediacodec=$videoHardware hdrShader=$mapHdrToSdr software=$preferSoftwareVideo " +
+                "hdrWindow=$hdrWindowOutput aacAc3=$aacAc3"
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "hdr-window-output",
+            if (hdrWindowOutput) 1L else 0L,
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "aac-ac3",
+            if (aacAc3) 1L else 0L,
         )
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)
@@ -554,7 +577,12 @@ class FsPlayback(private val appContext: Context) {
                 Log.e(TAG, "FSPlayer error what=$what extra=$extra")
                 dispatchPlaying(false)
                 setState(STATE_IDLE)
-                dispatchError("FSPlayer $what/$extra")
+                val message = if (extra == 11011) {
+                    "video-decode: mediacodec-hdr"
+                } else {
+                    "FSPlayer $what/$extra"
+                }
+                dispatchError(message)
             }
             true
         }

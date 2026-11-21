@@ -6,6 +6,8 @@ package com.xxxx.emby_tv.ui.player
  */
 object PlaybackErrorPolicy {
     const val ENGINE_CREATE = "engine-create"
+    const val VIDEO_DECODE = "video-decode"
 
-    fun stopsWithoutReopen(message: String): Boolean = message.startsWith(ENGINE_CREATE)
+    fun stopsWithoutReopen(message: String): Boolean =
+        message.startsWith(ENGINE_CREATE) || message.startsWith(VIDEO_DECODE)
 }

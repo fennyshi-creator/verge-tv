@@ -101,6 +101,7 @@ void ijkmp_android_set_surface_l(JNIEnv *env, IjkMediaPlayer *mp, jobject androi
     if (!mp || !mp->ffplayer || !mp->ffplayer->vout)
         return;
 
+    SDL_VoutAndroid_SetHdrWindowOutput(mp->ffplayer->vout, mp->ffplayer->hdr_window_output);
     SDL_VoutAndroid_SetAndroidSurface(env, mp->ffplayer->vout, android_surface);
     ffpipeline_set_surface(env, mp->ffplayer->pipeline, android_surface);
 }

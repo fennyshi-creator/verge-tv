@@ -103,6 +103,8 @@ void SDL_VoutAndroid_SetBackgroundColor(SDL_Vout *vout, int red, int green, int 
  * 屏不支持直出（当前 8bit UNORM 交换链）时一律按 iOS 的 hdr2sdr 做色调映射。
  */
 void SDL_VoutAndroid_SetAllowHDRDirectDisplay(SDL_Vout *vout, int allow);
+/* GLES HDR: MediaCodec draws the window. 0 keeps the SDR external-texture path. */
+void SDL_VoutAndroid_SetHdrWindowOutput(SDL_Vout *vout, int enable);
 /* 是否正在直显 HDR（iOS 的 directDisplayHDRSupportted） */
 int  SDL_VoutAndroid_IsDirectDisplayHDRSupported(SDL_Vout *vout);
 /* 当前帧是不是 HDR 内容（BT.2020，和 iOS 的 isHDRContent 同规则） */

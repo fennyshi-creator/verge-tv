@@ -503,6 +503,13 @@ void SDL_VoutAndroid_SetAllowHDRDirectDisplay(SDL_Vout *vout, int allow)
         fs_vulkan_renderer_set_allow_hdr_display(vout->opaque->renderer, allow);
 }
 
+void SDL_VoutAndroid_SetHdrWindowOutput(SDL_Vout *vout, int enable)
+{
+    if (!vout || !vout->opaque || !vout->opaque->gles)
+        return;
+    fs_gles_renderer_set_hdr_window_output(vout->opaque->gles, enable);
+}
+
 int SDL_VoutAndroid_IsDirectDisplayHDRSupported(SDL_Vout *vout)
 {
     if (!vout || !vout->opaque)

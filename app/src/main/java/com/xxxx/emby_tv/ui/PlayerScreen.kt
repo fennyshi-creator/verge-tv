@@ -261,16 +261,6 @@ fun PlayerScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val preferencesManager = remember { PreferencesManager(context) }
-    val displayHdr = remember {
-        if (android.os.Build.VERSION.SDK_INT < 24) false
-        else {
-            val window = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-            @Suppress("DEPRECATION")
-            val types = window.defaultDisplay.hdrCapabilities?.supportedHdrTypes
-            types != null && types.isNotEmpty()
-        }
-    }
-
     // 获取 Repository 用于直接访问
     val repository = remember { EmbyRepository.getInstance(context) }
     val serverUrl = repository.serverUrl ?: ""
@@ -336,6 +326,7 @@ fun PlayerScreen(
     var decodeAudio by remember { mutableStateOf(preferencesManager.decodeToStereo) }
     var decoderPreference by remember { mutableIntStateOf(preferencesManager.decoderPreference) }
     var hdrToSdr by remember { mutableStateOf(preferencesManager.hdrToSdr) }
+    var aacAc3Mode by remember { mutableIntStateOf(preferencesManager.aacAc3Mode) }
     val initialRoute = remember { com.xxxx.emby_tv.ui.player.AudioRouteProbe.read(context) }
     var routeSnapshot by remember { mutableStateOf(initialRoute) }
     var routeAllowsBitstream by remember { mutableStateOf(initialRoute.allowBitstream) }
@@ -826,37 +817,64 @@ fun PlayerScreen(
         routeAllows = routeAllowsBitstream,
     )
 
-    fun hdrMode(video: com.xxxx.emby_tv.data.model.MediaStreamDto?): String =
-        com.xxxx.emby_tv.ui.player.HdrMap.mode(
-            manualOn = hdrToSdr,
-            displayHdr = displayHdr,
-            sourceHdr = com.xxxx.emby_tv.ui.player.PlaybackDebug.sourceIsHdr(
-                video?.videoRange,
-                video?.videoRangeType,
-                video?.colorTransfer,
-                video?.codec,
-            ),
-            api = android.os.Build.VERSION.SDK_INT,
-            hardwareRequestAvailable = com.xxxx.emby_tv.ui.player.HdrToneMap.hardwareRequestAvailable(),
-        )
-
     fun armHdr() {
         val video = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
             ?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
             ?: media.mediaSources?.firstOrNull()?.mediaStreams?.firstOrNull { it.type.equals("Video", true) }
-        val mode = hdrMode(video)
-        player.mapHdrToSdr = mode == com.xxxx.emby_tv.ui.player.HdrMap.SHADER
-        com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(mode == com.xxxx.emby_tv.ui.player.HdrMap.HARDWARE)
         val sourceHdr = com.xxxx.emby_tv.ui.player.PlaybackDebug.sourceIsHdr(
             video?.videoRange,
             video?.videoRangeType,
             video?.colorTransfer,
             video?.codec,
         )
-        if (com.xxxx.emby_tv.ui.player.VendorVideoRoute.current() &&
-            (sourceHdr || player.preferSoftwareVideo)
-        ) {
-            player.useSoftwareVideo(true)
+        val choice = com.xxxx.emby_tv.ui.player.HdrOutputPlan.choose(
+            manualOn = hdrToSdr,
+            sourceHdr = sourceHdr,
+            vendorGles = com.xxxx.emby_tv.ui.player.VendorVideoRoute.current(),
+            api = android.os.Build.VERSION.SDK_INT,
+            hardwareRequestAvailable = com.xxxx.emby_tv.ui.player.HdrToneMap.hardwareRequestAvailable(),
+        )
+        player.mapHdrToSdr = choice.mapHdrToSdr
+        player.hdrWindowOutput = choice.windowSurface
+        player.useSoftwareVideo(choice.softwareVideo)
+        com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(choice.requestHardwareSdr)
+        val audioPlan = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+        val aacProfile = com.xxxx.emby_tv.ui.player.AacAc3Policy.isVerifiedProfile(
+            android.os.Build.MANUFACTURER,
+            android.os.Build.HARDWARE,
+            android.os.Build.BOARD,
+            android.os.Build.MODEL,
+        )
+        val hdmi = com.xxxx.emby_tv.ui.player.PassthroughRoute.isHdmiFamily(routeSnapshot.type)
+        val sink = com.xxxx.emby_tv.ui.player.AacAc3Policy.sinkAllows(
+            aacProfile,
+            routeAllowsBitstream,
+            hdmi,
+        )
+        player.aacAc3 = com.xxxx.emby_tv.ui.player.AacAc3Policy.enable(
+            mode = aacAc3Mode,
+            profile = aacProfile,
+            codec = audioPlan?.codec,
+            channels = audioPlan?.channels ?: 0,
+            speedIsOne = playbackSpeed == 1f,
+            forceStereo = decodeAudio,
+            routeAllowsAc3 = sink,
+            preferFfmpeg = decoderPreference == com.xxxx.emby_tv.ui.player.AudioPolicy.FFMPEG,
+        )
+        com.debugly.fsplayer.audio.FsPassthroughLog.note(
+            com.xxxx.emby_tv.data.remote.ClientLogText.redact(
+                "audio-plan aacAc3=${player.aacAc3} mode=$aacAc3Mode codec=${audioPlan?.codec} " +
+                    "channels=${audioPlan?.channels} routeType=${routeSnapshot.type} " +
+                    "allowBitstream=$routeAllowsBitstream hdmi=$hdmi profile=$aacProfile " +
+                    "hdrMode=${choice.mode} map=${choice.mapHdrToSdr} window=${choice.windowSurface} " +
+                    "software=${choice.softwareVideo} decoder=$decoderPreference stereo=$decodeAudio"
+            )
+        )
+        if (choice.mode == "direct-unmapped") {
+            android.util.Log.i(
+                "PlayerScreen",
+                "HDR-SDR is on, but this device would have to software-decode to tone-map. Staying on direct hardware.",
+            )
         }
     }
     // 当前播放器实例是否出现过音频输出错误（播放器重建时自动重置）
@@ -1451,6 +1469,7 @@ fun PlayerScreen(
                     getAudioTrack(media, selectedAudioIndex),
                     player.passthroughEncoding(),
                     player.passthroughFallback(),
+                    player.clientAc3(),
                 )
 
             }
@@ -1631,25 +1650,10 @@ fun PlayerScreen(
                 }
                 if (com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.stopsWithoutReopen(message)) {
                     isBuffering = false
-                    engineFailure = context.getString(R.string.player_engine_failed)
-                    return
-                }
-                if (com.xxxx.emby_tv.ui.player.VendorVideoRoute.current() && !player.preferSoftwareVideo) {
-                    Log.w(AUDIO_RECOVERY_TAG, "厂商设备视频解码失败，关闭硬解重开一次")
-                    player.useSoftwareVideo(true)
-                    val current = player.currentMediaItem
-                    if (current != null) {
-                        armHdr()
-                        player.open(
-                            url = current,
-                            headers = playbackHeaders(),
-                            startMs = player.currentPosition.coerceAtLeast(0L),
-                            passthrough = bitstreamAllowed(),
-                            joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
-                                audioTracks.firstOrNull { it.index == selectedAudioIndex }
-                            ),
-                            speed = playbackSpeed,
-                        )
+                    engineFailure = if (message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.VIDEO_DECODE)) {
+                        context.getString(R.string.player_hdr_hardware_failed)
+                    } else {
+                        context.getString(R.string.player_engine_failed)
                     }
                     return
                 }
@@ -2356,6 +2360,23 @@ fun PlayerScreen(
                             )
                         },
                         hdrToSdr = hdrToSdr,
+                        aacAc3Mode = aacAc3Mode,
+                        onAacAc3Mode = { next ->
+                            aacAc3Mode = next
+                            preferencesManager.aacAc3Mode = next
+                            val url = player.url ?: return@SettingsSheetBody
+                            armHdr()
+                            player.open(
+                                url = url,
+                                headers = playbackHeaders(),
+                                startMs = player.currentPosition,
+                                passthrough = bitstreamAllowed(),
+                                joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
+                                    audioTracks.firstOrNull { it.index == selectedAudioIndex }
+                                ),
+                                speed = playbackSpeed,
+                            )
+                        },
                         onHdrToSdr = { enabled ->
                             hdrToSdr = enabled
                             preferencesManager.hdrToSdr = enabled

@@ -52,6 +52,7 @@
     <string name="unknown">Unknown</string>
     <string name="failed_get_playback_info">Failed to get playback info</string>
     <string name="player_engine_failed">Video could not start on this device</string>
+    <string name="player_hdr_hardware_failed">Hardware HDR decode did not start. Playback stopped instead of switching to software video.</string>
     <string name="streaming">Streaming</string>
     <string name="video">Video</string>
     <string name="audio_label">Audio</string>

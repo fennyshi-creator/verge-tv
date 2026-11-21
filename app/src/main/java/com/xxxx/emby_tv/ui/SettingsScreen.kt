@@ -58,6 +58,7 @@ fun SettingsScreen(
     var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
     var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
     var decodeToStereo by remember { mutableStateOf(prefs.decodeToStereo) }
+    var aacAc3Mode by remember { mutableIntStateOf(prefs.aacAc3Mode) }
     var subtitlePad by remember { mutableStateOf(prefs.subtitleBottomPadding) }
     var proxyOn by remember { mutableStateOf(prefs.proxyEnabled) }
     var updateStatus by remember { mutableStateOf("") }
@@ -108,6 +109,21 @@ fun SettingsScreen(
                     SettingLine("解码为立体声", if (decodeToStereo) "开" else "自动") {
                         decodeToStereo = !decodeToStereo
                         prefs.decodeToStereo = decodeToStereo
+                    }
+                    SettingLine(
+                        "AAC多声道兼容输出",
+                        when (aacAc3Mode) {
+                            1 -> "开"
+                            2 -> "关"
+                            else -> "自动"
+                        },
+                    ) {
+                        aacAc3Mode = when (aacAc3Mode) {
+                            0 -> 1
+                            1 -> 2
+                            else -> 0
+                        }
+                        prefs.aacAc3Mode = aacAc3Mode
                     }
                 }
                 "字幕" -> SettingLine("字幕底部边距", subtitlePad.toInt().toString()) {
