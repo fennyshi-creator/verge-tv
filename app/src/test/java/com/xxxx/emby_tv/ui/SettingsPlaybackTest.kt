@@ -3,9 +3,11 @@ package com.xxxx.emby_tv.ui
 import com.xxxx.emby_tv.data.local.PlaybackMemory
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.MediaStreamDto
+import com.xxxx.emby_tv.data.remote.EmbyApi
 import com.xxxx.emby_tv.ui.components.TransportSlots
 import com.xxxx.emby_tv.ui.player.StreamInfo
 import com.xxxx.emby_tv.ui.player.VersionCatalog
+import com.xxxx.emby_tv.ui.update.ReleaseVersions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -62,6 +64,13 @@ class SettingsPlaybackTest {
         assertNull(TransportSlots.version(showVersion = false))
         assertEquals(3, TransportSlots.info(showVersion = true))
         assertEquals(2, TransportSlots.info(showVersion = false))
+        assertEquals(TransportSlots.SUBTITLES, TransportSlots.neighbor(showVersion = true, index = TransportSlots.AUDIO, delta = -1))
+        assertEquals(2, TransportSlots.neighbor(showVersion = true, index = TransportSlots.AUDIO, delta = 1))
+        assertNull(TransportSlots.neighbor(showVersion = false, index = TransportSlots.SUBTITLES, delta = -1))
+        assertEquals(18, EmbyApi.LATEST_ROW_LIMIT)
+        assertFalse(ReleaseVersions.isNewer("v1.0.5", "1.0.7"))
+        assertFalse(ReleaseVersions.isNewer("v1.0.7", "v1.0.7"))
+        assertTrue(ReleaseVersions.isNewer("v1.0.8", "1.0.7"))
     }
 
     @Test
@@ -70,26 +79,50 @@ class SettingsPlaybackTest {
             type = "Video",
             width = 3840,
             height = 2160,
+            codec = "hevc",
+            profile = "Main 10",
+            realFrameRate = 23.976,
+            bitRate = 12_500_000,
             videoRange = "HDR10",
             colorSpace = "bt2020nc",
+            bitDepth = 10,
         )
         val audio = MediaStreamDto(
             type = "Audio",
             index = 1,
             codec = "eac3",
             channels = 6,
+            sampleRate = 48000,
+            language = "chi",
             isDefault = true,
         )
-        val source = MediaSourceInfoDto(id = "a", mediaStreams = listOf(video, audio))
-        val lines = StreamInfo.lines(source, audioIndex = 1)
-        assertEquals("3840×2160", lines.first { it.label == "分辨率" }.value)
-        assertTrue(lines.first { it.label == "色彩" }.value.contains("HDR10"))
-        assertTrue(lines.first { it.label == "色彩" }.value.contains("bt2020nc"))
-        assertEquals("DD+ 5.1", lines.first { it.label == "音频" }.value)
+        val source = MediaSourceInfoDto(
+            id = "a",
+            name = "4K",
+            container = "mkv",
+            protocol = "File",
+            mediaStreams = listOf(video, audio),
+        )
+        val lines = StreamInfo.lines(source, audioIndex = 1).associate { it.label to it.value }
+        assertEquals("3840×2160", lines["分辨率"])
+        assertTrue(lines["视频编码"]!!.contains("HEVC"))
+        assertTrue(lines["视频编码"]!!.contains("Main 10"))
+        assertEquals("23.976 fps", lines["帧率"])
+        assertEquals("12.5 Mbps", lines["码率"])
+        assertTrue(lines["色彩"]!!.contains("HDR10"))
+        assertTrue(lines["色彩"]!!.contains("bt2020nc"))
+        assertTrue(lines["色彩"]!!.contains("10 bit"))
+        assertEquals("mkv", lines["容器"])
+        assertTrue(lines["音频"]!!.contains("DD+ 5.1"))
+        assertTrue(lines["音频"]!!.contains("48 kHz"))
+        assertEquals("4K", lines["片源"])
+        assertEquals("直接播放", lines["方式"])
         val quiet = MediaSourceInfoDto(id = "b", name = "Feature")
-        assertTrue(StreamInfo.lines(quiet, audioIndex = -1).isEmpty())
+        assertEquals(listOf("片源" to "Feature"), StreamInfo.lines(quiet, audioIndex = -1).map { it.label to it.value })
         val sdr = MediaStreamDto(type = "Video", videoRange = "SDR", width = 1920, height = 1080)
-        assertEquals("SDR", StreamInfo.color(sdr))
+        assertTrue(StreamInfo.color(sdr)!!.startsWith("SDR"))
         assertNull(StreamInfo.color(MediaStreamDto(type = "Video", width = 1280, height = 720)))
+        assertNull(StreamInfo.bitrate(192))
+        assertEquals("转码", StreamInfo.delivery(MediaSourceInfoDto(transcodingUrl = "/videos/t")))
     }
 }

@@ -224,10 +224,8 @@ fun EmbyTvApp() {
                         com.xxxx.emby_tv.ui.SettingsScreen(
                             onBack = { navController.popBackStack() },
                             currentVersion = mainViewModel.currentVersion,
-                            onCheckUpdate = {
-                                mainViewModel.checkUpdate()
-                                navController.navigate("update")
-                            },
+                            onCheckUpdate = { onResult -> mainViewModel.checkForNewer(onResult) },
+                            onInstallUpdate = { navController.navigate("update") },
                         )
                     }
 

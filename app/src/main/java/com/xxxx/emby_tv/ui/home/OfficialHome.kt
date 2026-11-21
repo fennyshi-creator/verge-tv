@@ -802,6 +802,8 @@ private fun HomeTopBar(
                                 fontSize = HomeStyle.navSize,
                                 color = if (focused) Color(0xFF161616) else Color.White,
                                 fontWeight = FontWeight.Medium,
+                                lineHeight = HomeStyle.navSize,
+                                modifier = Modifier.offset(y = (-1).dp),
                             )
                         }
                     }
@@ -1062,6 +1064,7 @@ fun HomeText(
     fontWeight: FontWeight = FontWeight.Normal,
     textAlign: TextAlign? = null,
     maxLines: Int = Int.MAX_VALUE,
+    lineHeight: TextUnit? = null,
 ) {
     Text(
         text = text,
@@ -1074,7 +1077,7 @@ fun HomeText(
             fontWeight = fontWeight,
             fontFamily = LocalHomeFont.current,
             textAlign = textAlign ?: TextAlign.Unspecified,
-            lineHeight = fontSize * 1.25f,
+            lineHeight = lineHeight ?: fontSize * 1.25f,
             platformStyle = PlatformTextStyle(includeFontPadding = false),
         ),
     )

@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.xxxx.emby_tv.ui.player.StreamInfoLine
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -77,7 +79,7 @@ import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
 import com.xxxx.emby_tv.data.model.MediaStreamDto
 import com.xxxx.emby_tv.util.EmbyPresentation
 
-enum class PlayerSheet { None, Subtitles, Audio, Versions, Settings }
+enum class PlayerSheet { None, Subtitles, Audio, Versions, Settings, Info }
 
 fun playerLogoUrl(serverUrl: String, item: BaseItemDto): String {
     val own = EmbyPresentation.logoUrl(serverUrl, item, maxWidth = 480)
@@ -153,7 +155,6 @@ fun PlayerTransportBar(
     positionMs: Long,
     durationMs: Long,
     showVersionButton: Boolean,
-    streamLines: List<StreamInfoLine> = emptyList(),
     episodes: List<BaseItemDto>,
     restoreButton: Int,
     timelineFocus: FocusRequester,
@@ -199,36 +200,48 @@ fun PlayerTransportBar(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                val infoIndex = TransportSlots.info(showVersionButton)
-                val settingsIndex = TransportSlots.settings(showVersionButton)
-                var infoFocused by remember { mutableStateOf(false) }
-                val relayMenu: (Int, Boolean) -> Unit = { index, focused ->
-                    if (index == infoIndex) infoFocused = focused
-                    onMenuFocus(index, focused)
-                }
-                if (infoFocused && streamLines.isNotEmpty()) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        StreamInfoCard(streamLines)
-                    }
-                    Spacer(Modifier.height(8.dp))
+                val slots = TransportSlots.order(showVersionButton)
+                fun neighbor(index: Int, delta: Int): FocusRequester? {
+                    val next = TransportSlots.neighbor(showVersionButton, index, delta) ?: return null
+                    return buttonFocus.getOrNull(next)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RoundAction(Icons.Default.ClosedCaption, "字幕", onInteract, Modifier.focusRequester(buttonFocus[TransportSlots.SUBTITLES]), pictureFocus, TransportSlots.SUBTITLES, onButtonFocused, relayMenu) {
-                            onOpenSheet(PlayerSheet.Subtitles)
-                        }
-                        RoundAction(Icons.Default.GraphicEq, "音频", onInteract, Modifier.focusRequester(buttonFocus[TransportSlots.AUDIO]), pictureFocus, TransportSlots.AUDIO, onButtonFocused, relayMenu) {
-                            onOpenSheet(PlayerSheet.Audio)
-                        }
-                        if (showVersionButton) {
-                            val versionIndex = TransportSlots.version(true)!!
-                            RoundAction(Icons.Filled.VideoLibrary, "片源", onInteract, Modifier.focusRequester(buttonFocus[versionIndex]), pictureFocus, versionIndex, onButtonFocused, relayMenu) {
-                                onOpenSheet(PlayerSheet.Versions)
+                        slots.forEach { index ->
+                            val icon = when (index) {
+                                TransportSlots.SUBTITLES -> Icons.Default.ClosedCaption
+                                TransportSlots.AUDIO -> Icons.Default.GraphicEq
+                                TransportSlots.info(showVersionButton) -> Icons.Outlined.Info
+                                TransportSlots.settings(showVersionButton) -> Icons.Default.Settings
+                                else -> Icons.Filled.VideoLibrary
                             }
-                        }
-                        RoundAction(Icons.Outlined.Info, "信息", onInteract, Modifier.focusRequester(buttonFocus[infoIndex]), pictureFocus, infoIndex, onButtonFocused, relayMenu) {}
-                        RoundAction(Icons.Default.Settings, "设置", onInteract, Modifier.focusRequester(buttonFocus[settingsIndex]), pictureFocus, settingsIndex, onButtonFocused, relayMenu) {
-                            onOpenSheet(PlayerSheet.Settings)
+                            val label = when (index) {
+                                TransportSlots.SUBTITLES -> "字幕"
+                                TransportSlots.AUDIO -> "音频"
+                                TransportSlots.info(showVersionButton) -> "信息"
+                                TransportSlots.settings(showVersionButton) -> "设置"
+                                else -> "片源"
+                            }
+                            RoundAction(
+                                icon,
+                                label,
+                                onInteract,
+                                Modifier.focusRequester(buttonFocus[index]),
+                                pictureFocus,
+                                index,
+                                onButtonFocused,
+                                onMenuFocus,
+                                left = neighbor(index, -1),
+                                right = neighbor(index, 1),
+                            ) {
+                                when (index) {
+                                    TransportSlots.SUBTITLES -> onOpenSheet(PlayerSheet.Subtitles)
+                                    TransportSlots.AUDIO -> onOpenSheet(PlayerSheet.Audio)
+                                    TransportSlots.info(showVersionButton) -> onOpenSheet(PlayerSheet.Info)
+                                    TransportSlots.settings(showVersionButton) -> onOpenSheet(PlayerSheet.Settings)
+                                    else -> onOpenSheet(PlayerSheet.Versions)
+                                }
+                            }
                         }
                     }
                 }
@@ -411,19 +424,15 @@ fun PlayerSeekReadout(
 }
 
 @Composable
-private fun StreamInfoCard(lines: List<StreamInfoLine>) {
-    Column(
-        Modifier
-            .widthIn(max = 360.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xF223262C))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
+fun StreamInfoSheet(lines: List<StreamInfoLine>) {
+    if (lines.isEmpty()) {
+        Text("没有可用的流信息", color = Color.White.copy(0.8f), fontSize = 14.sp)
+        return
+    }
+    Column(Modifier.verticalScroll(rememberScrollState())) {
         lines.forEach { line ->
-            Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(line.label, color = Color.White.copy(0.62f), fontSize = 12.sp, modifier = Modifier.width(48.dp))
-                Text(line.value, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            Text(line.label, color = Color.White.copy(0.62f), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+            Text(line.value, color = Color.White, fontSize = 15.sp)
         }
     }
 }
@@ -438,6 +447,8 @@ private fun RoundAction(
     index: Int,
     onFocused: (Int) -> Unit,
     onMenuFocus: (Int, Boolean) -> Unit,
+    left: FocusRequester? = null,
+    right: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -447,7 +458,27 @@ private fun RoundAction(
         },
         modifier = modifier
             .size(40.dp)
-            .focusProperties { down = downTarget }
+            .focusProperties {
+                down = downTarget
+                if (left != null) this.left = left
+                if (right != null) this.right = right
+            }
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> {
+                        onInteract()
+                        left?.let { runCatching { it.requestFocus() } }
+                        true
+                    }
+                    Key.DirectionRight -> {
+                        onInteract()
+                        right?.let { runCatching { it.requestFocus() } }
+                        true
+                    }
+                    else -> false
+                }
+            }
             .onFocusChanged {
                 if (it.isFocused) onFocused(index)
                 onMenuFocus(index, it.isFocused)

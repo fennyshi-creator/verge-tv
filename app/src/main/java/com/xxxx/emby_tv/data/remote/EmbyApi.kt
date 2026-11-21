@@ -247,6 +247,9 @@ internal fun latestItemsPath(
 object EmbyApi {
     private const val TAG = "EmbyApi"
     const val CLIENT = "verge_tv"
+
+    /** Portrait homepage rows, then the 查看全部 tile. Two more than the previous 16. */
+    const val LATEST_ROW_LIMIT = 18
     val CLIENT_VERSION: String = BuildConfig.VERSION_NAME
     val DEVICE_NAME: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -567,12 +570,12 @@ object EmbyApi {
         includeItemTypes: String,
     ): List<BaseItemDto> {
         if (includeItemTypes.equals("Series", true)) {
-            val url = seriesAddedPath(userId, parentId, 16, apiKey)
+            val url = seriesAddedPath(userId, parentId, LATEST_ROW_LIMIT, apiKey)
             return com.xxxx.emby_tv.util.EmbyPresentation.coalesceSeriesCards(
                 httpAsBaseItemDtoList(context, serverUrl, apiKey, deviceId, url),
             )
         }
-        val url = latestItemsPath(userId, parentId, includeItemTypes, 16, apiKey)
+        val url = latestItemsPath(userId, parentId, includeItemTypes, LATEST_ROW_LIMIT, apiKey)
         return httpAsBaseItemDtoListDirect(context, serverUrl, apiKey, deviceId, url)
     }
 

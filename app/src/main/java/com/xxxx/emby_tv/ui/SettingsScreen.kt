@@ -3,7 +3,6 @@ package com.xxxx.emby_tv.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -34,6 +33,7 @@ import com.xxxx.emby_tv.R
 import com.xxxx.emby_tv.data.local.PreferencesManager
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.ui.home.HomeText
+import com.xxxx.emby_tv.ui.update.UpdateLookup
 
 /** Categories that already exist in this app. No danmaku and no new engines. */
 object SettingsCatalog {
@@ -46,7 +46,8 @@ object SettingsCatalog {
 fun SettingsScreen(
     onBack: () -> Unit,
     currentVersion: String,
-    onCheckUpdate: () -> Unit,
+    onCheckUpdate: (onResult: (UpdateLookup) -> Unit) -> Unit,
+    onInstallUpdate: () -> Unit,
 ) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager(context) }
@@ -59,6 +60,8 @@ fun SettingsScreen(
     var decodeToStereo by remember { mutableStateOf(prefs.decodeToStereo) }
     var subtitlePad by remember { mutableStateOf(prefs.subtitleBottomPadding) }
     var proxyOn by remember { mutableStateOf(prefs.proxyEnabled) }
+    var updateStatus by remember { mutableStateOf("") }
+    var checkingUpdate by remember { mutableStateOf(false) }
     val server = remember { EmbyRepository.getInstance(context).serverUrl.orEmpty() }
     val focus = remember { FocusRequester() }
     val hdrOff = stringResource(R.string.hdr_sdr_off)
@@ -128,7 +131,30 @@ fun SettingsScreen(
                         Color.White,
                         modifier = Modifier.padding(top = 18.dp),
                     )
-                    SettingLine("检查更新", "") { onCheckUpdate() }
+                    SettingLine("检查更新", if (checkingUpdate) "正在检查" else "") {
+                        if (checkingUpdate) return@SettingLine
+                        checkingUpdate = true
+                        updateStatus = "正在检查"
+                        onCheckUpdate { result ->
+                            checkingUpdate = false
+                            when (result) {
+                                is UpdateLookup.UpToDate -> updateStatus = "已是最新版本"
+                                is UpdateLookup.Newer -> {
+                                    updateStatus = "发现新版本 ${result.version}"
+                                    onInstallUpdate()
+                                }
+                                is UpdateLookup.Failed -> updateStatus = result.message
+                            }
+                        }
+                    }
+                    if (updateStatus.isNotBlank()) {
+                        HomeText(
+                            updateStatus,
+                            16.sp,
+                            Color.White,
+                            modifier = Modifier.padding(top = 16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -165,7 +191,6 @@ private fun CategoryRow(
                 focused = it.isFocused
                 if (it.isFocused) onSelect()
             }
-            .focusable()
             .clickable(onClick = onSelect)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     )
@@ -181,7 +206,6 @@ private fun SettingLine(title: String, value: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) Color(0xFFE6E6E6) else Color.Transparent)
             .onFocusChanged { focused = it.isFocused }
-            .focusable()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
