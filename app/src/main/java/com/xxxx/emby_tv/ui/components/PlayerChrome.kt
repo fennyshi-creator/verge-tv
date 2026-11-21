@@ -622,6 +622,8 @@ fun SettingsSheetBody(
     onDecoderPreference: (Int) -> Unit = {},
     hdrToSdr: Boolean = false,
     onHdrToSdr: (Boolean) -> Unit = {},
+    aacAc3Mode: Int = 0,
+    onAacAc3Mode: (Int) -> Unit = {},
     diagnostics: Boolean,
     onDiagnostics: (Boolean) -> Unit,
     audioStatusLine: String,
@@ -703,7 +705,27 @@ fun SettingsSheetBody(
         item {
             SheetRow("HDR-SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
             Text(
-                "关：不映射，硬解直出。开：优先硬解映射，不行再用着色器",
+                "关：不映射，硬解直出。开：Android 12 及以上走硬解映射。这台 GLES 设备开着也不会改成软解。",
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            val aacLabel = when (aacAc3Mode) {
+                1 -> "开"
+                2 -> "关"
+                else -> "自动"
+            }
+            SheetRow("AAC多声道兼容输出", aacLabel) {
+                onAacAc3Mode(when (aacAc3Mode) {
+                    0 -> 1
+                    1 -> 2
+                    else -> 0
+                })
+            }
+            Text(
+                "多声道 AAC 可编成 AC3 走 HDMI。自动只对已核对的 Realtek。杜比源仍透传，不是 AAC 透传。",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

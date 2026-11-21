@@ -36,6 +36,7 @@
 #include "ijksdl_android_jni.h"
 #include "android_audiotrack.h"
 #include "fs_diag.h"
+#include "fs_aac_ac3_clock.h"
 
 #ifdef SDLTRACE
 #undef SDLTRACE
@@ -82,7 +83,12 @@ typedef struct SDL_Aout_Opaque {
     int64_t gap_begin_us;
     int64_t gap_end_us;
     int have_gap;
+    int generation;
+    int release_phase;
+    int write_offset;
 } SDL_Aout_Opaque;
+
+static int g_audio_generation;
 
 static int64_t aout_mono_ms(void)
 {
@@ -127,6 +133,65 @@ static int iec_burst_is_one_period(const uint8_t *data, int size)
     if (data[0] != 0x72 || data[1] != 0xF8 || data[2] != 0x1F || data[3] != 0x4E)
         return 0;
     return data[4] == 21 && data[5] == 0;
+}
+
+static void aout_log_step(int generation, unsigned format, const char *step, const char *edge)
+{
+    char line[160];
+    snprintf(line, sizeof(line), "audio %s %s encoding=0x%x gen=%d",
+             step, edge, format, generation);
+    fs_passthrough_log_line(line);
+}
+
+static void aout_shutdown_track(JNIEnv *env, SDL_Aout *aout)
+{
+    SDL_Aout_Opaque *opaque = aout->opaque;
+    SDL_Android_AudioTrack *atrack = opaque->atrack;
+    const char *name = NULL;
+    unsigned format = opaque->spec.format;
+    if (!atrack)
+        return;
+    while (fs_audio_release_step(&opaque->release_phase, &name) == 0) {
+        aout_log_step(opaque->generation, format, name, "begin");
+        if (name[0] == 'p')
+            SDL_Android_AudioTrack_pause(env, atrack);
+        else if (name[0] == 'f')
+            SDL_Android_AudioTrack_flush(env, atrack);
+        else if (name[0] == 's')
+            SDL_Android_AudioTrack_stop(env, atrack);
+        else
+            SDL_Android_AudioTrack_free(env, atrack);
+        aout_log_step(opaque->generation, format, name, "result=ok");
+        if (name[0] == 'r') {
+            opaque->atrack = NULL;
+            fs_passthrough_log_line("audio thread exit");
+            return;
+        }
+    }
+}
+
+static int aout_write_encoded(JNIEnv *env, SDL_Aout *aout, const uint8_t *payload, int size)
+{
+    SDL_Aout_Opaque *opaque = aout->opaque;
+    int complete = 0;
+    int blocked = 0;
+    while (!complete && !opaque->abort_request) {
+        int result = SDL_Android_AudioTrack_write_nonblock(
+            env, opaque->atrack, (uint8_t *)payload, size, opaque->write_offset);
+        if (fs_encoded_write_step(&opaque->write_offset, size, result, &complete, &blocked) < 0) {
+            ALOGW("AudioTrack: encoded write failed %d/%d", result, size);
+            opaque->encoded_stop = 1;
+            return -1;
+        }
+        if (blocked) {
+            if (opaque->spec.format == AUDIO_AC3)
+                fs_ac3_client_hold(opaque->spec.userdata);
+            SDL_Delay(5);
+        }
+    }
+    if (!complete)
+        return 0;
+    return size;
 }
 
 static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
@@ -271,7 +336,20 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                         opaque->prev_log_ms = aout_log_timed(env, line);
                     }
                     t0 = aout_mono_ms();
-                    written = SDL_Android_AudioTrack_write(env, atrack, buffer + 4, payload);
+                    written = aout_write_encoded(env, aout, buffer + 4, payload);
+                    if (written == payload && opaque->spec.format == AUDIO_AC3) {
+                        int head_valid = 0;
+                        int ts_valid = 0;
+                        int cap_valid = 0;
+                        int64_t ts_frame = 0;
+                        int64_t ts_nano = 0;
+                        int head = SDL_Android_AudioTrack_playback_head(env, atrack, &head_valid);
+                        int cap_frames = SDL_Android_AudioTrack_buffer_frames(env, atrack, &cap_valid);
+                        SDL_Android_AudioTrack_timestamp(env, atrack, &ts_frame, &ts_nano, &ts_valid);
+                        fs_ac3_client_on_written(userdata, payload, head, head_valid,
+                                                 ts_frame, ts_nano, SDL_Android_nano_time(env),
+                                                 ts_valid, cap_frames, cap_valid);
+                    }
                     write_ms = (int) (aout_mono_ms() - t0);
                     opaque->gap_begin_us = begin_us;
                     opaque->gap_end_us = fs_diag_mono_us();
@@ -346,7 +424,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         // TODO: 1 if callback return -1 or 0
     }
 
-    SDL_Android_AudioTrack_free(env, atrack);
+    aout_shutdown_track(env, aout);
     return 0;
 }
 
@@ -405,6 +483,9 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
 
     opaque->pause_on = 1;
     opaque->abort_request = 0;
+    opaque->generation = ++g_audio_generation;
+    opaque->release_phase = 0;
+    opaque->write_offset = 0;
     opaque->callback_noted = 0;
     opaque->encoded_stop = 0;
     opaque->empty_logs = 0;

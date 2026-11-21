@@ -603,6 +603,22 @@ typedef struct FFPlayer {
     int audio_passthrough;
     /* App hint: selected Emby stream is Atmos / JOC even if FFmpeg profile is unknown. */
     int audio_passthrough_joc;
+    /* GLES only. 1 = HDR MediaCodec renders to the window, not the SDR OES texture. */
+    int hdr_window_output;
+    /* 0 auto, 1 on, 2 off. Decided in the app; native only sees 0 or 1. */
+    int aac_ac3;
+    int aac_ac3_on;
+    int aac_ac3_failed;
+    int aac_ac3_reset_req;
+    int aac_ac3_serial;
+    void *aac_ac3_state;
+    void *aac_clock;
+    int aac_hw_buffer;
+    int aac_clock_serial;
+    double aac_packet_pts;
+    int64_t aac_disp_log_us;
+    int audio_open_codec_id;
+    int video_hw_refused;
     /* Committed for the current audio stream. encoding is AudioFormat.ENCODING_*. */
     int audio_passthrough_on;
     int audio_passthrough_encoding;

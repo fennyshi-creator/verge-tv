@@ -124,6 +124,8 @@ public final class FSPlayer extends AbstractMediaPlayer {
     public static final int FFP_PROP_INT64_CHANNEL_CONFIG                   = 30000;
     public static final int FFP_PROP_INT64_AUDIO_PASSTHROUGH_ENCODING       = 30010;
     public static final int FFP_PROP_INT64_AUDIO_PASSTHROUGH_FALLBACK       = 30011;
+    /** 0 none, 3 client AAC decoded then AC-3 encoded. */
+    public static final int FFP_PROP_INT64_AUDIO_CLIENT_AC3                 = 30012;
 
     public static final int AUDIO_CHANNEL_STEREO = 0;
     public static final int AUDIO_CHANNEL_RIGHT  = 1;

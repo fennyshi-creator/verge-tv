@@ -80,6 +80,7 @@ fun PlaybackSettingsScreen(
     var sourcePref by remember { mutableIntStateOf(prefs.sourcePreference) }
 
     var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
+    var aacAc3Mode by remember { mutableIntStateOf(prefs.aacAc3Mode) }
     var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
 
     // 跳过片头
@@ -278,6 +279,26 @@ fun PlaybackSettingsScreen(
                         ) {
                             decoderPreference = 1
                             prefs.decoderPreference = 1
+                        }
+                    }
+
+                    item { SectionTitle("AAC多声道兼容输出") }
+                    item {
+                        SettingOptionRow(title = "自动", isSelected = aacAc3Mode == 0) {
+                            aacAc3Mode = 0
+                            prefs.aacAc3Mode = 0
+                        }
+                    }
+                    item {
+                        SettingOptionRow(title = "开", isSelected = aacAc3Mode == 1) {
+                            aacAc3Mode = 1
+                            prefs.aacAc3Mode = 1
+                        }
+                    }
+                    item {
+                        SettingOptionRow(title = "关", isSelected = aacAc3Mode == 2) {
+                            aacAc3Mode = 2
+                            prefs.aacAc3Mode = 2
                         }
                     }
 

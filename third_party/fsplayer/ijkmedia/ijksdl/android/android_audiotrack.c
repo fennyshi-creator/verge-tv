@@ -532,6 +532,182 @@ int SDL_Android_AudioTrack_reserve_byte_buffer(JNIEnv *env, SDL_Android_AudioTra
     return capacity;
 }
 
+static jmethodID g_write_nonblock;
+static jmethodID g_playback_head;
+static jmethodID g_get_timestamp;
+static jmethodID g_buffer_frames;
+static jmethodID g_nano_time;
+static jmethodID g_ts_ctor;
+static jfieldID g_ts_frame;
+static jfieldID g_ts_nano;
+static jclass g_ts_class;
+static jclass g_system_class;
+static int g_audio_methods_ready;
+
+static void audiotrack_cache_methods(JNIEnv *env, jobject track)
+{
+    jclass cls;
+    if (g_audio_methods_ready || !env || !track)
+        return;
+    cls = (*env)->GetObjectClass(env, track);
+    if (cls) {
+        g_write_nonblock = (*env)->GetMethodID(env, cls, "write", "([BIII)I");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        g_playback_head = (*env)->GetMethodID(env, cls, "getPlaybackHeadPosition", "()I");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        g_get_timestamp = (*env)->GetMethodID(env, cls, "getTimestamp", "(Landroid/media/AudioTimestamp;)Z");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        g_buffer_frames = (*env)->GetMethodID(env, cls, "getBufferSizeInFrames", "()I");
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, cls);
+    }
+    if (!g_ts_class) {
+        jclass local = (*env)->FindClass(env, "android/media/AudioTimestamp");
+        if (local && !(*env)->ExceptionCheck(env)) {
+            g_ts_class = (*env)->NewGlobalRef(env, local);
+            g_ts_ctor = (*env)->GetMethodID(env, g_ts_class, "<init>", "()V");
+            g_ts_frame = (*env)->GetFieldID(env, g_ts_class, "framePosition", "J");
+            g_ts_nano = (*env)->GetFieldID(env, g_ts_class, "nanoTime", "J");
+            (*env)->DeleteLocalRef(env, local);
+        }
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+    }
+    if (!g_system_class) {
+        jclass local = (*env)->FindClass(env, "java/lang/System");
+        if (local && !(*env)->ExceptionCheck(env)) {
+            g_system_class = (*env)->NewGlobalRef(env, local);
+            g_nano_time = (*env)->GetStaticMethodID(env, g_system_class, "nanoTime", "()J");
+            (*env)->DeleteLocalRef(env, local);
+        }
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+    }
+    g_audio_methods_ready = 1;
+}
+
+int SDL_Android_AudioTrack_write_nonblock(JNIEnv *env, SDL_Android_AudioTrack *atrack,
+                                          uint8_t *data, int total, int offset)
+{
+    int accepted;
+    if (!env || !atrack || !atrack->thiz || !data || total <= 0 || offset < 0 || offset >= total)
+        return -1;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (offset == 0) {
+        if (SDL_Android_AudioTrack_reserve_byte_buffer(env, atrack, total) < total)
+            return -1;
+        (*env)->SetByteArrayRegion(env, atrack->byte_buffer, 0, total, (jbyte *)data);
+        if (J4A_ExceptionCheck__catchAll(env))
+            return -1;
+    }
+    if (!g_write_nonblock)
+        return J4AC_AudioTrack__write(env, atrack->thiz, atrack->byte_buffer, offset, total - offset);
+    /* AudioTrack.WRITE_NON_BLOCKING == 1. */
+    accepted = (*env)->CallIntMethod(env, atrack->thiz, g_write_nonblock,
+                                     atrack->byte_buffer, offset, total - offset, 1);
+    if (J4A_ExceptionCheck__catchAll(env))
+        return -1;
+    return accepted;
+}
+
+int SDL_Android_AudioTrack_playback_head(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid)
+{
+    int head;
+    if (valid)
+        *valid = 0;
+    if (!env || !atrack || !atrack->thiz)
+        return 0;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (!g_playback_head)
+        return 0;
+    head = (*env)->CallIntMethod(env, atrack->thiz, g_playback_head);
+    if (J4A_ExceptionCheck__catchAll(env))
+        return 0;
+    if (valid)
+        *valid = 1;
+    return head;
+}
+
+int SDL_Android_AudioTrack_timestamp(JNIEnv *env, SDL_Android_AudioTrack *atrack,
+                                     int64_t *frame_position, int64_t *nano_time, int *valid)
+{
+    jobject stamp;
+    jboolean ok;
+    if (valid)
+        *valid = 0;
+    if (frame_position)
+        *frame_position = 0;
+    if (nano_time)
+        *nano_time = 0;
+    if (!env || !atrack || !atrack->thiz)
+        return 0;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (!g_get_timestamp || !g_ts_class || !g_ts_ctor || !g_ts_frame || !g_ts_nano)
+        return 0;
+    stamp = (*env)->NewObject(env, g_ts_class, g_ts_ctor);
+    if ((*env)->ExceptionCheck(env) || !stamp) {
+        (*env)->ExceptionClear(env);
+        return 0;
+    }
+    ok = (*env)->CallBooleanMethod(env, atrack->thiz, g_get_timestamp, stamp);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, stamp);
+        return 0;
+    }
+    if (ok) {
+        if (frame_position)
+            *frame_position = (*env)->GetLongField(env, stamp, g_ts_frame);
+        if (nano_time)
+            *nano_time = (*env)->GetLongField(env, stamp, g_ts_nano);
+        if (valid)
+            *valid = 1;
+    }
+    (*env)->DeleteLocalRef(env, stamp);
+    return ok ? 1 : 0;
+}
+
+int SDL_Android_AudioTrack_buffer_frames(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid)
+{
+    int frames;
+    if (valid)
+        *valid = 0;
+    if (!env || !atrack || !atrack->thiz)
+        return 0;
+    audiotrack_cache_methods(env, atrack->thiz);
+    if (!g_buffer_frames)
+        return 0;
+    frames = (*env)->CallIntMethod(env, atrack->thiz, g_buffer_frames);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return 0;
+    }
+    if (valid)
+        *valid = 1;
+    return frames;
+}
+
+int64_t SDL_Android_nano_time(JNIEnv *env)
+{
+    int64_t now;
+    if (!env)
+        return 0;
+    if (!g_audio_methods_ready)
+        return 0;
+    if (!g_system_class || !g_nano_time)
+        return 0;
+    now = (*env)->CallStaticLongMethod(env, g_system_class, g_nano_time);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return 0;
+    }
+    return now;
+}
+
 int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, uint8_t *data, int size_in_byte)
 {
     if (size_in_byte <= 0)

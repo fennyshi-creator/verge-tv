@@ -86,7 +86,29 @@ list(FILTER SOURCE_IJKPLAYER EXCLUDE REGEX "/apple/")
 list(FILTER SOURCE_IJKPLAYER EXCLUDE REGEX "ijkhls")
 list(FILTER SOURCE_IJKPLAYER EXCLUDE REGEX "ijksegment")
 
-add_library(fsplayer SHARED ${SOURCE_IJKJ4A} ${SOURCE_SDL} ${SOURCE_IJKPLAYER} ${SOURCE_SOUNDTOUCH})
+# LGPL AC-3 encoder sources. The prebuilt FFmpeg was built with encoders
+# disabled, so these two files are compiled in. Not a legal opinion.
+set(FFMPEG_SRC "/tmp/FFmpeg-n8.1.2" CACHE PATH "FFmpeg n8.1.2 sources for the AC-3 encoder")
+if(NOT EXISTS "${FFMPEG_SRC}/libavcodec/ac3enc.c")
+    message(FATAL_ERROR "AC-3 encoder sources missing at ${FFMPEG_SRC}. AAC compatibility output needs them.")
+endif()
+set(FS_AC3_SHIM ${CMAKE_CURRENT_BINARY_DIR}/ac3shim)
+file(MAKE_DIRECTORY ${FS_AC3_SHIM})
+file(WRITE ${FS_AC3_SHIM}/config_components.h
+"#pragma once
+#include_next \"config_components.h\"
+#undef CONFIG_AC3_ENCODER
+#define CONFIG_AC3_ENCODER 1
+")
+set(FS_AC3ENC
+    ${FFMPEG_SRC}/libavcodec/ac3enc.c
+    ${FFMPEG_SRC}/libavcodec/ac3enc_float.c)
+set_source_files_properties(${FS_AC3ENC} PROPERTIES
+    COMPILE_DEFINITIONS "HAVE_AV_CONFIG_H"
+    INCLUDE_DIRECTORIES "${FS_AC3_SHIM};${FFMPEG_SRC};${FFMPEG_SRC}/libavcodec;${FFMPEG_DIR};${FFMPEG_DIR}/include;${FFMPEG_DIR}/include/libffmpeg"
+    COMPILE_OPTIONS "-Wno-unused-function;-Wno-unused-variable;-Wno-pointer-sign;-Wno-deprecated-declarations")
+
+add_library(fsplayer SHARED ${SOURCE_IJKJ4A} ${SOURCE_SDL} ${SOURCE_IJKPLAYER} ${SOURCE_SOUNDTOUCH} ${FS_AC3ENC})
 
 # 排查用（二分定位）：./gradlew :demo:assembleDebug -PfsNoVulkan=1
 # 让 SDL_VoutAndroid_CreateForVulkan 直接返回 NULL，用来判断崩溃是否来自 Vulkan 渲染器本身。
@@ -121,7 +143,7 @@ set(XML2_LIB      ${UNI_DIR}/xml2/xml2-${ARCH}/lib/libxml2.a)
 set(BLURAY_LIB    ${UNI_DIR}/bluray/bluray-${ARCH}/lib/libbluray.a)
 # 不链 libdvdnav/libdvdread：它们是 GPL，会把 FFmpeg 从 LGPL 拉成 nonfree；
 # 预编译 product 里也不再有它们（ffconfig 的 auto-detect 只在探测到才启用）
-set(SMB2_LIB      ${UNI_DIR}/smb2/smb2-${ARCH}/lib/libsmb2.so)
+set(SMB2_LIB      ${UNI_DIR}/smb2/smb2-${ARCH}/lib/libsmb2.a)
 set(FONTCONFIG_LIB ${UNI_DIR}/fontconfig/fontconfig-${ARCH}/lib/libfontconfig.a)
 
 find_library(z-lib z REQUIRED)
@@ -132,6 +154,9 @@ find_library(jnigraphics-lib jnigraphics)
 find_library(m-lib m)
 find_library(mediandk-lib mediandk)
 find_library(dl-lib dl)
+find_library(egl-lib EGL)
+find_library(gles-lib GLESv3)
+set(SDR_HOOK ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libfsmediacodec_sdr.so)
 
 target_link_libraries(fsplayer
     "-Wl,--start-group"
@@ -151,12 +176,15 @@ target_link_libraries(fsplayer
     ${FONTCONFIG_LIB}
     "-Wl,--end-group"
     ${SMB2_LIB}
+    ${SDR_HOOK}
     ${z-lib}
     ${dl-lib}
     ${mediandk-lib}
     ${log-lib}
     ${android-lib}
     ${vulkan-lib}
+    ${egl-lib}
+    ${gles-lib}
     ${jnigraphics-lib}
     ${m-lib}
     "-Wl,-z,max-page-size=16384"
