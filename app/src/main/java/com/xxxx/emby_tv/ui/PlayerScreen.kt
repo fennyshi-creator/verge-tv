@@ -939,8 +939,12 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(player) {
+        var lastCueLog = 0L
         while (isActive) {
-            val text = player.subtitleTextAt(position + subtitleTimeOffsetMs)
+            val lookup = player.currentPosition
+            val lookupPts = lookup + subtitleTimeOffsetMs
+            val text = player.subtitleTextAt(lookupPts)
+            val cueStart = player.subtitleCueStartAt(lookupPts)
             overlaySubtitleView.value?.setCues(
                 if (text.isNullOrBlank()) {
                     emptyList()
@@ -953,6 +957,13 @@ fun PlayerScreen(
                     )
                 }
             )
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastCueLog >= 1000L) {
+                lastCueLog = now
+                com.debugly.fsplayer.audio.FsPassthroughLog.note(
+                    "subtitle lookup_ms=$lookupPts cue_ms=${cueStart ?: -1} offset_ms=$subtitleTimeOffsetMs"
+                )
+            }
             delay(200)
         }
     }

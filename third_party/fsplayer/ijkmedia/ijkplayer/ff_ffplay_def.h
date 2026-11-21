@@ -615,6 +615,8 @@ typedef struct FFPlayer {
     void *aac_clock;
     int aac_hw_buffer;
     int aac_clock_serial;
+    double aac_packet_pts;
+    int64_t aac_disp_log_us;
     int audio_open_codec_id;
     int video_hw_refused;
     /* Committed for the current audio stream. encoding is AudioFormat.ENCODING_*. */

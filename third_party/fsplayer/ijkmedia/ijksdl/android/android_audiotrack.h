@@ -115,6 +115,11 @@ int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, ui
 int SDL_Android_AudioTrack_write_nonblock(JNIEnv *env, SDL_Android_AudioTrack *atrack,
                                           uint8_t *data, int total, int offset);
 int SDL_Android_AudioTrack_playback_head(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid);
+/* getTimestamp. valid is 1 only when the call returns true and fields were read. */
+int SDL_Android_AudioTrack_timestamp(JNIEnv *env, SDL_Android_AudioTrack *atrack,
+                                     int64_t *frame_position, int64_t *nano_time, int *valid);
+int SDL_Android_AudioTrack_buffer_frames(JNIEnv *env, SDL_Android_AudioTrack *atrack, int *valid);
+int64_t SDL_Android_nano_time(JNIEnv *env);
 void SDL_Android_AudioTrack_log(JNIEnv *env, const char *line);
 /* Attaches the calling thread if needed. Safe to call from the decoder. */
 void fs_passthrough_log_line(const char *line);

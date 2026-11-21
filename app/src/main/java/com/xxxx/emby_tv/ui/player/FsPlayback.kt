@@ -369,6 +369,8 @@ class FsPlayback(private val appContext: Context) {
 
     fun subtitleTextAt(positionMs: Long): String? = SubtitleCues.textAt(subtitleCues, positionMs)
 
+    fun subtitleCueStartAt(positionMs: Long): Long? = SubtitleCues.cueStartAt(subtitleCues, positionMs)
+
     fun passthroughEncoding(): Int {
         return try {
             engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_AUDIO_PASSTHROUGH_ENCODING, 0L)?.toInt() ?: 0

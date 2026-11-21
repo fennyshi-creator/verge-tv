@@ -516,7 +516,7 @@ static void fs_ac3_publish(FFPlayer *ffp)
     VideoState *is;
     const char *source = "startup";
     double presented;
-    char line[192];
+    char line[384];
     if (!ffp || !ffp->is || !ffp->aac_ac3_on)
         return;
     is = ffp->is;
@@ -532,18 +532,45 @@ static void fs_ac3_publish(FFPlayer *ffp)
         return;
     set_clock_at(&is->audclk, presented, is->audio_clock_serial, av_gettime_relative() / 1000000.0);
     sync_clock_to_slave(&is->extclk, &is->audclk);
-    if (clock->frames > 0 && (clock->frames % 32) == 0) {
+    if (clock->accepted >= 1536 && ((clock->accepted / 1536) % 32) == 0) {
         snprintf(line, sizeof(line),
-                 "aac-ac3 clock source=%s unit=%d queued_bytes=%lld queued_ms=%lld presented_ms=%lld",
-                 source, clock->head_unit,
-                 (long long)fs_aac_ac3_clock_queued_bytes(clock),
-                 (long long)(fs_aac_ac3_clock_queued_bytes(clock) * 1000 / 48000),
-                 (long long)(presented * 1000.0));
+                 "aac-ac3 clock source=%s reason=%s head_valid=%d head_raw=%u ts_status=%d "
+                 "ts_frame=%lld ts_nano=%lld accepted=%lld played=%lld queued_bound=%lld cap=%d "
+                 "cap_frames=%lld cap_valid=%d presented_ms=%lld serial=%d paused=%d speed=%.3f",
+                 source, clock->reason, clock->head_valid, clock->head_raw, clock->ts_status,
+                 (long long)clock->ts_frame, (long long)clock->ts_nano,
+                 (long long)clock->accepted, (long long)clock->published,
+                 (long long)fs_aac_ac3_clock_queued_bytes(clock), clock->cap_bytes,
+                 (long long)clock->cap_frames_raw, clock->cap_frames_valid,
+                 (long long)(presented * 1000.0), is->audio_clock_serial, is->paused,
+                 is->audclk.speed);
         fs_passthrough_log_line(line);
     }
 }
 
-void fs_ac3_client_on_written(void *player, int bytes, int head, int head_valid)
+void fs_ac3_note_display(void *player, double frame_pts)
+{
+    FFPlayer *ffp = player;
+    VideoState *is;
+    int64_t now;
+    char line[192];
+    if (!ffp || !ffp->aac_ac3_on || !ffp->is || isnan(frame_pts))
+        return;
+    is = ffp->is;
+    now = av_gettime_relative();
+    if (ffp->aac_disp_log_us != 0 && now - ffp->aac_disp_log_us < 1000000)
+        return;
+    ffp->aac_disp_log_us = now;
+    snprintf(line, sizeof(line),
+             "aac-ac3 display frame_pts_ms=%lld aud_ms=%lld render=scheduled-buffer",
+             (long long)(frame_pts * 1000.0),
+             (long long)(isnan(get_clock(&is->audclk)) ? -1 : get_clock(&is->audclk) * 1000.0));
+    fs_passthrough_log_line(line);
+}
+
+void fs_ac3_client_on_written(void *player, int bytes, int head, int head_valid,
+                              int64_t ts_frame, int64_t ts_nano, int64_t now_nano, int ts_valid,
+                              int cap_frames, int cap_valid)
 {
     FFPlayer *ffp = player;
     FsAacAc3Clock *clock;
@@ -558,8 +585,10 @@ void fs_ac3_client_on_written(void *player, int bytes, int head, int head_valid)
         fs_aac_ac3_clock_reset(clock);
         ffp->aac_clock_serial = is->audio_clock_serial;
     }
-    fs_aac_ac3_clock_accept(clock, bytes, is->audio_clock);
+    fs_aac_ac3_clock_accept(clock, bytes, ffp->aac_packet_pts);
     fs_aac_ac3_clock_head(clock, (uint32_t)head, head_valid);
+    fs_aac_ac3_clock_timestamp(clock, ts_frame, ts_nano, now_nano, ts_valid);
+    fs_aac_ac3_clock_capacity_frames(clock, cap_frames, cap_valid);
     fs_ac3_publish(ffp);
 }
 
@@ -1850,6 +1879,8 @@ retry:
             SDL_LockMutex(is->pictq.mutex);
             if (!isnan(vp->pts))
                 update_video_pts(is, vp->pts, vp->pos, vp->frame_serial);
+            if (ffp->aac_ac3_on)
+                fs_ac3_note_display(ffp, vp->pts);
             SDL_UnlockMutex(is->pictq.mutex);
 
             if (!is->step_on_seeking && frame_queue_nb_remaining(&is->pictq) > 1) {
@@ -3465,6 +3496,7 @@ static int audio_decode_frame(FFPlayer *ffp)
     av_unused double audio_clock0;
     int wanted_nb_samples;
     Frame *af;
+    int64_t swr_lead = 0;
 #if defined(__ANDROID__)
     int translate_time = 1;
 #endif
@@ -3477,7 +3509,7 @@ static int audio_decode_frame(FFPlayer *ffp)
         int wrote;
         if (__atomic_exchange_n(&ffp->aac_ac3_reset_req, 0, memory_order_acq_rel))
             fs_aac_ac3_reset(ffp->aac_ac3_state);
-        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet));
+        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet), &ffp->aac_packet_pts);
         if (wrote > 0) {
             av_fast_malloc(&is->audio_buf1, &is->audio_buf1_size, wrote);
             if (!is->audio_buf1)
@@ -3641,6 +3673,7 @@ reload:
 
         if (!is->audio_buf1)
             return AVERROR(ENOMEM);
+        swr_lead = swr_get_delay(is->swr_ctx, is->audio_tgt.freq);
         len2 = swr_convert(is->swr_ctx, out, out_count, in, af->frame->nb_samples);
         if (len2 < 0) {
             av_log(NULL, AV_LOG_ERROR, "swr_convert() failed\n");
@@ -3715,15 +3748,20 @@ reload:
             fs_aac_ac3_reset(ffp->aac_ac3_state);
             ffp->aac_ac3_serial = af->frame_serial;
         }
-        if (fs_aac_ac3_push(ffp->aac_ac3_state, (const int16_t *)is->audio_buf,
-                            resampled_data_size / 12) < 0) {
-            if (!ffp->aac_ac3_failed) {
-                ffp->aac_ac3_failed = 1;
-                fs_passthrough_log_line("aac-ac3 encode failed; stopping encoded writes");
+        {
+            double chunk = af->pts;
+            if (!isnan(chunk) && swr_lead > 0 && swr_lead < 48000)
+                chunk -= (double)swr_lead / 48000.0;
+            if (fs_aac_ac3_push(ffp->aac_ac3_state, (const int16_t *)is->audio_buf,
+                                resampled_data_size / 12, chunk) < 0) {
+                if (!ffp->aac_ac3_failed) {
+                    ffp->aac_ac3_failed = 1;
+                    fs_passthrough_log_line("aac-ac3 encode failed; stopping encoded writes");
+                }
+                return -1;
             }
-            return -1;
         }
-        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet));
+        wrote = fs_aac_ac3_take(ffp->aac_ac3_state, packet, (int)sizeof(packet), &ffp->aac_packet_pts);
         if (wrote < 0) {
             if (!ffp->aac_ac3_failed) {
                 ffp->aac_ac3_failed = 1;

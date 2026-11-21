@@ -1,5 +1,6 @@
 #include "fs_aac_ac3.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "libavcodec/avcodec.h"
@@ -37,7 +38,9 @@ struct FsAacAc3 {
     int qn;
     int qr;
     int qsize[FS_AAC_AC3_QUEUE];
+    double qpts[FS_AAC_AC3_QUEUE];
     unsigned char q[FS_AAC_AC3_QUEUE][FS_AAC_AC3_BYTES];
+    FsAacLedger ledger;
 };
 
 static int open_encoder(FsAacAc3 *st)
@@ -64,6 +67,8 @@ static int open_encoder(FsAacAc3 *st)
     av_channel_layout_from_mask(&st->frame->ch_layout, AV_CH_LAYOUT_5POINT1);
     if (av_frame_get_buffer(st->frame, 0) < 0)
         return -1;
+    if (st->ctx->initial_padding > 0)
+        fs_aac_ledger_prime(&st->ledger, st->ctx->initial_padding);
     return 0;
 }
 
@@ -97,6 +102,9 @@ void fs_aac_ac3_reset(FsAacAc3 *st)
     st->qn = 0;
     st->qr = 0;
     st->failed = 0;
+    fs_aac_ledger_reset(&st->ledger);
+    if (st->ctx->initial_padding > 0)
+        fs_aac_ledger_prime(&st->ledger, st->ctx->initial_padding);
     avcodec_flush_buffers(st->ctx);
 }
 
@@ -113,6 +121,7 @@ static void store_planar(FsAacAc3 *st, int at, const int16_t *interleaved, int s
 static int enqueue_packet(FsAacAc3 *st)
 {
     int slot;
+    double start;
     if (st->packet->size <= 0 || st->packet->size > FS_AAC_AC3_BYTES)
         return -1;
     if (st->qn >= FS_AAC_AC3_QUEUE)
@@ -120,14 +129,18 @@ static int enqueue_packet(FsAacAc3 *st)
     slot = (st->qr + st->qn) % FS_AAC_AC3_QUEUE;
     memcpy(st->q[slot], st->packet->data, st->packet->size);
     st->qsize[slot] = st->packet->size;
+    start = fs_aac_ledger_next_packet_pts(&st->ledger);
+    fs_aac_ledger_emit(&st->ledger);
+    st->qpts[slot] = isnan(start) ? start : start + (double)FS_AAC_AC3_FRAME / FS_AAC_AC3_RATE;
     st->qn++;
     return 0;
 }
 
-int fs_aac_ac3_push(FsAacAc3 *st, const int16_t *interleaved, int samples)
+int fs_aac_ac3_push(FsAacAc3 *st, const int16_t *interleaved, int samples, double first_pts)
 {
     if (!st || st->failed || !interleaved || samples < 0)
         return -1;
+    fs_aac_ledger_push(&st->ledger, samples, first_pts);
     while (samples > 0) {
         int room = FS_AAC_AC3_FRAME - st->filled;
         int take = samples < room ? samples : room;
@@ -168,9 +181,11 @@ int fs_aac_ac3_push(FsAacAc3 *st, const int16_t *interleaved, int samples)
     return 0;
 }
 
-int fs_aac_ac3_take(FsAacAc3 *st, unsigned char *out, int cap)
+int fs_aac_ac3_take(FsAacAc3 *st, unsigned char *out, int cap, double *content_end)
 {
     int size;
+    if (content_end)
+        *content_end = 0.0 / 0.0;
     if (!st || !out || cap <= 0)
         return -1;
     if (st->qn <= 0)
@@ -179,6 +194,8 @@ int fs_aac_ac3_take(FsAacAc3 *st, unsigned char *out, int cap)
     if (size <= 0 || size > cap)
         return -1;
     memcpy(out, st->q[st->qr], size);
+    if (content_end)
+        *content_end = st->qpts[st->qr];
     st->qr = (st->qr + 1) % FS_AAC_AC3_QUEUE;
     st->qn--;
     return size;

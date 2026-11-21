@@ -174,8 +174,11 @@ class EmbySubtitlesTest {
         val cues = SubtitleCues.parse(body)
         assertEquals(2, cues.size)
         assertEquals("你好", SubtitleCues.textAt(cues, 1500))
+        assertEquals(1000L, SubtitleCues.cueStartAt(cues, 1500))
         assertEquals(null, SubtitleCues.textAt(cues, 4500))
+        assertEquals(null, SubtitleCues.cueStartAt(cues, 4500))
         assertEquals("later", SubtitleCues.textAt(cues, 5600))
+        assertEquals(5500L, SubtitleCues.cueStartAt(cues, 5600))
     }
 }
 

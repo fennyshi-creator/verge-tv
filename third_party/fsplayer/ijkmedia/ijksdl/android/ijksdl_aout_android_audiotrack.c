@@ -339,8 +339,16 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     written = aout_write_encoded(env, aout, buffer + 4, payload);
                     if (written == payload && opaque->spec.format == AUDIO_AC3) {
                         int head_valid = 0;
+                        int ts_valid = 0;
+                        int cap_valid = 0;
+                        int64_t ts_frame = 0;
+                        int64_t ts_nano = 0;
                         int head = SDL_Android_AudioTrack_playback_head(env, atrack, &head_valid);
-                        fs_ac3_client_on_written(userdata, payload, head, head_valid);
+                        int cap_frames = SDL_Android_AudioTrack_buffer_frames(env, atrack, &cap_valid);
+                        SDL_Android_AudioTrack_timestamp(env, atrack, &ts_frame, &ts_nano, &ts_valid);
+                        fs_ac3_client_on_written(userdata, payload, head, head_valid,
+                                                 ts_frame, ts_nano, SDL_Android_nano_time(env),
+                                                 ts_valid, cap_frames, cap_valid);
                     }
                     write_ms = (int) (aout_mono_ms() - t0);
                     opaque->gap_begin_us = begin_us;

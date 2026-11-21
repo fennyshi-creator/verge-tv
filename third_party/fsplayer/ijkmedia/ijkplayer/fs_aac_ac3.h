@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "fs_aac_ac3_clock.h"
+
 /*
  * Optional client-side AAC multichannel to AC-3 for HDMI receivers that
  * only light a Dolby indicator on a compressed bitstream. AC-3 / E-AC-3
@@ -25,7 +27,9 @@ void fs_aac_ac3_reset(FsAacAc3 *st);
  * Interleaved S16, 6 channels, 48 kHz, already resampled. 0 ok, -1 failed.
  * A full AC-3 frame is 1536 samples. take() returns one frame, 0 if none.
  */
-int fs_aac_ac3_push(FsAacAc3 *st, const int16_t *interleaved, int samples);
-int fs_aac_ac3_take(FsAacAc3 *st, unsigned char *out, int cap);
+/* first_pts is the content time of the first sample in this chunk. */
+int fs_aac_ac3_push(FsAacAc3 *st, const int16_t *interleaved, int samples, double first_pts);
+/* content_end receives the content time of the last sample in the packet. */
+int fs_aac_ac3_take(FsAacAc3 *st, unsigned char *out, int cap, double *content_end);
 
 #endif
