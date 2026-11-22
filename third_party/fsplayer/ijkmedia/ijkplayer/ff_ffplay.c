@@ -66,6 +66,7 @@
 #include "fs_passthrough.h"
 #include "fs_aac_ac3.h"
 #include "fs_aac_ac3_clock.h"
+#include "fs_iec_clock.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/defs.h>
 
@@ -602,15 +603,34 @@ void fs_ac3_client_hold(void *player)
     fs_ac3_publish(ffp);
 }
 
-void fs_iec_audclk_on_write(void *player, int written)
+void fs_iec_audclk_on_write(void *player, int written,
+                           int64_t ts_frame, int64_t ts_nano, int64_t now_nano, int ts_valid)
 {
     FFPlayer *ffp = (FFPlayer *) player;
     VideoState *is;
+    FsIecClock *clock;
     double latency;
     long long anchor_ms;
+    const char *source = "uncalibrated-iec";
+    double presented;
+    double aud;
+    double vid;
+    int64_t now_us;
+    char line[320];
     if (!fs_diag_iec_on(ffp) || !ffp->is)
         return;
     is = ffp->is;
+    if (!ffp->iec_ts_clock) {
+        ffp->iec_ts_clock = av_mallocz(sizeof(FsIecClock));
+        if (ffp->iec_ts_clock)
+            fs_iec_clock_init(ffp->iec_ts_clock);
+        ffp->iec_ts_serial = is->audio_clock_serial;
+    }
+    clock = ffp->iec_ts_clock;
+    if (clock && ffp->iec_ts_serial != is->audio_clock_serial) {
+        fs_iec_clock_reset(clock);
+        ffp->iec_ts_serial = is->audio_clock_serial;
+    }
     latency = ffp->aout ? SDL_AoutGetLatencySeconds(ffp->aout) : 0.0;
     if (!fs_iec_should_publish_clock(is->paused, written, FS_IEC61937_EAC3_BURST_BYTES,
                                      !isnan(is->audio_clock), is->audio_clock_serial,
@@ -619,10 +639,32 @@ void fs_iec_audclk_on_write(void *player, int written)
     if (!fs_iec_clock_anchor_ms(is->audio_clock, 1, written,
                                 FS_IEC61937_EAC3_BURST_BYTES, latency, &anchor_ms))
         return;
-    set_clock(&is->audclk, anchor_ms / 1000.0, is->audioq.serial);
+    presented = clock ? fs_iec_clock_on_burst(clock, is->audio_clock, latency, is->paused,
+                                              ts_frame, ts_nano, now_nano, ts_valid, &source)
+                      : anchor_ms / 1000.0;
+    if (!clock || !source || source[0] != 't')
+        presented = anchor_ms / 1000.0;
+    set_clock(&is->audclk, presented, is->audioq.serial);
     is->audclk.paused = is->paused ? 1 : 0;
     ffp->iec_clock_write_us = fs_diag_mono_us();
     ffp->iec_clock_set = 1;
+    now_us = av_gettime_relative();
+    if (clock && (ffp->iec_ts_log_us == 0 || now_us - ffp->iec_ts_log_us >= 1000000)) {
+        ffp->iec_ts_log_us = now_us;
+        aud = get_clock(&is->audclk);
+        vid = get_clock(&is->vidclk);
+        snprintf(line, sizeof(line),
+                 "iec clock source=%s status=%d ts_frame=%lld ts_nano=%lld rate_hz=%.0f "
+                 "accepted=%lld played=%lld presented_ms=%lld vid_ms=%lld diff_ms=%lld",
+                 source, clock->ts_status,
+                 (long long)clock->ts_frame, (long long)clock->ts_nano, clock->rate_hz,
+                 (long long)(clock->bursts * 6144),
+                 (long long)(clock->calibrated ? clock->unwrap : -1),
+                 (long long)(presented * 1000.0),
+                 (long long)(isnan(vid) ? -1 : vid * 1000.0),
+                 (long long)((isnan(vid) || isnan(aud)) ? -1 : (vid - aud) * 1000.0));
+        fs_passthrough_log_line(line);
+    }
 }
 
 static void fs_iec_hold_drained_clock(FFPlayer *ffp)
@@ -1271,6 +1313,7 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
         ffp->aac_ac3_state = NULL;
         ffp->aac_ac3_on = 0;
         av_freep(&ffp->aac_clock);
+        av_freep(&ffp->iec_ts_clock);
         av_freep(&is->audio_buf1);
         is->audio_buf1_size = 0;
         is->audio_buf = NULL;
@@ -5544,6 +5587,8 @@ static int read_thread(void *arg)
                         fs_diag_audio_add_seek_flush(&ffp->diag_audio, nb, media);
                     }
                     ffp->iec_clock_set = 0;
+                    if (ffp->iec_ts_clock)
+                        fs_iec_clock_reset(ffp->iec_ts_clock);
                     __atomic_store_n(&ffp->aac_ac3_reset_req, 1, memory_order_release);
                     packet_queue_flush(&is->audioq);
                 }

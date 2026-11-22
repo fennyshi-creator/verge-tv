@@ -359,8 +359,14 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                         fs_diag_mark_write(begin_us, opaque->gap_end_us, written);
                         if (written == payload &&
                             (opaque->spec.format == AUDIO_IEC61937 ||
-                             opaque->spec.format == AUDIO_IEC61937_PCM))
-                            fs_iec_audclk_on_write(userdata, written);
+                             opaque->spec.format == AUDIO_IEC61937_PCM)) {
+                            int iec_ts_valid = 0;
+                            int64_t iec_ts_frame = 0;
+                            int64_t iec_ts_nano = 0;
+                            SDL_Android_AudioTrack_timestamp(env, atrack, &iec_ts_frame, &iec_ts_nano, &iec_ts_valid);
+                            fs_iec_audclk_on_write(userdata, written, iec_ts_frame, iec_ts_nano,
+                                                   SDL_Android_nano_time(env), iec_ts_valid);
+                        }
                     }
                 }
                 if (sample || written < 0 || written != payload) {
