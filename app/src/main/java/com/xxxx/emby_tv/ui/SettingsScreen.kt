@@ -106,12 +106,12 @@ fun SettingsScreen(
                         decoderPreference = if (decoderPreference == 1) 0 else 1
                         prefs.decoderPreference = decoderPreference
                     }
-                    SettingLine("解码为立体声", if (decodeToStereo) "开" else "自动") {
+                    SettingLine("音频直通", if (decodeToStereo) "关闭" else "自动") {
                         decodeToStereo = !decodeToStereo
                         prefs.decodeToStereo = decodeToStereo
                     }
                     SettingLine(
-                        "AAC多声道兼容输出",
+                        "AAC多声道转杜比",
                         when (aacAc3Mode) {
                             1 -> "开"
                             2 -> "关"

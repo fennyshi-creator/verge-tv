@@ -134,6 +134,13 @@ public final class FsEncodedAudioTrack {
                         + " buffer=" + buffer + " not-initialized");
                 return null;
             }
+            if (!confirmOpened(track, encoding, sampleRate, channelMask)) {
+                track.release();
+                FsPassthroughLog.note("audio open encoding=" + encoding
+                        + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                        + " obtained-mismatch");
+                return null;
+            }
             Log.i(TAG, "opened encoded AudioTrack encoding=" + encoding
                     + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
                     + " buffer=" + buffer);
@@ -145,9 +152,50 @@ public final class FsEncodedAudioTrack {
             Log.w(TAG, "AudioTrack.Builder failed encoding=" + encoding, error);
             FsPassthroughLog.note("audio open encoding=" + encoding
                     + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
-                    + " builder-failed");
+                    + " builder-failed " + failureDetail(error));
             return null;
         }
+    }
+
+    /** Class name and one short message. No stack and no secrets. */
+    static String failureDetail(Throwable error) {
+        if (error == null)
+            return "unknown";
+        String name = error.getClass().getSimpleName();
+        String message = error.getMessage();
+        if (message == null || message.isEmpty())
+            return name;
+        message = message.replace('\n', ' ').replace('\r', ' ');
+        if (message.length() > 80)
+            message = message.substring(0, 80);
+        return name + ":" + message;
+    }
+
+    /**
+     * @return false when this IEC track did not come back as the encoding we asked for
+     */
+    static boolean confirmOpened(AudioTrack track, int encoding, int sampleRate, int channelMask) {
+        AudioFormat got;
+        try {
+            got = track.getFormat();
+        } catch (Throwable error) {
+            FsPassthroughLog.note("audio open encoding=" + encoding
+                    + " obtained-unreadable " + failureDetail(error));
+            return encoding != ENCODING_IEC61937;
+        }
+        if (got == null) {
+            FsPassthroughLog.note("audio open encoding=" + encoding + " obtained-unreadable");
+            return encoding != ENCODING_IEC61937;
+        }
+        FsPassthroughLog.note("audio open requested encoding=" + encoding
+                + " rate=" + sampleRate + " mask=0x" + Integer.toHexString(channelMask)
+                + " obtained encoding=" + got.getEncoding()
+                + " rate=" + got.getSampleRate()
+                + " mask=0x" + Integer.toHexString(got.getChannelMask()));
+        if (encoding != ENCODING_IEC61937)
+            return true;
+        return got.getEncoding() == encoding
+                && (got.getSampleRate() == 0 || got.getSampleRate() == sampleRate);
     }
 
     private static boolean isOpenable(int encoding) {

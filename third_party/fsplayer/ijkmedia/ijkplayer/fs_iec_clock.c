@@ -19,6 +19,11 @@ static void set_source(FsIecClock *clock, const char *source)
     snprintf(clock->source, sizeof(clock->source), "%s", source);
 }
 
+int fs_iec_timestamp_allowed(unsigned format)
+{
+    return format == 0x150Du;
+}
+
 void fs_iec_clock_init(FsIecClock *clock)
 {
     if (!clock)
@@ -150,17 +155,21 @@ double fs_iec_clock_on_burst(FsIecClock *clock, double content_end, double laten
         played = clock->unwrap;
         if (now_nano > clock->ts_nano) {
             extra = (int64_t)((double)(now_nano - clock->ts_nano) * (double)FS_IEC_RATE / 1e9);
-            if (extra > 0 && extra < FS_IEC_RATE)
+            if (extra > (int64_t)FS_IEC_PERIOD_FRAMES)
+                extra = FS_IEC_PERIOD_FRAMES;
+            if (extra > 0)
                 played += extra;
         }
         queue = accepted - played;
-        if (queue < 0 && queue >= -(int64_t)FS_IEC_PERIOD_FRAMES)
-            queue = 0;
         if (played >= 0 && queue >= 0 && queue <= (int64_t)FS_IEC_RATE * 5) {
             target = content_end - (double)queue / (double)FS_IEC_RATE;
             if (target > content_end)
                 target = content_end;
             kind = "ts-iec";
+        } else if (played >= 0 && queue < 0 && clock->have_published) {
+            /* Ahead of the bytes we wrote. Do not treat that as an empty buffer. */
+            kind = "ts-iec";
+            target = clock->published;
         } else {
             clock->calibrated = 0;
             clock->ts_advances = 0;

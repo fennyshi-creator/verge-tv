@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Verge</string>
+    <string name="app_name">Verge Emby</string>
     <string name="new_version_available">新版本可用: %1$s</string>
     <string name="info">信息</string>
     <string name="server_url">服务器地址</string>
@@ -55,6 +55,7 @@
     <string name="player_engine_failed">此设备无法启动画面</string>
     <string name="player_hdr_hardware_failed">硬解没能输出 HDR，已停止，没有改成软解。</string>
     <string name="player_audio_release_failed">上一段声音还没释放完，已停止，避免两路声音叠在一起。</string>
+    <string name="player_passthrough_unavailable">杜比没能原样送出，已停止，避免把声音播乱。</string>
     <string name="streaming">流媒体</string>
     <string name="video">视频</string>
     <string name="audio_label">音频</string>
@@ -331,10 +332,10 @@
     <string name="source_pref_hdr_first">HDR 优先</string>
     <string name="source_pref_smooth">流畅优先（低码率）</string>
     <string name="source_pref_default">默认排序</string>
-    <string name="decoder_preference">音频解码</string>
+    <string name="decoder_preference">音频兼容模式</string>
     <string name="decoder_auto">自动</string>
-    <string name="decoder_ffmpeg">优先 FFmpeg</string>
-    <string name="hdr_sdr">HDR-SDR</string>
+    <string name="decoder_ffmpeg">兼容解码</string>
+    <string name="hdr_sdr">HDR转SDR</string>
     <string name="hdr_sdr_off">关</string>
     <string name="hdr_sdr_on">开</string>
 </resources>

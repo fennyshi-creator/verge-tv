@@ -67,6 +67,7 @@
 #include "fs_aac_ac3.h"
 #include "fs_aac_ac3_clock.h"
 #include "fs_iec_clock.h"
+#include "ijksdl/android/verge_vendor.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/defs.h>
 
@@ -4158,7 +4159,9 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
         int opened_encoding = 0;
         int ti;
         norder = fs_passthrough_open_order(ffp->audio_passthrough_encoding,
-                                           ffp->audio_passthrough_joc, order, 2);
+                                           ffp->audio_passthrough_joc,
+                                           verge_vendor_verified_iec_device() ? 0 : 1,
+                                           order, 2);
         memset(&pt_spec, 0, sizeof(pt_spec));
         if (pt_wanted.freq != 32000 && pt_wanted.freq != 44100 && pt_wanted.freq != 48000)
             pt_wanted.freq = 48000;
@@ -4273,6 +4276,12 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
         ffp->audio_passthrough_on = 0;
         ffp->audio_passthrough_encoding = 0;
         ffp->audio_passthrough_fallback = 1;
+        if (verge_vendor_verified_iec_device() &&
+            (ffp->audio_open_codec_id == AV_CODEC_ID_EAC3)) {
+            ffp->iec_passthrough_refused = 1;
+            fs_passthrough_log_line("audio passthrough unavailable profile=verified reason=iec13-open-failed");
+            return -1;
+        }
         av_log(NULL, AV_LOG_WARNING,
                "audio passthrough rejected; decoding to stereo PCM\n");
         fs_passthrough_log_line("audio format switch to pcm reason=iec-open-rejected");
@@ -5438,6 +5447,12 @@ static int read_thread(void *arg)
     ret = -1;
     if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
         ret = stream_component_open(ffp, st_index[AVMEDIA_TYPE_AUDIO]);
+    }
+    if (ffp->iec_passthrough_refused) {
+        fs_passthrough_log_line("audio passthrough stopped profile=verified reason=iec13-open-failed");
+        last_error = 11012;
+        is->abort_request = 1;
+        goto fail;
     }
     
     //when open audio stream failed or no audio stream use video as av sync master.

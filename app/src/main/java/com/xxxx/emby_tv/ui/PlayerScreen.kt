@@ -1678,6 +1678,8 @@ fun PlayerScreen(
                             context.getString(R.string.player_hdr_hardware_failed)
                         message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_RELEASE) ->
                             context.getString(R.string.player_audio_release_failed)
+                        message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_PASSTHROUGH) ->
+                            context.getString(R.string.player_passthrough_unavailable)
                         else -> context.getString(R.string.player_engine_failed)
                     }
                     return

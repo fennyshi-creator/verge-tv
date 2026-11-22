@@ -65,6 +65,20 @@ int verge_vendor_wants_gles(const char *hardware, const char *board_platform,
     return board_token(hardware) || board_token(board_platform) || board_token(model);
 }
 
+int verge_vendor_verified_iec(const char *manufacturer, const char *hardware,
+                              const char *board, const char *model)
+{
+    if (!contains_ci(manufacturer, "realtek"))
+        return 0;
+    if (contains_ci(model, "tv794a"))
+        return 1;
+    if (equals_ci(hardware, "thor"))
+        return 1;
+    if (contains_ci(board, "mjolnir"))
+        return 1;
+    return 0;
+}
+
 #ifndef VERGE_VENDOR_HOST
 static void read_prop(const char *key, char *out, size_t cap)
 {
@@ -102,5 +116,19 @@ int verge_vendor_wants_gles_device(char *detail, size_t detail_cap)
         detail[detail_cap - 1] = '\0';
     }
     return match;
+}
+
+int verge_vendor_verified_iec_device(void)
+{
+    char hardware[PROP_VALUE_MAX];
+    char board[PROP_VALUE_MAX];
+    char manufacturer[PROP_VALUE_MAX];
+    char model[PROP_VALUE_MAX];
+
+    read_prop("ro.hardware", hardware, sizeof(hardware));
+    read_prop("ro.product.board", board, sizeof(board));
+    read_prop("ro.product.manufacturer", manufacturer, sizeof(manufacturer));
+    read_prop("ro.product.model", model, sizeof(model));
+    return verge_vendor_verified_iec(manufacturer, hardware, board, model);
 }
 #endif

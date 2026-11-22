@@ -33,5 +33,7 @@ double fs_iec_clock_on_burst(FsIecClock *clock, double content_end, double laten
                              int paused, int64_t frame_position, int64_t nano_time,
                              int64_t now_nano, int ts_valid, const char **source);
 double fs_iec_clock_hold(const FsIecClock *clock);
+/* 1 only for the IEC61937 track (0x150D), never the PCM carrier 0x150E. */
+int fs_iec_timestamp_allowed(unsigned format);
 
 #endif

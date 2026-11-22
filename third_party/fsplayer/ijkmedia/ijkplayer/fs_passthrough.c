@@ -424,7 +424,8 @@ static int fs_wanted_encoding(int codec_id, int profile, int joc_hint,
     return FS_ENCODING_E_AC3;
 }
 
-int fs_passthrough_open_order(int encoding, int joc, int *out, int cap)
+int fs_passthrough_open_order(int encoding, int joc, int allow_pcm_carrier,
+                              int *out, int cap)
 {
     if (!out || cap <= 0 || encoding == 0)
         return 0;
@@ -437,7 +438,7 @@ int fs_passthrough_open_order(int encoding, int joc, int *out, int cap)
         return 0;
     /* Path A (ENCODING_E_AC3 / JOC, raw syncframes) killed the Dune. */
     out[0] = FS_ENCODING_IEC61937;
-    if (cap < 2)
+    if (!allow_pcm_carrier || cap < 2)
         return 1;
     out[1] = FS_ENCODING_IEC61937_PCM;
     return 2;

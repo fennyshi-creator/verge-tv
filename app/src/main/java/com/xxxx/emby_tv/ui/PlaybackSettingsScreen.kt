@@ -282,7 +282,7 @@ fun PlaybackSettingsScreen(
                         }
                     }
 
-                    item { SectionTitle("AAC多声道兼容输出") }
+                    item { SectionTitle("AAC多声道转杜比") }
                     item {
                         SettingOptionRow(title = "自动", isSelected = aacAc3Mode == 0) {
                             aacAc3Mode = 0

@@ -26,5 +26,11 @@ int main(void)
     failed += expect(verge_vendor_wants_gles(NULL, NULL, NULL, NULL), 0, "null");
     failed += expect(verge_vendor_wants_gles("dune", "box", "Generic", NULL), 0, "dune is not a chip id");
     failed += expect(verge_vendor_wants_gles("authority", "box", "Generic", NULL), 0, "thor is not a substring");
+    failed += expect(verge_vendor_verified_iec("Realtek", "thor", "mjolnir", "tv794a"), 1, "verified box");
+    failed += expect(verge_vendor_verified_iec("Realtek", "qcom", "other", "tv794a"), 1, "model tv794a");
+    failed += expect(verge_vendor_verified_iec("Realtek", "thor", "other", "other"), 1, "hardware thor");
+    failed += expect(verge_vendor_verified_iec("Realtek", "qcom", "mjolnir", "other"), 1, "board mjolnir");
+    failed += expect(verge_vendor_verified_iec("Realtek", "qcom", "other", "other"), 0, "realtek alone");
+    failed += expect(verge_vendor_verified_iec("Sony", "thor", "mjolnir", "tv794a"), 0, "not realtek");
     return failed ? 1 : 0;
 }

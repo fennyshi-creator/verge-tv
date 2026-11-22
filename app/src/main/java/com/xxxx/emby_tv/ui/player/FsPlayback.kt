@@ -626,10 +626,10 @@ class FsPlayback(private val appContext: Context) {
                 Log.e(TAG, "FSPlayer error what=$what extra=$extra")
                 dispatchPlaying(false)
                 setState(STATE_IDLE)
-                val message = if (extra == 11011) {
-                    "video-decode: mediacodec-hdr"
-                } else {
-                    "FSPlayer $what/$extra"
+                val message = when (extra) {
+                    11011 -> "video-decode: mediacodec-hdr"
+                    11012 -> "audio-passthrough: iec-unavailable"
+                    else -> "FSPlayer $what/$extra"
                 }
                 dispatchError(message)
             }

@@ -672,7 +672,7 @@ fun SettingsSheetBody(
         }
         item {
             Text(
-                "仅影响 SRT/VTT 等文字字幕",
+                "只改外挂文字字幕",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, top = 2.dp, bottom = 8.dp),
@@ -680,11 +680,11 @@ fun SettingsSheetBody(
         }
         item {
             SheetRow(
-                "解码为立体声",
-                if (decodeAudio) "开" else "自动",
+                "音频直通",
+                if (decodeAudio) "关闭" else "自动",
             ) { onDecodeAudio(!decodeAudio) }
             Text(
-                "自动时 HDMI 能收杜比才透传，电视扬声器解码",
+                "关闭后不把杜比原样送出",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
@@ -692,20 +692,20 @@ fun SettingsSheetBody(
         }
         item {
             SheetRow(
-                "音频解码",
-                if (decoderPreference == 1) "优先 FFmpeg" else "自动",
+                "音频兼容模式",
+                if (decoderPreference == 1) "兼容解码" else "自动",
             ) { onDecoderPreference(if (decoderPreference == 1) 0 else 1) }
             Text(
-                "优先 FFmpeg 与「解码为立体声」走同一条立体声解码",
+                "兼容解码不使用音频直通",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
             )
         }
         item {
-            SheetRow("HDR-SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
+            SheetRow("HDR转SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
             Text(
-                "关：不映射，硬解直出。开：Android 12 及以上走硬解映射。这台 GLES 设备开着也不会改成软解。",
+                "打开后尝试适配画面。这台播放器做不到时，仍按片源播放。",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
@@ -717,7 +717,7 @@ fun SettingsSheetBody(
                 2 -> "关"
                 else -> "自动"
             }
-            SheetRow("AAC多声道兼容输出", aacLabel) {
+            SheetRow("AAC多声道转杜比", aacLabel) {
                 onAacAc3Mode(when (aacAc3Mode) {
                     0 -> 1
                     1 -> 2
@@ -725,7 +725,7 @@ fun SettingsSheetBody(
                 })
             }
             Text(
-                "多声道 AAC 可编成 AC3 走 HDMI。自动只对已核对的 Realtek。杜比源仍透传，不是 AAC 透传。",
+                "接功放时使用。杜比原片不受影响。",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

@@ -638,6 +638,7 @@ typedef struct FFPlayer {
     void *iec_ts_clock;
     int iec_ts_serial;
     int64_t iec_ts_log_us;
+    int iec_passthrough_refused;
     int diag_shown;
     int64_t diag_shown_pts_ms;
     int diag_byte_cap_n;
@@ -833,6 +834,7 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->iec_ts_clock                   = NULL;
     ffp->iec_ts_serial                  = -1;
     ffp->iec_ts_log_us                  = 0;
+    ffp->iec_passthrough_refused        = 0;
     ffp->diag_shown                     = 0;
     ffp->diag_shown_pts_ms              = 0;
     ffp->diag_byte_cap_n                = 0;

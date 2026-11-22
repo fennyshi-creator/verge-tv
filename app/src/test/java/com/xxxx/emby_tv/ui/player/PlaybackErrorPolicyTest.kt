@@ -22,6 +22,10 @@ class PlaybackErrorPolicyTest {
     }
 
     @Test
+    fun iecFailureStopsWithoutPretendingDolby() {
+        assertTrue(PlaybackErrorPolicy.stopsWithoutReopen("audio-passthrough: iec-unavailable"))
+    }
+
     fun decoderErrorsCanStillRecover() {
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("FSPlayer 100/1"))
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("prepare"))

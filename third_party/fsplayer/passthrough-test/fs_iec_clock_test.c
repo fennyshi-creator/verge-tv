@@ -99,6 +99,27 @@ static void wrap_and_leap(void)
     expect_near("leap returns to 64 ms", fs_iec_clock_hold(&clock), 1.0 + 5 * 0.032 - 0.064);
 }
 
+static void ahead_does_not_snap_to_content_end(void)
+{
+    FsIecClock clock;
+    const char *source = "";
+    double presented;
+    double end;
+    int64_t now = 9000000000LL;
+    int i;
+    fs_iec_clock_init(&clock);
+    for (i = 1; i <= 4; i++)
+        burst(&clock, i, (int64_t)i * 6144, now + (int64_t)i * 32000000LL, 1, &source);
+    expect_int("qualified before the ahead sample", clock.calibrated, 1);
+    end = 1.0 + 4 * 0.032;
+    presented = fs_iec_clock_on_burst(&clock, end, 0.064, 0,
+                                      5 * 6144, now + 5 * 32000000LL,
+                                      now + 5 * 32000000LL + 1000000000LL, 1, &source);
+    expect_int("one second of age is not added in full", presented < end - 0.020, 1);
+    expect_int("timestamp still only on the iec format", fs_iec_timestamp_allowed(0x150D), 1);
+    expect_int("pcm carrier is not measured", fs_iec_timestamp_allowed(0x150E), 0);
+}
+
 static void pause_seek_and_partial(void)
 {
     FsIecClock clock;
@@ -125,6 +146,7 @@ int main(void)
     qualifies_after_three_and_caps_follow();
     rejects_bad_time_and_wrong_unit();
     wrap_and_leap();
+    ahead_does_not_snap_to_content_end();
     pause_seek_and_partial();
     if (g_failed)
         fprintf(stderr, "%d failures\n", g_failed);
