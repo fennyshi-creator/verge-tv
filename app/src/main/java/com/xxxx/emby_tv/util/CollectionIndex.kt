@@ -39,6 +39,18 @@ class CollectionIndex {
         }
     }
 
+    /**
+     * A cached list that does not contain this title is not reused. Those
+     * boxes are asked again, along with any box that has not been read yet.
+     */
+    fun boxesToConfirm(candidates: List<BaseItemDto>, itemId: String): List<BaseItemDto> {
+        return candidates.filter { box ->
+            val id = box.id ?: return@filter false
+            val cached = childIds[id] ?: return@filter true
+            itemId !in cached
+        }
+    }
+
     fun memberBoxes(itemId: String, direct: List<BaseItemDto>): List<BaseItemDto> {
         val hits = linkedMapOf<String, BaseItemDto>()
         for (box in direct) {

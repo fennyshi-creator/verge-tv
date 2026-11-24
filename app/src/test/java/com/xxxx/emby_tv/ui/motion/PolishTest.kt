@@ -302,8 +302,10 @@ class PolishTest {
         index.rememberChildren("stranger", listOf("nope"))
         assertEquals(1, index.rowsFor("self", emptyList()).size)
         assertTrue(index.boxesToScan(listOf(box, stranger)).isEmpty())
+        assertEquals(listOf("stranger"), index.boxesToConfirm(listOf(box, stranger), "self").map { it.id })
         val fresh = BaseItemDto(id = "fresh", type = "BoxSet")
         assertEquals(listOf("fresh"), index.boxesToScan(listOf(fresh)).map { it.id })
+        assertEquals(listOf("fresh"), index.boxesToConfirm(listOf(fresh), "self").map { it.id })
         assertTrue(!EmbyPresentation.showContinueRow(emptyList()))
     }
 
