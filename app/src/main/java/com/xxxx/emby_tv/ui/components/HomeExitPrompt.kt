@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -62,6 +63,9 @@ fun HomeExitPrompt(onContinue: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Column(
+            modifier = Modifier
+                .background(Color(0xFF1C1C1C).copy(alpha = 0.55f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 28.dp, vertical = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {

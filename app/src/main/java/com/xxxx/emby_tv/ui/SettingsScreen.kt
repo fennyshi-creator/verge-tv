@@ -106,10 +106,12 @@ fun SettingsScreen(
                         decoderPreference = if (decoderPreference == 1) 0 else 1
                         prefs.decoderPreference = decoderPreference
                     }
+                    SettingHint(stringResource(R.string.audio_compat_hint))
                     SettingLine("音频直通", if (decodeToStereo) "关闭" else "自动") {
                         decodeToStereo = !decodeToStereo
                         prefs.decodeToStereo = decodeToStereo
                     }
+                    SettingHint(stringResource(R.string.audio_passthrough_hint))
                     SettingLine(
                         "AAC多声道转杜比",
                         when (aacAc3Mode) {
@@ -125,6 +127,7 @@ fun SettingsScreen(
                         }
                         prefs.aacAc3Mode = aacAc3Mode
                     }
+                    SettingHint(stringResource(R.string.aac_ac3_hint))
                 }
                 "字幕" -> SettingLine("字幕底部边距", subtitlePad.toInt().toString()) {
                     subtitlePad = if (subtitlePad >= 80f) 16f else subtitlePad + 8f
@@ -209,6 +212,16 @@ private fun CategoryRow(
             }
             .clickable(onClick = onSelect)
             .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+}
+
+@Composable
+private fun SettingHint(text: String) {
+    HomeText(
+        text,
+        13.sp,
+        Color(0xFFB5B5B5),
+        modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp),
     )
 }
 

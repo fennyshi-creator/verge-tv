@@ -25,6 +25,9 @@
     <string name="settings">Settings</string>
     <string name="continue_watching">Continue watching</string>
     <string name="exit_app">Leave now</string>
+    <string name="audio_passthrough_hint">Auto sends Dolby through when it can. Off decodes to PCM here. PCM is not necessarily stereo.</string>
+    <string name="audio_compat_hint">Compatible decode uses software audio decode, so Dolby is not passed through unchanged.</string>
+    <string name="aac_ac3_hint">Multichannel AAC is decoded, then encoded as AC-3. Not the original bitstream, and not Atmos. Auto only on a verified receiver. On still converts when compatible decode is on. Passthrough off skips it.</string>
     <string name="exit_app_title">Leave the app?</string>
     <string name="detail_start_over">Start over</string>
     <string name="continue_playing">Continue playing</string>

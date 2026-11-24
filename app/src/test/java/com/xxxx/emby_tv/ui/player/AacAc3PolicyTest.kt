@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class AacAc3PolicyTest {
     private val profile = AacAc3Policy.isVerifiedProfile("Realtek", "thor", "mjolnir", "tv794a")
@@ -42,6 +43,30 @@ class AacAc3PolicyTest {
         assertFalse(AacAc3Policy.sinkAllows(profile = false, allowBitstream = false, hdmiFamily = true))
         assertFalse(AacAc3Policy.sinkAllows(profile = true, allowBitstream = false, hdmiFamily = false))
         assertTrue(AacAc3Policy.sinkAllows(profile = false, allowBitstream = true, hdmiFamily = false))
+    }
+
+    @Test
+    fun settingCopyDoesNotCallPassthroughOffStereo() {
+        val zh = readStrings("values-zh")
+        val en = readStrings("values")
+        assertTrue(zh.contains("不一定是两声道"))
+        assertTrue(zh.contains("软件解音频"))
+        assertTrue(zh.contains("再编成 AC-3"))
+        assertTrue(zh.contains("即使开了兼容解码也会转"))
+        assertTrue(zh.contains("直通关闭时不转"))
+        assertFalse(zh.contains("自动/立体声"))
+        assertTrue(en.contains("not necessarily stereo"))
+        assertTrue(en.contains("not Atmos"))
+    }
+
+    private fun readStrings(dir: String): String {
+        val names = listOf(
+            "src/main/res/$dir/strings.xml",
+            "app/src/main/res/$dir/strings.xml",
+            "../app/src/main/res/$dir/strings.xml",
+        )
+        val file = names.map { File(it) }.firstOrNull { it.isFile } ?: error("missing $dir strings")
+        return file.readText()
     }
 
     @Test

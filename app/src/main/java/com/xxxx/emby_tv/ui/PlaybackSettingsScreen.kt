@@ -281,6 +281,7 @@ fun PlaybackSettingsScreen(
                             prefs.decoderPreference = 1
                         }
                     }
+                    item { SettingHint(stringResource(R.string.audio_compat_hint)) }
 
                     item { SectionTitle("AAC多声道转杜比") }
                     item {
@@ -301,6 +302,7 @@ fun PlaybackSettingsScreen(
                             prefs.aacAc3Mode = 2
                         }
                     }
+                    item { SettingHint(stringResource(R.string.aac_ac3_hint)) }
 
                     item { SectionTitle(stringResource(R.string.hdr_sdr)) }
                     item {
@@ -499,6 +501,16 @@ fun PlaybackSettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SettingHint(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.62f),
+        fontSize = 13.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp),
+    )
 }
 
 @Composable

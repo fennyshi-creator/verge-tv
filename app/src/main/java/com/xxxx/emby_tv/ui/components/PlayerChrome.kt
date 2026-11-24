@@ -66,6 +66,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import coil3.compose.AsyncImage
+import com.xxxx.emby_tv.R
 import coil3.request.ImageRequest
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
@@ -684,7 +686,7 @@ fun SettingsSheetBody(
                 if (decodeAudio) "关闭" else "自动",
             ) { onDecodeAudio(!decodeAudio) }
             Text(
-                "关闭后不把杜比原样送出",
+                stringResource(R.string.audio_passthrough_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
@@ -696,7 +698,7 @@ fun SettingsSheetBody(
                 if (decoderPreference == 1) "兼容解码" else "自动",
             ) { onDecoderPreference(if (decoderPreference == 1) 0 else 1) }
             Text(
-                "兼容解码不使用音频直通",
+                stringResource(R.string.audio_compat_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
@@ -725,7 +727,7 @@ fun SettingsSheetBody(
                 })
             }
             Text(
-                "接功放时使用。杜比原片不受影响。",
+                stringResource(R.string.aac_ac3_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
