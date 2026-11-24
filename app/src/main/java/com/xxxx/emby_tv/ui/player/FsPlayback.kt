@@ -25,6 +25,8 @@ import java.util.concurrent.RejectedExecutionException
  * audio is bitstream passthrough unless speed is not 1.0 or the endpoint rejects
  * the encoded AudioTrack.
  */
+private data class AudioReleaseWait(val idle: Boolean, val waitedMs: Long)
+
 class FsPlayback(private val appContext: Context) {
     interface Listener {
         fun onPlayingChanged(playing: Boolean) {}
@@ -48,7 +50,13 @@ class FsPlayback(private val appContext: Context) {
         const val STATE_ENDED = 4
         private const val TAG = "FsPlayback"
         private const val ENGINE_THREAD = "verge-fs-cmd"
-        const val RELEASE_TIMEOUT_MS = 1_800L
+        /**
+         * How long the engine thread waits for the previous audio device to
+         * finish closing before it refuses the next open. The main thread
+         * never waits. 1.8s was short enough that a slow release showed
+         * "previous audio still closing" and skipped the next title.
+         */
+        const val BACKGROUND_RELEASE_WAIT_MS = 12_000L
         const val STALL_REOPEN_LIMIT = 1
 
         /** The main thread must never wait on `ffp_wait_stop_l`. */
@@ -165,9 +173,10 @@ class FsPlayback(private val appContext: Context) {
     ) {
         if (released) return
         onEngine {
-            if (!AudioDeviceGate.awaitIdle(RELEASE_TIMEOUT_MS)) {
-                noteEngine("audio release timeout; refusing overlapping open")
-                dispatchError("${AUDIO_RELEASE}: previous output still closing")
+            val wait = awaitPreviousAudio()
+            if (!wait.idle) {
+                noteEngine("audio release still busy after ${wait.waitedMs}ms; refusing overlapping open")
+                dispatchError("${AUDIO_RELEASE}: previous output still closing waitedMs=${wait.waitedMs}")
                 return@onEngine
             }
             openOnEngine(url, headers, startMs, passthrough, joc, speed)
@@ -430,8 +439,9 @@ class FsPlayback(private val appContext: Context) {
         if (released) return
         val previous = engine
         engine = null
-        if (!detachNative(previous)) {
-            dispatchError("${AUDIO_RELEASE}: previous output still closing")
+        val releasedAudio = detachNative(previous)
+        if (!releasedAudio.idle) {
+            dispatchError("${AUDIO_RELEASE}: previous output still closing waitedMs=${releasedAudio.waitedMs}")
             return
         }
         if (released) return
@@ -471,11 +481,13 @@ class FsPlayback(private val appContext: Context) {
 
     /**
      * Native release joins demux and refresh threads. That join never runs
-     * on the main looper. Other callers wait at most [RELEASE_TIMEOUT_MS]
-     * and then leave the instance alone.
+     * on the main looper. The engine thread waits until the device is idle,
+     * and only gives up after [BACKGROUND_RELEASE_WAIT_MS]. The next engine
+     * is not created while this one is still closing, so two encoded tracks
+     * cannot be open together. Surface clear stays before [FSPlayer.release].
      */
-    private fun detachNative(player: FSPlayer?): Boolean {
-        if (player == null) return true
+    private fun detachNative(player: FSPlayer?): AudioReleaseWait {
+        if (player == null) return AudioReleaseWait(idle = true, waitedMs = 0L)
         noteEngine("audio release begin")
         AudioDeviceGate.begin {
             try {
@@ -492,13 +504,21 @@ class FsPlayback(private val appContext: Context) {
         }
         val onMain = Looper.myLooper() == Looper.getMainLooper()
         if (!joinsNativeRelease(onMain))
-            return false
-        val finished = AudioDeviceGate.awaitIdle(RELEASE_TIMEOUT_MS)
-        if (!finished)
-            noteEngine("audio release timeout")
+            return AudioReleaseWait(idle = false, waitedMs = 0L)
+        val wait = awaitPreviousAudio()
+        if (!wait.idle)
+            noteEngine("audio release still busy after ${wait.waitedMs}ms")
         else
-            noteEngine("audio release done")
-        return finished
+            noteEngine("audio release done after ${wait.waitedMs}ms")
+        return wait
+    }
+
+    /** Blocks the caller. [open] only calls this from the engine thread. */
+    private fun awaitPreviousAudio(): AudioReleaseWait {
+        val started = System.nanoTime()
+        val idle = AudioDeviceGate.awaitIdle(BACKGROUND_RELEASE_WAIT_MS)
+        val waitedMs = ((System.nanoTime() - started) / 1_000_000L).coerceAtLeast(0L)
+        return AudioReleaseWait(idle, waitedMs)
     }
 
     private fun onEngine(block: () -> Unit) {

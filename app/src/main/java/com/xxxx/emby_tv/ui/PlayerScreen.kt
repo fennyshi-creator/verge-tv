@@ -50,6 +50,8 @@ import com.xxxx.emby_tv.ui.components.centerGlyph
 import com.xxxx.emby_tv.ui.components.chromeHoldMs
 import com.xxxx.emby_tv.ui.components.remoteIsPlaying
 import com.xxxx.emby_tv.ui.components.decideRemote
+import com.xxxx.emby_tv.ui.components.resumeChoice
+import com.xxxx.emby_tv.ui.components.ResumeChoice
 import com.xxxx.emby_tv.ui.components.latchedDisplayMs
 import com.xxxx.emby_tv.ui.components.nextSeek
 import androidx.compose.ui.platform.LocalContext
@@ -648,13 +650,17 @@ fun PlayerScreen(
 
     val player = remember { FsPlayback(context.applicationContext) }
 
-    fun safeReportMs(rawMs: Long, naturalEnd: Boolean = false): Long {
+    fun safeReportMs(
+        rawMs: Long,
+        naturalEnd: Boolean = false,
+        measuredDurationMs: Long = duration,
+    ): Long {
         val runtimeMs = (media.mediaSources?.firstOrNull()?.runTimeTicks ?: 0L) / 10_000L
         return com.xxxx.emby_tv.ui.player.PlaybackReport.safePositionMs(
             playerPositionMs = rawMs,
             resumeMs = playbackPositionTicks / 10_000L,
             runtimeMs = runtimeMs,
-            playerDurationMs = duration,
+            playerDurationMs = measuredDurationMs,
             naturalEnd = naturalEnd,
         )
     }
@@ -1400,15 +1406,6 @@ fun PlayerScreen(
         }
     }
 
-    // 自动隐藏继续播放按钮（3秒后）
-    LaunchedEffect(showResumeButtons) {
-        if (showResumeButtons && !resumeButtonsShownOnce) {
-            resumeButtonsShownOnce = true
-            delay(3000)
-            showResumeButtons = false
-        }
-    }
-
     // Load session once after reporting playing
     // Load session once after reporting playing (with retry)
     LaunchedEffect(hasReportedPlaying, media.playSessionId) {
@@ -1676,8 +1673,11 @@ fun PlayerScreen(
                     engineFailure = when {
                         message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.VIDEO_DECODE) ->
                             context.getString(R.string.player_hdr_hardware_failed)
-                        message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_RELEASE) ->
-                            context.getString(R.string.player_audio_release_failed)
+                        message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_RELEASE) -> {
+                            val waitedMs = com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.waitedMs(message)
+                            val seconds = ((waitedMs ?: 0L) / 1000L).toInt().coerceAtLeast(1)
+                            context.getString(R.string.player_audio_release_failed, seconds)
+                        }
                         message.startsWith(com.xxxx.emby_tv.ui.player.PlaybackErrorPolicy.AUDIO_PASSTHROUGH) ->
                             context.getString(R.string.player_passthrough_unavailable)
                         else -> context.getString(R.string.player_engine_failed)
@@ -1732,18 +1732,28 @@ fun PlayerScreen(
         }
     }
 
-    // 退出播放页时上报停止（与播放器实例重建解耦，音频自动恢复重建时不会误报）
+    // 退出播放页时上报停止（与播放器实例重建解耦，音频自动恢复重建时不会误报）。
+    // 先读播放器自己的位置再释放，返回键不等这次释放。
     DisposableEffect(Unit) {
         onDispose {
-            player.release()
+            val exitMs = player.currentPosition
+            val liveDuration = player.duration
+            val measured = when {
+                liveDuration > 5_000L -> liveDuration
+                duration > 5_000L -> duration
+                else -> 0L
+            }
+            val finished = player.playbackState == FsPlayback.STATE_ENDED ||
+                (measured > 5_000L && exitMs >= measured - 5_000L)
             playerViewModel.reportStopped(
                 mediaId = mediaId,
                 media = media,
-                position = safeReportMs(position),
+                position = safeReportMs(exitMs, naturalEnd = finished, measuredDurationMs = measured),
                 selectedSubtitleIndex = selectedSubtitleIndex,
                 selectedAudioIndex = selectedAudioIndex,
                 playbackRate = playbackSpeed
             )
+            player.release()
         }
     }
 
@@ -1980,6 +1990,18 @@ fun PlayerScreen(
                     dispatchPlayerBack(remotePhase(event))
                     return@onPreviewKeyEvent true
                 }
+                if (showResumeButtons && playbackPositionTicks > 0) {
+                    val choice = resumeChoice(remoteKey(event), remotePhase(event))
+                    if (choice != null) {
+                        showResumeButtons = false
+                        resumeButtonsShownOnce = true
+                        if (choice == ResumeChoice.FromStart) {
+                            player.seekTo(0)
+                            player.play()
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                }
                 if (chromeVisible && menuFocused && remotePhase(event) != KeyPhase.Up) {
                     chromeTick = System.currentTimeMillis()
                     chromeHold = chromeHoldMs(resumed = false)
@@ -2175,7 +2197,16 @@ fun PlayerScreen(
                     }
                 },
                 update = { view ->
-                    view.setFractionalTextSize(0.0533f * subtitleScale)
+                    val display = view.display
+                    val supported = display?.supportedModes?.map { it.physicalHeight }?.toIntArray()
+                        ?: IntArray(0)
+                    view.setFractionalTextSize(
+                        com.xxxx.emby_tv.ui.player.SubtitleTextSize.fraction(
+                            scale = subtitleScale,
+                            currentHeightPx = display?.mode?.physicalHeight ?: 0,
+                            supportedHeightsPx = supported,
+                        )
+                    )
                     view.setStyle(
                         CaptionStyleCompat(
                             subtitleInk.toArgb(),
@@ -2208,7 +2239,6 @@ fun PlayerScreen(
             // 4. Resume Buttons (从头开始 / 继续播放)
             if (showResumeButtons && playbackPositionTicks > 0) {
                 ResumePlaybackButtons(
-                    countdownSeconds = 3,
                     onPlayFromStart = {
                         showResumeButtons = false
                         resumeButtonsShownOnce = true
@@ -2219,10 +2249,6 @@ fun PlayerScreen(
                         showResumeButtons = false
                         resumeButtonsShownOnce = true
                     },
-                    onTimeout = {
-                        showResumeButtons = false
-                        resumeButtonsShownOnce = true
-                    }
                 )
             }
 

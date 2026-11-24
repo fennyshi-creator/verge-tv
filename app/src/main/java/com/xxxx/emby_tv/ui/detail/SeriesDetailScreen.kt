@@ -91,7 +91,7 @@ fun SeriesDetailConnected(
     detailViewModel: DetailViewModel,
     serverUrl: String,
     apiKey: String = "",
-    onPlay: (BaseItemDto, String?) -> Unit,
+    onPlay: (BaseItemDto, String?, Boolean) -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenMovie: (String) -> Unit,
     onOpenPerson: (String) -> Unit = {},
@@ -124,11 +124,11 @@ fun SeriesDetailConnected(
         serverUrl = serverUrl,
         apiKey = apiKey,
         onSelectSeason = { seasonIndex = it },
-        onPlay = { sourceId ->
+        onPlay = { sourceId, fromStart ->
             val target = detailViewModel.resumeItem ?: episodes.firstOrNull() ?: return@SeriesDetailPage
-            onPlay(target, sourceId)
+            onPlay(target, sourceId, fromStart)
         },
-        onOpenEpisode = { episode -> onPlay(episode, null) },
+        onOpenEpisode = { episode -> onPlay(episode, null, false) },
         onToggleFavorite = {
             val id = item.id ?: return@SeriesDetailPage
             detailViewModel.toggleFavorite(id, item.userData?.isFavorite != true)
@@ -157,7 +157,7 @@ fun SeriesDetailPage(
     serverUrl: String,
     apiKey: String = "",
     onSelectSeason: (Int) -> Unit,
-    onPlay: (String?) -> Unit,
+    onPlay: (String?, Boolean) -> Unit,
     onOpenEpisode: (BaseItemDto) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
@@ -340,7 +340,8 @@ fun SeriesDetailPage(
                         artWash = null
                         revealHero()
                     },
-                    onPlay = { onPlay(selectedSource?.id) },
+                    onPlay = { onPlay(selectedSource?.id, false) },
+                    onPlayFromStart = { onPlay(selectedSource?.id, true) },
                     onPickVersion = { versionMenu = EmbyPresentation.versionMenuAfterConfirm(versionMenu) },
                     onFavorite = onToggleFavorite,
                     onPlayed = onTogglePlayed,

@@ -28,6 +28,7 @@ class Release105Test {
     fun nativeReleaseDoesNotJoinOnTheMainThread() {
         assertFalse(FsPlayback.joinsNativeRelease(onMainThread = true))
         assertTrue(FsPlayback.joinsNativeRelease(onMainThread = false))
+        assertTrue(FsPlayback.BACKGROUND_RELEASE_WAIT_MS >= 8_000L)
         assertEquals(1, FsPlayback.STALL_REOPEN_LIMIT)
         val source = projectFile("app/src/main/java/com/xxxx/emby_tv/ui/player/FsPlayback.kt").readText()
         assertTrue(source.contains("verge-fs-cmd"))

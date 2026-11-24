@@ -632,7 +632,7 @@ object EmbyApi {
     ): BaseItemDto {
         return httpAsBaseItemDto(
             context, serverUrl, apiKey, deviceId,
-            "/Users/$userId/Items/$mediaId?Fields=People,ShareLevel&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
+            "/Users/$userId/Items/$mediaId?Fields=People,ShareLevel,UserData,RunTimeTicks&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
         )
     }
 

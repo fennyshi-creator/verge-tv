@@ -25,6 +25,9 @@
     <string name="choose_version">选择版本</string>
     <string name="settings">设置</string>
     <string name="continue_watching">继续观看</string>
+    <string name="exit_app">退出</string>
+    <string name="exit_app_title">要退出吗？</string>
+    <string name="detail_start_over">从头看</string>
     <string name="continue_playing">继续播放</string>
     <string name="because_you_watched">因为你看过「%1$s」</string>
     <string name="library_tab_movies">电影</string>
@@ -54,7 +57,7 @@
     <string name="failed_get_playback_info">获取播放信息失败</string>
     <string name="player_engine_failed">此设备无法启动画面</string>
     <string name="player_hdr_hardware_failed">硬解没能输出 HDR，已停止，没有改成软解。</string>
-    <string name="player_audio_release_failed">上一段声音还没释放完，已停止，避免两路声音叠在一起。</string>
+    <string name="player_audio_release_failed">上一段声音还没释放完，等了 %1$d 秒仍未结束，已停止，避免两路声音叠在一起。</string>
     <string name="player_passthrough_unavailable">杜比没能原样送出，已停止，避免把声音播乱。</string>
     <string name="streaming">流媒体</string>
     <string name="video">视频</string>
@@ -287,7 +290,7 @@
     <!-- 按键设置 -->
     <string name="key_settings">按键设置</string>
     <string name="back_exit_double">按两次返回退出APP</string>
-    <string name="back_exit_double_desc">开启后，在登录页或首页按一次返回键会提示"再按一次退出APP"，2秒内再按一次才会退出。</string>
+    <string name="back_exit_double_desc">开启后，登录页和首页仍是两秒内再按一次才退出。关闭时，首页按返回会先问退出还是继续观看，不会直接离开。</string>
     <string name="press_back_again_to_exit">再按一次退出APP</string>
 
     <string name="sort">排序</string>

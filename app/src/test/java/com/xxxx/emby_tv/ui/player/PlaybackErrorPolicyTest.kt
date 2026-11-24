@@ -1,5 +1,6 @@
 package com.xxxx.emby_tv.ui.player
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +27,14 @@ class PlaybackErrorPolicyTest {
         assertTrue(PlaybackErrorPolicy.stopsWithoutReopen("audio-passthrough: iec-unavailable"))
     }
 
+    @Test
+    fun audioReleaseRecordsHowLongTheEngineWaited() {
+        val message = "audio-release: previous output still closing waitedMs=12000"
+        assertTrue(PlaybackErrorPolicy.stopsWithoutReopen(message))
+        assertEquals(12_000L, PlaybackErrorPolicy.waitedMs(message))
+    }
+
+    @Test
     fun decoderErrorsCanStillRecover() {
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("FSPlayer 100/1"))
         assertFalse(PlaybackErrorPolicy.stopsWithoutReopen("prepare"))

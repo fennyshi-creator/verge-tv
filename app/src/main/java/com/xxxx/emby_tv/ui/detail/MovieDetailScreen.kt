@@ -122,7 +122,7 @@ fun MovieDetailConnected(
     detailViewModel: DetailViewModel,
     serverUrl: String,
     apiKey: String = "",
-    onPlay: (item: BaseItemDto, sourceId: String?) -> Unit,
+    onPlay: (item: BaseItemDto, sourceId: String?, fromStart: Boolean) -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
     onOpenPerson: (String) -> Unit = {},
 ) {
@@ -136,7 +136,7 @@ fun MovieDetailConnected(
         collections = detailViewModel.collections,
         serverUrl = serverUrl,
         apiKey = apiKey,
-        onPlay = { sourceId -> onPlay(item, sourceId) },
+        onPlay = { sourceId, fromStart -> onPlay(item, sourceId, fromStart) },
         onToggleFavorite = {
             val id = item.id ?: return@MovieDetailPage
             detailViewModel.toggleFavorite(id, item.userData?.isFavorite != true)
@@ -157,7 +157,7 @@ fun MovieDetailPage(
     collections: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList(),
     serverUrl: String,
     apiKey: String = "",
-    onPlay: (String?) -> Unit,
+    onPlay: (String?, Boolean) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onOpenSimilar: (BaseItemDto) -> Unit,
@@ -345,7 +345,8 @@ fun MovieDetailPage(
                         artWash = null
                         revealHero()
                     },
-                    onPlay = { onPlay(selectedSource?.id) },
+                    onPlay = { onPlay(selectedSource?.id, false) },
+                    onPlayFromStart = { onPlay(selectedSource?.id, true) },
                     onPickVersion = {
                         versionMenu = EmbyPresentation.versionMenuAfterConfirm(versionMenu)
                     },
@@ -602,6 +603,7 @@ internal fun ActionRow(
     forceFocused: Boolean,
     onFocused: () -> Unit = {},
     onPlay: () -> Unit,
+    onPlayFromStart: () -> Unit = {},
     onPickVersion: () -> Unit = {},
     onFavorite: () -> Unit,
     onPlayed: () -> Unit,
@@ -616,12 +618,22 @@ internal fun ActionRow(
     modifier: Modifier = Modifier,
 ) {
     val sources = versionSources ?: item.mediaSources.orEmpty()
-    val actions = if (showVersions && EmbyPresentation.showVersionButton(sources.size)) {
-        listOf("play", "version", "favorite", "played")
-    } else {
-        listOf("play", "favorite", "played")
+    val showVersion = showVersions && EmbyPresentation.showVersionButton(sources.size)
+    val resumeChoice = EmbyPresentation.detailShowsStartOver(playbackItem)
+    val actions = buildList {
+        add("play")
+        if (resumeChoice) add("restart")
+        if (showVersion) add("version")
+        add("favorite")
+        add("played")
     }
-    var slot by remember { mutableIntStateOf(initialSlot.coerceIn(0, actions.lastIndex)) }
+    val versionSlot = actions.indexOf("version")
+    var slot by remember(actions.joinToString()) {
+        mutableIntStateOf(
+            (if (initialSlot > 0 && versionSlot >= 0) versionSlot else 0)
+                .coerceIn(0, actions.lastIndex)
+        )
+    }
     var rowFocused by remember { mutableStateOf(forceFocused) }
     val label = EmbyPresentation.playActionLabel(playbackItem)
     val favorite = item.userData?.isFavorite == true
@@ -672,6 +684,7 @@ internal fun ActionRow(
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         when (actions[slot]) {
                             "play" -> onPlay()
+                            "restart" -> onPlayFromStart()
                             "version" -> onPickVersion()
                             "favorite" -> onFavorite()
                             "played" -> onPlayed()
@@ -685,11 +698,19 @@ internal fun ActionRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val playOn = highlighted && actions[slot] == "play"
+        val restartOn = highlighted && actions[slot] == "restart"
         val versionOn = highlighted && actions[slot] == "version"
         val favoriteOn = highlighted && actions[slot] == "favorite"
         val playedOn = highlighted && actions[slot] == "played"
         PlayPill(label, focused = playOn, onClick = onPlay)
-        if (showVersions && EmbyPresentation.showVersionButton(sources.size)) {
+        if (resumeChoice) {
+            PlayPill(
+                label = stringResource(R.string.detail_start_over),
+                focused = restartOn,
+                onClick = onPlayFromStart,
+            )
+        }
+        if (showVersion) {
             VersionMark(
                 label = versionLabel,
                 focused = versionOn,

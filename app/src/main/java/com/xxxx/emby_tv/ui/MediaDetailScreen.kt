@@ -51,9 +51,13 @@ fun MediaDetailScreen(
     detailViewModel: DetailViewModel,
     onNavigateToSeries: (String) -> Unit,
     onNavigateToPlayer: (BaseItemDto) -> Unit,
-    onPlaySeries: (BaseItemDto, String?) -> Unit = { item, _ -> onNavigateToPlayer(item) },
+    onPlaySeries: (BaseItemDto, String?, Boolean) -> Unit = { item, _, fromStart ->
+        onNavigateToPlayer(item.withStart(fromStart))
+    },
     onOpenMovie: (String) -> Unit = {},
-    onPlayMovie: (BaseItemDto, String?) -> Unit = { item, _ -> onNavigateToPlayer(item) },
+    onPlayMovie: (BaseItemDto, String?, Boolean) -> Unit = { item, _, fromStart ->
+        onNavigateToPlayer(item.withStart(fromStart))
+    },
     onOpenPerson: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -652,4 +656,10 @@ fun PersonCard(
             )
         }
     }
+}
+
+private fun BaseItemDto.withStart(fromStart: Boolean): BaseItemDto {
+    val data = userData ?: return this
+    if (!fromStart) return this
+    return copy(userData = data.copy(playbackPositionTicks = 0L))
 }

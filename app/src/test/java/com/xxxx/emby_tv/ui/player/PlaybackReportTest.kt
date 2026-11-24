@@ -29,9 +29,10 @@ class PlaybackReportTest {
     }
 
     @Test
-    fun aStaleRuntimeCannotBecomeTheStoredPosition() {
-        // 2.0.48 clamped a wild playhead to 4/5 of the 149.5s library runtime
-        // and Continue Watching came back at ~120s, past the real ~115s file.
+    fun aPlayheadAheadOfTheSavedResumeIsKeptWhenFileLengthIsUnknown() {
+        // The library runtime is not a file length and is not written back.
+        // A real playhead is kept even when it is well ahead of the resume
+        // the user came in with.
         val ms = PlaybackReport.safePositionMs(
             playerPositionMs = 120_000L,
             resumeMs = 60_000L,
@@ -39,7 +40,7 @@ class PlaybackReportTest {
             playerDurationMs = 0L,
             naturalEnd = false,
         )
-        assertEquals(60_000L, ms)
+        assertEquals(120_000L, ms)
     }
 
     @Test
@@ -96,5 +97,17 @@ class PlaybackReportTest {
             naturalEnd = true,
         )
         assertEquals(114_000L, ms)
+    }
+
+    @Test
+    fun aFinishedPlayerDoesNotRestoreTheOldResume() {
+        val ms = PlaybackReport.safePositionMs(
+            playerPositionMs = 0L,
+            resumeMs = 60_000L,
+            runtimeMs = 149_500L,
+            playerDurationMs = 115_000L,
+            naturalEnd = true,
+        )
+        assertEquals(115_000L, ms)
     }
 }

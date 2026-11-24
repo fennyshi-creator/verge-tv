@@ -15,4 +15,13 @@ object PlaybackErrorPolicy {
             message.startsWith(VIDEO_DECODE) ||
             message.startsWith(AUDIO_RELEASE) ||
             message.startsWith(AUDIO_PASSTHROUGH)
+
+    /** Milliseconds the engine thread actually waited, when the message recorded it. */
+    fun waitedMs(message: String): Long? {
+        val marker = "waitedMs="
+        val start = message.indexOf(marker)
+        if (start < 0) return null
+        val digits = message.substring(start + marker.length).takeWhile { it.isDigit() }
+        return digits.toLongOrNull()
+    }
 }

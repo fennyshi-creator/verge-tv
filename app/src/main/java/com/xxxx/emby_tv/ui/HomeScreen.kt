@@ -1,5 +1,6 @@
 package com.xxxx.emby_tv.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import com.xxxx.emby_tv.data.local.PreferencesManager
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.repository.EmbyRepository
 import com.xxxx.emby_tv.ui.components.DoubleBackExitHandler
+import com.xxxx.emby_tv.ui.components.HomeExitPrompt
 import com.xxxx.emby_tv.ui.components.MenuDialog
 import com.xxxx.emby_tv.ui.home.HomeStyle
 import com.xxxx.emby_tv.ui.home.OfficialHome
@@ -38,6 +40,7 @@ fun HomeScreen(
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
     val doubleBackToExit = PreferencesManager(context).doubleBackToExit
+    var confirmExit by remember { mutableStateOf(false) }
     val repository = remember { EmbyRepository.getInstance(context) }
     val serverUrl = repository.serverUrl ?: ""
     val restore = rememberFocusRestore()
@@ -158,6 +161,13 @@ fun HomeScreen(
                 onSettings = { navController.navigate("settings") },
             )
         }
-        DoubleBackExitHandler(doubleBackToExit)
+        if (!showMenu && doubleBackToExit) {
+            DoubleBackExitHandler(enabled = true)
+        } else if (!showMenu) {
+            BackHandler { confirmExit = true }
+            if (confirmExit) {
+                HomeExitPrompt(onContinue = { confirmExit = false })
+            }
+        }
     }
 }

@@ -28,18 +28,22 @@ object PlaybackReport {
             if (fileMs > 0L) {
                 // A resume already past the file (the stored ~120s) is not a
                 // position. Start at the beginning instead of inventing one
-                // near the end. A resume inside the file is kept.
+                // near the end. A playhead inside the file is kept even when
+                // it is ahead of the resume the user came in with.
                 val kept = if (saved in 1 until fileMs) saved else 0L
                 if (fromPlayer <= 0L || fromPlayer >= fileMs) return kept
                 return fromPlayer.coerceAtMost(fileMs - 1_000L)
             }
             if (fromPlayer <= 0L) return saved
-            // No measured file length yet. A leap past the resume is the bad clock
-            // that stored ~120s. A few seconds of real playback still reports.
-            if (fromPlayer > saved + 30_000L) return saved
+            // File length is not known yet. Keep the playhead the player just
+            // reported. Do not snap back to the old resume because it moved.
             return fromPlayer
         }
         if (fileMs <= 0L) return if (fromPlayer <= 0L) saved else fromPlayer
-        return fromPlayer.coerceAtMost(fileMs)
+        // A finished title reports the end of the file. A zero playhead here
+        // is the player already resetting, not a request to restore the old
+        // mid-file resume or to clear Continue Watching.
+        if (fromPlayer <= 0L || fromPlayer > fileMs) return fileMs
+        return fromPlayer
     }
 }
