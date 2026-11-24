@@ -171,6 +171,42 @@ static void aout_shutdown_track(JNIEnv *env, SDL_Aout *aout)
     }
 }
 
+/* Seek flush on a playing PCM track stops some TV speakers. Pause, flush, then
+ * play, and only from this thread. Encoded tracks keep their own flush. */
+static void aout_pcm_pause_flush_play(JNIEnv *env, SDL_Aout *aout)
+{
+    SDL_Aout_Opaque *opaque = aout->opaque;
+    SDL_Android_AudioTrack *atrack = opaque->atrack;
+    if (!atrack)
+        return;
+    SDL_Android_AudioTrack_pause(env, atrack);
+    SDL_Android_AudioTrack_flush(env, atrack);
+    if (!opaque->abort_request && !opaque->pause_on)
+        SDL_Android_AudioTrack_play(env, atrack);
+}
+
+/* Same non-blocking write the encoded path uses. A zero result waits and
+ * retries so close is not stuck inside a blocking AudioTrack.write. */
+static int aout_write_pcm(JNIEnv *env, SDL_Aout *aout, uint8_t *data, int size)
+{
+    SDL_Aout_Opaque *opaque = aout->opaque;
+    int offset = 0;
+    while (!opaque->abort_request && offset < size) {
+        int accepted;
+        if (opaque->need_flush || opaque->pause_on)
+            return offset;
+        accepted = SDL_Android_AudioTrack_write_nonblock(env, opaque->atrack, data, size, offset);
+        if (accepted < 0)
+            return accepted;
+        if (accepted == 0) {
+            SDL_Delay(5);
+            continue;
+        }
+        offset += accepted;
+    }
+    return offset;
+}
+
 static int aout_write_encoded(JNIEnv *env, SDL_Aout *aout, const uint8_t *payload, int size)
 {
     SDL_Aout_Opaque *opaque = aout->opaque;
@@ -247,7 +283,10 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         }
         if (opaque->need_flush) {
             opaque->need_flush = 0;
-            SDL_Android_AudioTrack_flush(env, atrack);
+            if (opaque->encoded)
+                SDL_Android_AudioTrack_flush(env, atrack);
+            else
+                aout_pcm_pause_flush_play(env, aout);
         }
         if (opaque->need_set_volume) {
             opaque->need_set_volume = 0;
@@ -278,13 +317,19 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         }
         audio_cblk(userdata, buffer, request);
         if (opaque->need_flush) {
-            SDL_Android_AudioTrack_flush(env, atrack);
-            opaque->need_flush = false;
+            opaque->need_flush = 0;
+            if (opaque->encoded)
+                SDL_Android_AudioTrack_flush(env, atrack);
+            else
+                aout_pcm_pause_flush_play(env, aout);
         }
 
         if (opaque->need_flush) {
             opaque->need_flush = 0;
-            SDL_Android_AudioTrack_flush(env, atrack);
+            if (opaque->encoded)
+                SDL_Android_AudioTrack_flush(env, atrack);
+            else
+                aout_pcm_pause_flush_play(env, aout);
         } else if (opaque->encoded) {
             int payload = 0;
             int iec = opaque->spec.format == AUDIO_IEC61937 || opaque->spec.format == AUDIO_IEC61937_PCM;
@@ -423,8 +468,9 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 SDL_Delay(5);
             }
         } else {
-            int written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);
-            if (written != copy_size) {
+            int written = aout_write_pcm(env, aout, buffer, copy_size);
+            if (written != copy_size && !opaque->abort_request &&
+                !opaque->need_flush && !opaque->pause_on) {
                 ALOGW("AudioTrack: not all data copied %d/%d", (int)written, (int)copy_size);
             }
         }
