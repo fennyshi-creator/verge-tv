@@ -54,6 +54,7 @@ object DolbyPassthrough {
         openedEncoding: Int,
         fellBackToPcm: Boolean,
         clientAc3: Boolean = false,
+        downmixStereo: Boolean = false,
     ): String {
         val codec = stream?.codec?.lowercase().orEmpty()
         if (clientAc3 && (codec == "aac" || codec == "aac_latm")) {
@@ -71,6 +72,7 @@ object DolbyPassthrough {
             codec.isBlank() -> "音频"
             else -> codec.uppercase()
         }
+        if (downmixStereo) return "「$name 2.0 · 兼容解码」"
         val passthrough = when (openedEncoding) {
             ENCODING_AC3, ENCODING_E_AC3, ENCODING_E_AC3_JOC -> true
             else -> false

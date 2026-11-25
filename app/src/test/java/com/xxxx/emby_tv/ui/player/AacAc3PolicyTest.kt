@@ -49,9 +49,10 @@ class AacAc3PolicyTest {
     fun settingCopyDoesNotCallPassthroughOffStereo() {
         val zh = readStrings("values-zh")
         val en = readStrings("values")
-        assertTrue(zh.contains("自动将支持的杜比音轨原样交给功放；关闭后由设备解码输出。"))
-        assertTrue(zh.contains("遇到无声或杂音可尝试，不保留杜比原声直通。"))
-        assertTrue(zh.contains("将多声道 AAC 转为杜比（非全景声）；自动仅适配部分功放，关闭直通时不转换。"))
+        assertTrue(zh.contains("打开后由本机解码并下混为双声道。"))
+        assertTrue(zh.contains("不使用音频直通，也不做 AAC 转杜比"))
+        assertTrue(zh.contains("声道随设备，不强制双声道"))
+        assertTrue(zh.contains("仅在兼容解码关闭且音频直通为自动时"))
         assertFalse(zh.contains("自动/立体声"))
         assertFalse(en.contains("自动/立体声"))
     }

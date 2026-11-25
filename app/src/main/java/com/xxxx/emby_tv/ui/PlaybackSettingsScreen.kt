@@ -286,18 +286,21 @@ fun PlaybackSettingsScreen(
                     item { SectionTitle("AAC多声道转杜比") }
                     item {
                         SettingOptionRow(title = "自动", isSelected = aacAc3Mode == 0) {
+                            if (decoderPreference == 1) return@SettingOptionRow
                             aacAc3Mode = 0
                             prefs.aacAc3Mode = 0
                         }
                     }
                     item {
                         SettingOptionRow(title = "开", isSelected = aacAc3Mode == 1) {
+                            if (decoderPreference == 1) return@SettingOptionRow
                             aacAc3Mode = 1
                             prefs.aacAc3Mode = 1
                         }
                     }
                     item {
                         SettingOptionRow(title = "关", isSelected = aacAc3Mode == 2) {
+                            if (decoderPreference == 1) return@SettingOptionRow
                             aacAc3Mode = 2
                             prefs.aacAc3Mode = 2
                         }

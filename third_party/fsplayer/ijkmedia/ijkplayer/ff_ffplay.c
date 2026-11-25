@@ -64,6 +64,7 @@
 #include "ijkavformat/ijkavformat.h"
 #include "libavutil/display.h"
 #include "fs_passthrough.h"
+#include "fs_audio_plan.h"
 #include "fs_aac_ac3.h"
 #include "fs_aac_ac3_clock.h"
 #include "fs_iec_clock.h"
@@ -1390,6 +1391,8 @@ static void stream_close(FFPlayer *ffp)
     SDL_DestroyCond(is->continue_read_thread);
     SDL_DestroyMutex(is->accurate_seek_mutex);
     SDL_DestroyMutex(is->play_mutex);
+    if (is->seek_mutex)
+        SDL_DestroyMutex(is->seek_mutex);
 
 #if defined(__ANDROID__)
     if (ffp->soundtouch_enable && is->handle != NULL) {
@@ -1549,20 +1552,32 @@ static void check_external_clock_speed(VideoState *is) {
 /* seek in the stream */
 static int stream_seek(VideoState *is, int64_t pos, int64_t rel, int by_bytes)
 {
-    if (!is->seek_req) {
-        is->seek_pos = pos;
-        is->seek_rel = rel;
-        is->seek_flags &= ~AVSEEK_FLAG_BYTE;
-        if (by_bytes)
-            is->seek_flags |= AVSEEK_FLAG_BYTE;
-        else
-            is->seek_flags |= AVSEEK_FLAG_BACKWARD;
-        is->seek_req = 1;
-        is->viddec.start_seek_time = SDL_GetTickHR();
-        SDL_CondSignal(is->continue_read_thread);
-        return 0;
-    }
-    return -1;
+    FsSeekCoalesce slot;
+    int id;
+    char line[160];
+    if (!is->seek_mutex)
+        return -1;
+    SDL_LockMutex(is->seek_mutex);
+    slot.req = is->seek_req;
+    slot.id = is->seek_id;
+    slot.pos = is->seek_pos;
+    fs_seek_coalesce_put(&slot, pos);
+    is->seek_req = slot.req;
+    is->seek_id = slot.id;
+    is->seek_pos = slot.pos;
+    is->seek_rel = rel;
+    is->seek_flags &= ~AVSEEK_FLAG_BYTE;
+    if (by_bytes)
+        is->seek_flags |= AVSEEK_FLAG_BYTE;
+    else
+        is->seek_flags |= AVSEEK_FLAG_BACKWARD;
+    id = is->seek_id;
+    is->viddec.start_seek_time = SDL_GetTickHR();
+    SDL_CondSignal(is->continue_read_thread);
+    SDL_UnlockMutex(is->seek_mutex);
+    snprintf(line, sizeof(line), "audio seek request id=%d target_us=%lld", id, (long long) pos);
+    fs_passthrough_log_line(line);
+    return 0;
 }
 
 /* pause or resume the video */
@@ -1639,6 +1654,7 @@ static void stream_toggle_pause_l(FFPlayer *ffp, int pause_on)
     } else {
         is->paused = is->audclk.paused = is->vidclk.paused = is->extclk.paused = pause_on;
         SDL_AoutPauseAudio(ffp->aout, pause_on);
+        SDL_AoutSetDevicePause(ffp->aout, pause_on && is->pause_req);
     }
     if (!pause_on && was_paused && ffp->iec_clock_set)
         ffp->iec_clock_write_us = fs_diag_mono_us();
@@ -4150,6 +4166,29 @@ static int audio_open(FFPlayer *opaque, AVChannelLayout *wanted_channel_layout, 
      */
     wanted_spec.callback = sdl_audio_callback;
     wanted_spec.userdata = opaque;
+    if (ffp->pcm_downmix_stereo) {
+        int input_channels = wanted_nb_channels;
+        char line[200];
+        ffp->audio_passthrough = 0;
+        ffp->audio_passthrough_encoding = 0;
+        ffp->aac_ac3 = 0;
+        wanted_nb_channels = fs_downmix_open_channels(wanted_nb_channels, 1);
+        wanted_spec.channels = wanted_nb_channels;
+        if (wanted_nb_channels != input_channels) {
+            av_channel_layout_uninit(wanted_channel_layout);
+            av_channel_layout_default(wanted_channel_layout, wanted_nb_channels);
+        }
+        snprintf(line, sizeof(line),
+                 "audio downmix input_codec=%s input_channels=%d output_channels=%d layout=stereo",
+                 avcodec_get_name(ffp->audio_open_codec_id), input_channels, wanted_nb_channels);
+        fs_passthrough_log_line(line);
+    } else {
+        char line[200];
+        snprintf(line, sizeof(line),
+                 "audio output input_codec=%s input_channels=%d downmix=0 open_channels=%d",
+                 avcodec_get_name(ffp->audio_open_codec_id), wanted_nb_channels, wanted_spec.channels);
+        fs_passthrough_log_line(line);
+    }
     if (ffp->audio_passthrough_encoding && ffp->audio_passthrough && fs_speed_is_one(ffp)) {
         SDL_AudioSpec pt_wanted = wanted_spec;
         SDL_AudioSpec pt_spec;
@@ -5565,8 +5604,32 @@ static int read_thread(void *arg)
         }
 #endif
         if (is->seek_req) {
-            int64_t seek_target_origin = is->seek_pos;
-            int64_t seek_target = is->seek_pos;
+            FsSeekCoalesce taken;
+            int64_t seek_pos_copy;
+            int64_t seek_rel_copy;
+            int seek_flags_copy;
+            int seek_id_copy;
+            SDL_LockMutex(is->seek_mutex);
+            taken.req = is->seek_req;
+            taken.id = is->seek_id;
+            taken.pos = is->seek_pos;
+            if (!fs_seek_coalesce_take(&taken, &seek_pos_copy, &seek_id_copy)) {
+                SDL_UnlockMutex(is->seek_mutex);
+                continue;
+            }
+            is->seek_req = taken.req;
+            is->seek_pos = taken.pos;
+            seek_rel_copy = is->seek_rel;
+            seek_flags_copy = is->seek_flags;
+            SDL_UnlockMutex(is->seek_mutex);
+            {
+                char line[160];
+                snprintf(line, sizeof(line), "audio seek apply id=%d target_ms=%lld",
+                         seek_id_copy, (long long) fftime_to_milliseconds(seek_pos_copy));
+                fs_passthrough_log_line(line);
+            }
+            int64_t seek_target_origin = seek_pos_copy;
+            int64_t seek_target = seek_pos_copy;
             double audio_delay = is->audio_st ? get_clock_extral_delay(&is->audclk) : 0;
             //当音轨提前时，为了显示视频画面，所以比正常时间点往前偏移 audio_delay
             if (audio_delay < 0) {
@@ -5576,8 +5639,8 @@ static int read_thread(void *arg)
                 }
             }
             
-            int64_t seek_min = is->seek_rel > 0 ? seek_target - is->seek_rel + 2: INT64_MIN;
-            int64_t seek_max = is->seek_rel < 0 ? seek_target - is->seek_rel - 2: INT64_MAX;
+            int64_t seek_min = seek_rel_copy > 0 ? seek_target - seek_rel_copy + 2: INT64_MIN;
+            int64_t seek_max = seek_rel_copy < 0 ? seek_target - seek_rel_copy - 2: INT64_MAX;
 // FIXME the +-2 is due to rounding being not done in the correct direction in generation
 //      of the seek_pos/seek_rel variables
 
@@ -5585,7 +5648,7 @@ static int read_thread(void *arg)
             //fix after seek audio queue not flush cause wrong sound.
             SDL_AoutFlushAudio(ffp->aout);
             ffp_notify_msg3(ffp, FFP_MSG_BUFFERING_UPDATE, 0, 0);
-            ret = avformat_seek_file(is->ic, -1, seek_min, seek_target, seek_max, is->seek_flags);
+            ret = avformat_seek_file(is->ic, -1, seek_min, seek_target, seek_max, seek_flags_copy);
             if (ret < 0) {
                 av_log(NULL, AV_LOG_ERROR,
                        "%s: error while seeking\n", is->ic->url);
@@ -5614,7 +5677,7 @@ static int read_thread(void *arg)
                     packet_queue_flush(&is->videoq);
                 }
                 ff_sub_packet_queue_flush(is->ffSub);
-                if (is->seek_flags & AVSEEK_FLAG_BYTE) {
+                if (seek_flags_copy & AVSEEK_FLAG_BYTE) {
                    set_clock(&is->extclk, NAN, 0);
                 } else {
                    set_clock(&is->extclk, seek_target_origin / (double)AV_TIME_BASE, 0);
@@ -5633,13 +5696,15 @@ static int read_thread(void *arg)
             
             //seek 后降低水位线，让播放器更快满足条件
             ffp->dcc.current_high_water_mark_in_ms = ffp->dcc.first_high_water_mark_in_ms;
-            is->seek_req = 0;
             is->viddec.after_seek_frame = 1;
             is->queue_attachments_req = 1;
             is->eof = 0;
             completed = 0;
             SDL_LockMutex(ffp->is->play_mutex);
-            if (ffp->auto_resume) {
+            if (fs_seek_keeps_user_pause(is->pause_req)) {
+                ffp->auto_resume = 0;
+                stream_update_pause_l(ffp);
+            } else if (ffp->auto_resume) {
                 is->pause_req = 0;
                 if (ffp->packet_buffering)
                     is->buffering_on = 1;
@@ -6191,6 +6256,11 @@ static VideoState *stream_open(FFPlayer *ffp, const char *filename, AVInputForma
 
     is->play_mutex = SDL_CreateMutex();
     is->accurate_seek_mutex = SDL_CreateMutex();
+    is->seek_mutex = SDL_CreateMutex();
+    if (!is->seek_mutex) {
+        av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(seek): %s\n", SDL_GetError());
+        goto fail;
+    }
     ffp->is = is;
     is->pause_req = !ffp->start_on_prepared;
 

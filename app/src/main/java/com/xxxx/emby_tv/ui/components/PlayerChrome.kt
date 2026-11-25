@@ -552,11 +552,12 @@ fun SheetRow(
     title: String,
     value: String? = null,
     selected: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
-        onClick = onClick,
+        onClick = { if (enabled) onClick() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
@@ -681,9 +682,11 @@ fun SettingsSheetBody(
             )
         }
         item {
+            val compatOn = decoderPreference == 1
             SheetRow(
                 "音频直通",
-                if (decodeAudio) "关闭" else "自动",
+                (if (decodeAudio) "关闭" else "自动") + if (compatOn) " · 不生效" else "",
+                enabled = !compatOn,
             ) { onDecodeAudio(!decodeAudio) }
             Text(
                 stringResource(R.string.audio_passthrough_hint),
@@ -719,7 +722,12 @@ fun SettingsSheetBody(
                 2 -> "关"
                 else -> "自动"
             }
-            SheetRow("AAC多声道转杜比", aacLabel) {
+            val compatOn = decoderPreference == 1
+            SheetRow(
+                "AAC多声道转杜比",
+                aacLabel + if (compatOn) " · 不生效" else "",
+                enabled = !compatOn,
+            ) {
                 onAacAc3Mode(when (aacAc3Mode) {
                     0 -> 1
                     1 -> 2

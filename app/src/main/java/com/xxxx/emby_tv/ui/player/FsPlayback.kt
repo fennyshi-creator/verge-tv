@@ -87,6 +87,10 @@ class FsPlayback(private val appContext: Context) {
     var headers: Map<String, String> = emptyMap()
         private set
     var passthroughEnabled: Boolean = true
+    /** Saved 音频直通 switch: true is 自动. Not cleared by a temporary speed reopen. */
+    var passthroughRequested: Boolean = true
+    /** Compatible decode. The next open asks native for 2-channel PCM. */
+    var downmixStereo: Boolean = false
     var mapHdrToSdr: Boolean = false
     /** Vendor GLES path only. HDR on that path, or one video-decode retry. */
     var preferSoftwareVideo: Boolean = false
@@ -196,8 +200,8 @@ class FsPlayback(private val appContext: Context) {
         this.headers = headers
         this.startMs = startMs
         this.playbackSpeed = speed
-        this.jocHint = joc
-        this.passthroughEnabled = passthrough && speed == 1f
+        this.jocHint = joc && !downmixStereo
+        this.passthroughEnabled = passthrough && speed == 1f && !downmixStereo
         noteEngine(
             "playback-open softwareVideo=$preferSoftwareVideo passthrough=${this.passthroughEnabled} " +
                 deviceSnapshot()
@@ -226,7 +230,13 @@ class FsPlayback(private val appContext: Context) {
         val currentUrl = url
         if (crossesOne && currentUrl != null) {
             Log.i(TAG, "speed ${previous} -> $speed reopens audio (passthrough only at 1.0)")
-            open(currentUrl, headers, currentPosition, passthrough = speed == 1f, joc = jocHint)
+            open(
+                currentUrl,
+                headers,
+                currentPosition,
+                passthrough = passthroughRequested && !downmixStereo,
+                joc = jocHint && !downmixStereo,
+            )
             return
         }
         onEngine {
@@ -240,7 +250,7 @@ class FsPlayback(private val appContext: Context) {
 
     fun forcePcm(resumeMs: Long) {
         val currentUrl = url ?: return
-        passthroughEnabled = false
+        passthroughRequested = false
         FsPassthroughLog.note("audio format switch to pcm reason=player-reopen")
         open(currentUrl, headers, resumeMs, passthrough = false, joc = false)
     }
@@ -549,7 +559,7 @@ class FsPlayback(private val appContext: Context) {
     }
 
     private fun configure(player: FSPlayer) {
-        val pass = if (passthroughEnabled) 1L else 0L
+        val pass = if (passthroughEnabled && !downmixStereo) 1L else 0L
         // Shader fallback only. Hardware HDR-to-SDR stays on MediaCodec and
         // the configure hook sends color-transfer-request.
         val videoHardware = if (mapHdrToSdr || preferSoftwareVideo) 0L else 1L
@@ -565,7 +575,12 @@ class FsPlayback(private val appContext: Context) {
         player.setOption(
             FSPlayer.OPT_CATEGORY_PLAYER,
             "aac-ac3",
-            if (aacAc3) 1L else 0L,
+            if (aacAc3 && !downmixStereo) 1L else 0L,
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "pcm-downmix-stereo",
+            if (downmixStereo) 1L else 0L,
         )
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)

@@ -107,7 +107,11 @@ fun SettingsScreen(
                         prefs.decoderPreference = decoderPreference
                     }
                     SettingHint(stringResource(R.string.audio_compat_hint))
-                    SettingLine("音频直通", if (decodeToStereo) "关闭" else "自动") {
+                    SettingLine(
+                        "音频直通",
+                        (if (decodeToStereo) "关闭" else "自动") + if (decoderPreference == 1) " · 不生效" else "",
+                    ) {
+                        if (decoderPreference == 1) return@SettingLine
                         decodeToStereo = !decodeToStereo
                         prefs.decodeToStereo = decodeToStereo
                     }
@@ -118,8 +122,9 @@ fun SettingsScreen(
                             1 -> "开"
                             2 -> "关"
                             else -> "自动"
-                        },
+                        } + if (decoderPreference == 1) " · 不生效" else "",
                     ) {
+                        if (decoderPreference == 1) return@SettingLine
                         aacAc3Mode = when (aacAc3Mode) {
                             0 -> 1
                             1 -> 2

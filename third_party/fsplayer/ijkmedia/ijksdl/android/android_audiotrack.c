@@ -115,6 +115,11 @@ typedef struct SDL_Android_AudioTrack {
     float       max_volume;
     float       min_volume;
     int         encoded;
+    int         obtained_valid;
+    int         obtained_encoding;
+    int         obtained_rate;
+    int         obtained_channels;
+    int         obtained_mask;
 } SDL_Android_AudioTrack;
 
 void SDL_Android_AudioTrack_global_init(JNIEnv *env)
@@ -298,6 +303,51 @@ void SDL_Android_AudioTrack_set_volume(JNIEnv *env, SDL_Android_AudioTrack *atra
     J4AC_AudioTrack__setStereoVolume__catchAll(env, atrack->thiz, left_volume, right_volume);
 }
 
+static int audiotrack_read_int(JNIEnv *env, jobject thiz, const char *name)
+{
+    jclass cls;
+    jmethodID method;
+    int value;
+    if (!env || !thiz || !name)
+        return -1;
+    cls = (*env)->GetObjectClass(env, thiz);
+    if (!cls || (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return -1;
+    }
+    method = (*env)->GetMethodID(env, cls, name, "()I");
+    (*env)->DeleteLocalRef(env, cls);
+    if (!method || (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return -1;
+    }
+    value = (*env)->CallIntMethod(env, thiz, method);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return -1;
+    }
+    return value;
+}
+
+void SDL_Android_AudioTrack_get_obtained(SDL_Android_AudioTrack *atrack, int *valid,
+                                         int *encoding, int *rate, int *channels, int *mask)
+{
+    if (valid)
+        *valid = 0;
+    if (!atrack || !atrack->obtained_valid)
+        return;
+    if (valid)
+        *valid = 1;
+    if (encoding)
+        *encoding = atrack->obtained_encoding;
+    if (rate)
+        *rate = atrack->obtained_rate;
+    if (channels)
+        *channels = atrack->obtained_channels;
+    if (mask)
+        *mask = atrack->obtained_mask;
+}
+
 SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_Android_AudioTrack_Spec *spec)
 {
     assert(spec);
@@ -427,6 +477,12 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_spec(JNIEnv *env, SDL_An
         return NULL;
     }
 
+    atrack->obtained_encoding = audiotrack_read_int(env, atrack->thiz, "getAudioFormat");
+    atrack->obtained_rate = audiotrack_read_int(env, atrack->thiz, "getSampleRate");
+    atrack->obtained_channels = audiotrack_read_int(env, atrack->thiz, "getChannelCount");
+    atrack->obtained_mask = audiotrack_read_int(env, atrack->thiz, "getChannelMask");
+    atrack->obtained_valid = atrack->obtained_encoding > 0 && atrack->obtained_rate > 0 &&
+        atrack->obtained_channels > 0 && atrack->obtained_mask > 0;
     atrack->min_buffer_size = min_buffer_size;
     atrack->spec.buffer_size_in_bytes = min_buffer_size;
     // atrack->max_volume = J4AC_AudioTrack__getMaxVolume__catchAll(env);

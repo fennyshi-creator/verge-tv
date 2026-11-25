@@ -41,6 +41,12 @@ void SDL_AoutPauseAudio(SDL_Aout *aout, int pause_on)
         aout->pause_audio(aout, pause_on);
 }
 
+void SDL_AoutSetDevicePause(SDL_Aout *aout, int pause_on)
+{
+    if (aout && aout->set_device_pause)
+        aout->set_device_pause(aout, pause_on);
+}
+
 void SDL_AoutFlushAudio(SDL_Aout *aout)
 {
     if (aout && aout->flush_audio)

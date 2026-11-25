@@ -313,9 +313,11 @@ typedef struct VideoState {
     int last_paused;
     int queue_attachments_req;
     int seek_req;
+    int seek_id;
     int seek_flags;
     int64_t seek_pos;
     int64_t seek_rel;
+    SDL_mutex *seek_mutex;
     
     AVFormatContext *ic;
     int realtime;
@@ -607,6 +609,8 @@ typedef struct FFPlayer {
     int hdr_window_output;
     /* 0 auto, 1 on, 2 off. Decided in the app; native only sees 0 or 1. */
     int aac_ac3;
+    /* Compatible decode: open 2-channel PCM and do not start a compressed track. */
+    int pcm_downmix_stereo;
     int aac_ac3_on;
     int aac_ac3_failed;
     int aac_ac3_reset_req;

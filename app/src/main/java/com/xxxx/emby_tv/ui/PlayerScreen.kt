@@ -822,13 +822,34 @@ fun PlayerScreen(
     // ===== 音频故障自动恢复（全程自动，无用户交互）=====
     // 0: 正常；1: 已用立体声安全模式重建过播放器；2: 已降级为无声播放
     var audioRecoveryStage by remember { mutableIntStateOf(0) }
-    fun bitstreamAllowed(): Boolean = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
-        decoderPreference = decoderPreference,
-        forceStereo = decodeAudio,
-        speedIsOne = playbackSpeed == 1f,
-        recoveryStage = audioRecoveryStage,
-        routeAllows = routeAllowsBitstream,
-    )
+    fun currentOutputPlan(): com.xxxx.emby_tv.ui.player.AudioOutputPlan.Result {
+        val audioPlan = audioTracks.firstOrNull { it.index == selectedAudioIndex }
+        val aacProfile = com.xxxx.emby_tv.ui.player.AacAc3Policy.isVerifiedProfile(
+            android.os.Build.MANUFACTURER,
+            android.os.Build.HARDWARE,
+            android.os.Build.BOARD,
+            android.os.Build.MODEL,
+        )
+        val hdmi = com.xxxx.emby_tv.ui.player.PassthroughRoute.isHdmiFamily(routeSnapshot.type)
+        return com.xxxx.emby_tv.ui.player.AudioOutputPlan.choose(
+            compatDecode = decoderPreference == com.xxxx.emby_tv.ui.player.AudioPolicy.FFMPEG,
+            passthroughAuto = !decodeAudio,
+            speedIsOne = playbackSpeed == 1f,
+            recoveryStage = audioRecoveryStage,
+            routeAllowsBitstream = routeAllowsBitstream,
+            aacMode = aacAc3Mode,
+            aacProfile = aacProfile,
+            codec = audioPlan?.codec,
+            channels = audioPlan?.channels ?: 0,
+            routeAllowsAc3 = com.xxxx.emby_tv.ui.player.AacAc3Policy.sinkAllows(
+                aacProfile,
+                routeAllowsBitstream,
+                hdmi,
+            ),
+        )
+    }
+
+    fun bitstreamAllowed(): Boolean = currentOutputPlan().passthrough
 
     fun armHdr() {
         val video = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
@@ -857,35 +878,21 @@ fun PlayerScreen(
         player.useSoftwareVideo(choice.softwareVideo)
         com.xxxx.emby_tv.ui.player.HdrToneMap.setRequestSdr(choice.requestHardwareSdr)
         val audioPlan = audioTracks.firstOrNull { it.index == selectedAudioIndex }
-        val aacProfile = com.xxxx.emby_tv.ui.player.AacAc3Policy.isVerifiedProfile(
-            android.os.Build.MANUFACTURER,
-            android.os.Build.HARDWARE,
-            android.os.Build.BOARD,
-            android.os.Build.MODEL,
-        )
-        val hdmi = com.xxxx.emby_tv.ui.player.PassthroughRoute.isHdmiFamily(routeSnapshot.type)
-        val sink = com.xxxx.emby_tv.ui.player.AacAc3Policy.sinkAllows(
-            aacProfile,
-            routeAllowsBitstream,
-            hdmi,
-        )
-        player.aacAc3 = com.xxxx.emby_tv.ui.player.AacAc3Policy.enable(
-            mode = aacAc3Mode,
-            profile = aacProfile,
-            codec = audioPlan?.codec,
-            channels = audioPlan?.channels ?: 0,
-            speedIsOne = playbackSpeed == 1f,
-            forceStereo = decodeAudio,
-            routeAllowsAc3 = sink,
-            preferFfmpeg = decoderPreference == com.xxxx.emby_tv.ui.player.AudioPolicy.FFMPEG,
-        )
+        val output = currentOutputPlan()
+        player.downmixStereo = output.downmixStereo
+        player.passthroughRequested = !decodeAudio
+        player.aacAc3 = output.aacAc3
         com.debugly.fsplayer.audio.FsPassthroughLog.note(
             com.xxxx.emby_tv.data.remote.ClientLogText.redact(
-                "audio-plan aacAc3=${player.aacAc3} mode=$aacAc3Mode codec=${audioPlan?.codec} " +
-                    "channels=${audioPlan?.channels} routeType=${routeSnapshot.type} " +
-                    "allowBitstream=$routeAllowsBitstream hdmi=$hdmi profile=$aacProfile " +
+                "audio-plan input codec=${audioPlan?.codec} channels=${audioPlan?.channels} " +
+                    "compat=${decoderPreference == com.xxxx.emby_tv.ui.player.AudioPolicy.FFMPEG} " +
+                    "passthroughSwitch=${if (decodeAudio) "off" else "auto"} " +
+                    "passthrough=${output.passthrough} aacAc3=${output.aacAc3} " +
+                    "downmix=${if (output.downmixStereo) "stereo" else "source"} " +
+                    "aacMode=$aacAc3Mode routeType=${routeSnapshot.type} " +
+                    "allowBitstream=$routeAllowsBitstream " +
                     "hdrMode=${choice.mode} map=${choice.mapHdrToSdr} window=${choice.windowSurface} " +
-                    "software=${choice.softwareVideo} decoder=$decoderPreference stereo=$decodeAudio"
+                    "software=${choice.softwareVideo} decoder=$decoderPreference"
             )
         )
         if (choice.mode == "direct-unmapped") {
@@ -1490,6 +1497,7 @@ fun PlayerScreen(
                     player.passthroughEncoding(),
                     player.passthroughFallback(),
                     player.clientAc3(),
+                    downmixStereo = player.downmixStereo,
                 )
 
             }
@@ -1808,9 +1816,7 @@ fun PlayerScreen(
     fun applyRoute(allow: Boolean) {
         val changed = allow != routeAllowsBitstream
         routeAllowsBitstream = allow
-        val next = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
-            decoderPreference, decodeAudio, playbackSpeed == 1f, audioRecoveryStage, allow,
-        )
+        val next = currentOutputPlan().passthrough
         val url = player.url
         if (!changed || url == null || appliedBitstream == next) {
             appliedBitstream = next
@@ -2429,9 +2435,7 @@ fun PlayerScreen(
                                 url = url,
                                 headers = playbackHeaders(),
                                 startMs = player.currentPosition,
-                                passthrough = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
-                                    decoderPreference, enabled, playbackSpeed == 1f, audioRecoveryStage, routeAllowsBitstream,
-                                ),
+                                passthrough = bitstreamAllowed(),
                                 joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
                                     audioTracks.firstOrNull { it.index == selectedAudioIndex }
                                 ),
@@ -2449,9 +2453,7 @@ fun PlayerScreen(
                                 url = url,
                                 headers = playbackHeaders(),
                                 startMs = player.currentPosition,
-                                passthrough = com.xxxx.emby_tv.ui.player.AudioPolicy.usePassthrough(
-                                    next, decodeAudio, playbackSpeed == 1f, audioRecoveryStage, routeAllowsBitstream,
-                                ),
+                                passthrough = bitstreamAllowed(),
                                 joc = com.xxxx.emby_tv.ui.player.DolbyPassthrough.wantsJoc(
                                     audioTracks.firstOrNull { it.index == selectedAudioIndex }
                                 ),

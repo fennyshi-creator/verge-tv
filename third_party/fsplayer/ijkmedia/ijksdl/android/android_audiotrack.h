@@ -101,6 +101,8 @@ SDL_Android_AudioTrack *SDL_Android_AudioTrack_new_from_sdl_spec(JNIEnv *env, co
 void SDL_Android_AudioTrack_free(JNIEnv *env, SDL_Android_AudioTrack* atrack);
 
 void SDL_Android_AudioTrack_get_target_spec(SDL_Android_AudioTrack* atrack, SDL_AudioSpec *spec);
+void SDL_Android_AudioTrack_get_obtained(SDL_Android_AudioTrack *atrack, int *valid,
+                                         int *encoding, int *rate, int *channels, int *mask);
 int SDL_Android_AudioTrack_get_min_buffer_size(SDL_Android_AudioTrack* atrack);
 int audiotrack_get_native_output_sample_rate(JNIEnv *env/* = NULL */);
 
