@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Verge</string>
+    <string name="app_name">Verge Emby</string>
     <string name="new_version_available">新版本可用: %1$s</string>
     <string name="info">信息</string>
     <string name="server_url">服务器地址</string>
@@ -25,6 +25,12 @@
     <string name="choose_version">选择版本</string>
     <string name="settings">设置</string>
     <string name="continue_watching">继续观看</string>
+    <string name="exit_app">我要退出</string>
+    <string name="audio_passthrough_hint">自动时，在兼容解码关闭的情况下，把设备支持的杜比音轨原样交给接收端；不支持则改为解码。关闭后由本机解码，声道随设备，不强制双声道。兼容解码打开时此项不生效，选择仍保留。</string>
+    <string name="audio_compat_hint">打开后由本机解码并下混为双声道。此时不使用音频直通，也不做 AAC 转杜比。关闭后恢复下面已保存的选择。</string>
+    <string name="aac_ac3_hint">仅在兼容解码关闭且音频直通为自动时，把多声道 AAC 转为杜比（非全景声）。自动只适配部分功放。兼容解码打开或直通关闭时不转换，选择仍保留。</string>
+    <string name="exit_app_title">要退出吗？</string>
+    <string name="detail_start_over">从头看</string>
     <string name="continue_playing">继续播放</string>
     <string name="because_you_watched">因为你看过「%1$s」</string>
     <string name="library_tab_movies">电影</string>
@@ -52,6 +58,10 @@
     <string name="season">季</string>
     <string name="unknown">未知</string>
     <string name="failed_get_playback_info">获取播放信息失败</string>
+    <string name="player_engine_failed">此设备无法启动画面</string>
+    <string name="player_hdr_hardware_failed">硬解没能输出 HDR，已停止，没有改成软解。</string>
+    <string name="player_audio_release_failed">上一段声音还没释放完，等了 %1$d 秒仍未结束，已停止，避免两路声音叠在一起。</string>
+    <string name="player_passthrough_unavailable">杜比没能原样送出，已停止，避免把声音播乱。</string>
     <string name="streaming">流媒体</string>
     <string name="video">视频</string>
     <string name="audio_label">音频</string>
@@ -283,7 +293,7 @@
     <!-- 按键设置 -->
     <string name="key_settings">按键设置</string>
     <string name="back_exit_double">按两次返回退出APP</string>
-    <string name="back_exit_double_desc">开启后，在登录页或首页按一次返回键会提示"再按一次退出APP"，2秒内再按一次才会退出。</string>
+    <string name="back_exit_double_desc">开启后，登录页和首页仍是两秒内再按一次才退出。关闭时，首页按返回会先问退出还是继续观看，不会直接离开。</string>
     <string name="press_back_again_to_exit">再按一次退出APP</string>
 
     <string name="sort">排序</string>
@@ -328,10 +338,10 @@
     <string name="source_pref_hdr_first">HDR 优先</string>
     <string name="source_pref_smooth">流畅优先（低码率）</string>
     <string name="source_pref_default">默认排序</string>
-    <string name="decoder_preference">音频解码</string>
+    <string name="decoder_preference">音频兼容模式</string>
     <string name="decoder_auto">自动</string>
-    <string name="decoder_ffmpeg">优先 FFmpeg</string>
-    <string name="hdr_sdr">HDR-SDR</string>
+    <string name="decoder_ffmpeg">兼容解码</string>
+    <string name="hdr_sdr">HDR转SDR</string>
     <string name="hdr_sdr_off">关</string>
     <string name="hdr_sdr_on">开</string>
 </resources>

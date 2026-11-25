@@ -208,6 +208,7 @@ internal fun boxSetItemsPath(
     val start = if (startIndex > 0) "&StartIndex=$startIndex" else ""
     return "/Users/$userId/Items?ParentId=$boxId&IncludeItemTypes=Movie,Series&Recursive=true&Limit=$limit" +
             start +
+            "&SortBy=DateCreated&SortOrder=Descending" +
             "&Fields=ProductionYear,EndDate,Status,ImageTags,BackdropImageTags,PrimaryImageAspectRatio,Genres,OfficialRating" +
             "&EnableImageTypes=Primary,Backdrop,Thumb&ImageTypeLimit=1" +
             "&X-Emby-Token=$apiKey"
@@ -632,7 +633,7 @@ object EmbyApi {
     ): BaseItemDto {
         return httpAsBaseItemDto(
             context, serverUrl, apiKey, deviceId,
-            "/Users/$userId/Items/$mediaId?Fields=People,ShareLevel&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
+            "/Users/$userId/Items/$mediaId?Fields=People,ShareLevel,UserData,RunTimeTicks&ExcludeFields=VideoChapters,VideoMediaSources,MediaStreams&X-Emby-Token=$apiKey"
         )
     }
 
@@ -967,12 +968,12 @@ object EmbyApi {
             }.awaitAll()
         }
 
-        suspend fun ensureWorks(boxId: String) {
-            if (index.works(boxId) != null) return
+        suspend fun ensureWorks(boxId: String, force: Boolean) {
+            if (!force && index.works(boxId) != null) return
             val shown = loadOrNull(boxSetItemsPath(userId, boxId, apiKey)) ?: return
             index.rememberWorks(boxId, shown)
         }
-        direct.keys.forEach { ensureWorks(it) }
+        direct.keys.forEach { ensureWorks(it, force = true) }
         val early = index.rowsFor(itemId, direct.values.toList())
         if (early.isNotEmpty()) onPartial(early)
 
@@ -995,13 +996,14 @@ object EmbyApi {
             if (complete || (pages == 3 && all.isNotEmpty())) index.rememberCatalog(all)
             all
         }
-        val toScan = index.boxesToScan(catalog)
+        val toScan = index.boxesToConfirm(catalog, itemId)
         coroutineScope {
             toScan.map { box ->
                 async {
                     val id = box.id ?: return@async
                     gate.withPermit {
-                        if (index.children(id) != null) return@withPermit
+                        val cached = index.children(id)
+                        if (cached != null && itemId in cached) return@withPermit
                         val members = loadOrNull(boxSetMemberIdsPath(userId, id, apiKey)) ?: return@withPermit
                         index.rememberChildren(id, members.mapNotNull { it.id })
                     }
@@ -1013,7 +1015,7 @@ object EmbyApi {
             members.map { box ->
                 async {
                     val id = box.id ?: return@async
-                    gate.withPermit { ensureWorks(id) }
+                    gate.withPermit { ensureWorks(id, force = true) }
                 }
             }.awaitAll()
         }

@@ -517,9 +517,9 @@ fun EmbyTvApp() {
                                 val position = mediaItem.userData?.playbackPositionTicks ?: 0L
                                 navController.navigate("player/$id?position=$position")
                             },
-                            onPlaySeries = { mediaItem, sourceId ->
+                            onPlaySeries = { mediaItem, sourceId, fromStart ->
                                 val id = mediaItem.id ?: return@MediaDetailScreen
-                                val position = mediaItem.userData?.playbackPositionTicks ?: 0L
+                                val position = com.xxxx.emby_tv.util.EmbyPresentation.playbackStartTicks(mediaItem, fromStart)
                                 val source = if (sourceId.isNullOrBlank()) "" else "&source=$sourceId"
                                 navController.navigate("player/$id?position=$position$source")
                             },
@@ -551,9 +551,9 @@ fun EmbyTvApp() {
                             onOpenMovie = { movieId ->
                                 navController.navigate("media/$movieId")
                             },
-                            onPlayMovie = { mediaItem, sourceId ->
+                            onPlayMovie = { mediaItem, sourceId, fromStart ->
                                 val id = mediaItem.id ?: return@MediaDetailScreen
-                                val position = mediaItem.userData?.playbackPositionTicks ?: 0L
+                                val position = com.xxxx.emby_tv.util.EmbyPresentation.playbackStartTicks(mediaItem, fromStart)
                                 val source = if (sourceId.isNullOrBlank()) "" else "&source=$sourceId"
                                 navController.navigate("player/$id?position=$position$source")
                             },

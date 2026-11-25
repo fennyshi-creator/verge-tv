@@ -98,6 +98,24 @@ class DolbyPassthroughTest {
             ),
         )
         assertEquals(
+            "「AAC 5.1 · 兼容AC3」",
+            DolbyPassthrough.statusLine(
+                MediaStreamDto(codec = "aac", channels = 6),
+                openedEncoding = 0,
+                fellBackToPcm = false,
+                clientAc3 = true,
+            ),
+        )
+        assertEquals(
+            "「E-AC-3 · 透传」",
+            DolbyPassthrough.statusLine(
+                MediaStreamDto(codec = "eac3", channels = 6),
+                DolbyPassthrough.ENCODING_E_AC3,
+                fellBackToPcm = false,
+                clientAc3 = true,
+            ),
+        )
+        assertEquals(
             "「E-AC-3 · 透传」",
             DolbyPassthrough.statusLine(
                 MediaStreamDto(codec = "eac3", channels = 6),
@@ -156,8 +174,11 @@ class EmbySubtitlesTest {
         val cues = SubtitleCues.parse(body)
         assertEquals(2, cues.size)
         assertEquals("你好", SubtitleCues.textAt(cues, 1500))
+        assertEquals(1000L, SubtitleCues.cueStartAt(cues, 1500))
         assertEquals(null, SubtitleCues.textAt(cues, 4500))
+        assertEquals(null, SubtitleCues.cueStartAt(cues, 4500))
         assertEquals("later", SubtitleCues.textAt(cues, 5600))
+        assertEquals(5500L, SubtitleCues.cueStartAt(cues, 5600))
     }
 }
 

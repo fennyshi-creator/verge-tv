@@ -46,6 +46,21 @@ enum class KeyPhase { Down, Repeat, Up }
 
 enum class PlayerBackAction { DismissOverlay, ShowHint, ExitPlayer, Ignore }
 
+enum class ResumeChoice { FromStart, Continue }
+
+/**
+ * While the resume prompt is up, Left starts over and Right keeps the saved
+ * position. The prompt does not time out; those two keys are the choice.
+ */
+fun resumeChoice(key: PlayerKey, phase: KeyPhase): ResumeChoice? {
+    if (phase != KeyPhase.Down) return null
+    return when (key) {
+        PlayerKey.Left -> ResumeChoice.FromStart
+        PlayerKey.Right -> ResumeChoice.Continue
+        else -> null
+    }
+}
+
 data class PlayerBackStep(val action: PlayerBackAction, val hintAtMs: Long?)
 
 object PlayerBack {

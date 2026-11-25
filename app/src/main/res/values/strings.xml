@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Verge</string>
+    <string name="app_name">Verge Emby</string>
     <string name="new_version_available">New version available: %1$s</string>
     <string name="server_url">Server URL</string>
     <string name="host">Host</string>
@@ -24,6 +24,12 @@
     <string name="choose_version">Choose version</string>
     <string name="settings">Settings</string>
     <string name="continue_watching">Continue watching</string>
+    <string name="exit_app">Leave now</string>
+    <string name="audio_passthrough_hint">Auto, with compatible decode off, sends supported Dolby to the receiver and decodes when it cannot. Off decodes on this device and may keep more than two channels. Compatible decode ignores this switch and keeps the saved choice.</string>
+    <string name="audio_compat_hint">On decodes here and downmixes to two channels. Passthrough and AAC-to-Dolby are not used. Off restores the saved choices below.</string>
+    <string name="aac_ac3_hint">Only when compatible decode is off and passthrough is automatic: multichannel AAC becomes Dolby, not Atmos. Auto fits some receivers. Compatible decode or passthrough off does not convert, and the saved choice stays.</string>
+    <string name="exit_app_title">Leave the app?</string>
+    <string name="detail_start_over">Start over</string>
     <string name="continue_playing">Continue playing</string>
     <string name="because_you_watched">Because you watched “%1$s”</string>
     <string name="library_tab_movies">Movies</string>
@@ -51,6 +57,10 @@
     <string name="season">Season</string>
     <string name="unknown">Unknown</string>
     <string name="failed_get_playback_info">Failed to get playback info</string>
+    <string name="player_engine_failed">Video could not start on this device</string>
+    <string name="player_hdr_hardware_failed">Hardware HDR decode did not start. Playback stopped instead of switching to software video.</string>
+    <string name="player_audio_release_failed">The previous audio output was still closing after %1$d seconds. Playback stopped so two tracks do not overlap.</string>
+    <string name="player_passthrough_unavailable">Dolby could not be sent through. Playback stopped so the packed stream is not played as ordinary sound.</string>
     <string name="streaming">Streaming</string>
     <string name="video">Video</string>
     <string name="audio_label">Audio</string>
@@ -283,7 +293,7 @@
     <!-- Key Settings -->
     <string name="key_settings">Key Settings</string>
     <string name="back_exit_double">Press back twice to exit</string>
-    <string name="back_exit_double_desc">On the login or home page, pressing back once shows a hint "Press back again to exit". Only pressing back again within 2 seconds will exit the app.</string>
+    <string name="back_exit_double_desc">When this is on, the login page and the home page still need a second back press within 2 seconds. When it is off, home asks whether to exit or keep watching instead of leaving immediately.</string>
     <string name="press_back_again_to_exit">Press back again to exit</string>
 
     <string name="sort">Sort</string>

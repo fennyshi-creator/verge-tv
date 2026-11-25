@@ -43,6 +43,8 @@ class Release260Test {
         assertTrue(path.contains("ParentId=box"))
         assertTrue(path.contains("IncludeItemTypes=Movie,Series"))
         assertTrue(path.contains("Limit=80"))
+        assertTrue(path.contains("SortBy=DateCreated"))
+        assertTrue(path.contains("SortOrder=Descending"))
         assertEquals("剧情 / 爱情 · PG", EmbyPresentation.collectionMetaLine(listOf("剧情", "爱情"), "PG"))
         assertEquals("", EmbyPresentation.collectionMetaLine(emptyList(), null))
         val episode = BaseItemDto(id = "e", type = "Episode", seriesId = "s", seriesName = "剧集")

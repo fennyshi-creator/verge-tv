@@ -80,6 +80,7 @@ fun PlaybackSettingsScreen(
     var sourcePref by remember { mutableIntStateOf(prefs.sourcePreference) }
 
     var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
+    var aacAc3Mode by remember { mutableIntStateOf(prefs.aacAc3Mode) }
     var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
 
     // 跳过片头
@@ -280,6 +281,31 @@ fun PlaybackSettingsScreen(
                             prefs.decoderPreference = 1
                         }
                     }
+                    item { SettingHint(stringResource(R.string.audio_compat_hint)) }
+
+                    item { SectionTitle("AAC多声道转杜比") }
+                    item {
+                        SettingOptionRow(title = "自动", isSelected = aacAc3Mode == 0) {
+                            if (decoderPreference == 1) return@SettingOptionRow
+                            aacAc3Mode = 0
+                            prefs.aacAc3Mode = 0
+                        }
+                    }
+                    item {
+                        SettingOptionRow(title = "开", isSelected = aacAc3Mode == 1) {
+                            if (decoderPreference == 1) return@SettingOptionRow
+                            aacAc3Mode = 1
+                            prefs.aacAc3Mode = 1
+                        }
+                    }
+                    item {
+                        SettingOptionRow(title = "关", isSelected = aacAc3Mode == 2) {
+                            if (decoderPreference == 1) return@SettingOptionRow
+                            aacAc3Mode = 2
+                            prefs.aacAc3Mode = 2
+                        }
+                    }
+                    item { SettingHint(stringResource(R.string.aac_ac3_hint)) }
 
                     item { SectionTitle(stringResource(R.string.hdr_sdr)) }
                     item {
@@ -478,6 +504,16 @@ fun PlaybackSettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SettingHint(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.62f),
+        fontSize = 13.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp),
+    )
 }
 
 @Composable

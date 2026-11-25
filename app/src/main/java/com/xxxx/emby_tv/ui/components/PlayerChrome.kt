@@ -66,6 +66,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import coil3.compose.AsyncImage
+import com.xxxx.emby_tv.R
 import coil3.request.ImageRequest
 import com.xxxx.emby_tv.data.model.BaseItemDto
 import com.xxxx.emby_tv.data.model.MediaSourceInfoDto
@@ -550,11 +552,12 @@ fun SheetRow(
     title: String,
     value: String? = null,
     selected: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
-        onClick = onClick,
+        onClick = { if (enabled) onClick() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
@@ -622,6 +625,8 @@ fun SettingsSheetBody(
     onDecoderPreference: (Int) -> Unit = {},
     hdrToSdr: Boolean = false,
     onHdrToSdr: (Boolean) -> Unit = {},
+    aacAc3Mode: Int = 0,
+    onAacAc3Mode: (Int) -> Unit = {},
     diagnostics: Boolean,
     onDiagnostics: (Boolean) -> Unit,
     audioStatusLine: String,
@@ -670,19 +675,21 @@ fun SettingsSheetBody(
         }
         item {
             Text(
-                "仅影响 SRT/VTT 等文字字幕",
+                "只改外挂文字字幕",
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, top = 2.dp, bottom = 8.dp),
             )
         }
         item {
+            val compatOn = decoderPreference == 1
             SheetRow(
-                "解码为立体声",
-                if (decodeAudio) "开" else "自动",
+                "音频直通",
+                (if (decodeAudio) "关闭" else "自动") + if (compatOn) " · 不生效" else "",
+                enabled = !compatOn,
             ) { onDecodeAudio(!decodeAudio) }
             Text(
-                "自动时 HDMI 能收杜比才透传，电视扬声器解码",
+                stringResource(R.string.audio_passthrough_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
@@ -690,20 +697,45 @@ fun SettingsSheetBody(
         }
         item {
             SheetRow(
-                "音频解码",
-                if (decoderPreference == 1) "优先 FFmpeg" else "自动",
+                "音频兼容模式",
+                if (decoderPreference == 1) "兼容解码" else "自动",
             ) { onDecoderPreference(if (decoderPreference == 1) 0 else 1) }
             Text(
-                "优先 FFmpeg 与「解码为立体声」走同一条立体声解码",
+                stringResource(R.string.audio_compat_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
             )
         }
         item {
-            SheetRow("HDR-SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
+            SheetRow("HDR转SDR", if (hdrToSdr) "开" else "关") { onHdrToSdr(!hdrToSdr) }
             Text(
-                "关：不映射，硬解直出。开：优先硬解映射，不行再用着色器",
+                "打开后尝试适配画面。这台播放器做不到时，仍按片源播放。",
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            val aacLabel = when (aacAc3Mode) {
+                1 -> "开"
+                2 -> "关"
+                else -> "自动"
+            }
+            val compatOn = decoderPreference == 1
+            SheetRow(
+                "AAC多声道转杜比",
+                aacLabel + if (compatOn) " · 不生效" else "",
+                enabled = !compatOn,
+            ) {
+                onAacAc3Mode(when (aacAc3Mode) {
+                    0 -> 1
+                    1 -> 2
+                    else -> 0
+                })
+            }
+            Text(
+                stringResource(R.string.aac_ac3_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

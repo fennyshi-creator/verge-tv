@@ -508,6 +508,21 @@ object EmbyPresentation {
         item.userData?.playbackPositionTicks ?: 0L
 
     /**
+     * A mid-title watch record. Finished items (position at the runtime) stay
+     * on the single play action so the end is not offered as a resume.
+     */
+    fun detailShowsStartOver(item: BaseItemDto): Boolean {
+        val position = resumePositionTicks(item)
+        if (position <= 0L) return false
+        val runtime = item.runTimeTicks ?: 0L
+        return runtime <= 0L || position < runtime
+    }
+
+    /** Same player route. From-start writes 0; resume writes the saved ticks. */
+    fun playbackStartTicks(item: BaseItemDto, fromStart: Boolean): Long =
+        if (fromStart) 0L else resumePositionTicks(item)
+
+    /**
      * HDR chip for the selected source. SDR and unknown metadata stay blank.
      * Dolby Vision uses the settings wording 杜比视界.
      */

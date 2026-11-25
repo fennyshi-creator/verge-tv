@@ -231,4 +231,13 @@ class PlayerRemoteTest {
         assertNull(overlay.hintAtMs)
         assertEquals("再按返回退出", PlayerBack.HINT)
     }
+
+    @Test
+    fun resumePromptMapsLeftToStartOverAndRightToContinue() {
+        assertEquals(ResumeChoice.FromStart, resumeChoice(PlayerKey.Left, KeyPhase.Down))
+        assertEquals(ResumeChoice.Continue, resumeChoice(PlayerKey.Right, KeyPhase.Down))
+        assertNull(resumeChoice(PlayerKey.Left, KeyPhase.Up))
+        assertNull(resumeChoice(PlayerKey.Right, KeyPhase.Repeat))
+        assertNull(resumeChoice(PlayerKey.Ok, KeyPhase.Down))
+    }
 }

@@ -89,12 +89,14 @@ int main(void)
                fs_passthrough_decide(1, 1, FS_CODEC_ID_EAC3, 0, 0, 1, NULL, 0).joc, 0);
     {
         int order[2] = {0, 0};
-        expect_int("atmos order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 1, order, 2), 2);
+        expect_int("atmos order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 1, 1, order, 2), 2);
         expect_int("iec is the first try", order[0], FS_ENCODING_IEC61937);
         expect_int("4x pcm is the second try", order[1], FS_ENCODING_IEC61937_PCM);
-        expect_int("plain order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, order, 2), 2);
+        expect_int("plain order count", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, 1, order, 2), 2);
         expect_int("plain also opens iec", order[0], FS_ENCODING_IEC61937);
-        expect_int("ac3 stays ac3", fs_passthrough_open_order(FS_ENCODING_AC3, 0, order, 2), 1);
+        expect_int("verified profile skips pcm carrier", fs_passthrough_open_order(FS_ENCODING_E_AC3, 0, 0, order, 2), 1);
+        expect_int("verified profile still asks for iec", order[0], FS_ENCODING_IEC61937);
+        expect_int("ac3 stays ac3", fs_passthrough_open_order(FS_ENCODING_AC3, 0, 1, order, 2), 1);
         expect_int("ac3 encoding", order[0], FS_ENCODING_AC3);
     }
     expect_int("48k carrier", fs_iec61937_carrier_rate(48000), 192000);
@@ -177,6 +179,15 @@ int main(void)
         expect_int("Pc high", burst[5], 0);
         expect_int("Pd bytes", burst[6], 16);
         expect_int("Pd high", burst[7], 0);
+        {
+            /* Frozen from the 1.0.12 packer. Synthetic 8+8 byte frames, not an AVR capture. */
+            static const uint8_t golden[] = {
+                0x72, 0xF8, 0x1F, 0x4E, 21, 0x00, 16, 0x00,
+                0x77, 0x0B, 0x03, 0x00, 0x80, 0x30, 0x00, 0x00,
+                0x77, 0x0B, 0x03, 0x40, 0x80, 0x30, 0x00, 0x00
+            };
+            expect_int("bytewise carrier prefix", memcmp(burst, golden, sizeof(golden)) == 0 ? 1 : 0, 1);
+        }
         expect_int("swapped sync0", burst[8], 0x77);
         expect_int("swapped sync1", burst[9], 0x0B);
         expect_int("pad after payload", burst[8 + 16], 0);

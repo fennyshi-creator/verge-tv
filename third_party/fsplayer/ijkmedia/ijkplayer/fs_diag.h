@@ -125,7 +125,8 @@ const char *fs_iec_drain_label(int audio_finished, int audio_packets, int pictq,
 /* Routine soft-cap backpressure. Anomalies stay as their own lines. */
 int fs_diag_sleep_is_routine(int reason, int audio_packets_end);
 int64_t fs_diag_wall_s(void);
-void fs_iec_audclk_on_write(void *player, int written);
+void fs_iec_audclk_on_write(void *player, int written,
+                           int64_t ts_frame, int64_t ts_nano, int64_t now_nano, int ts_valid);
 int fs_diag_sleep_close(FsDiagSleep *st, int session, int64_t epoch_us,
                         int64_t now_us, char *out, int out_cap);
 

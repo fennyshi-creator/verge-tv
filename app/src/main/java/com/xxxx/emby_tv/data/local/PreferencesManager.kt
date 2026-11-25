@@ -133,6 +133,11 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_HDR_TO_SDR, false)
         set(value) = prefs.edit().putBoolean(KEY_HDR_TO_SDR, value).apply()
 
+    /** AAC multichannel compatibility. 0 auto, 1 on, 2 off. */
+    var aacAc3Mode: Int
+        get() = prefs.getInt(KEY_AAC_AC3_MODE, 0)
+        set(value) = prefs.edit().putInt(KEY_AAC_AC3_MODE, value).apply()
+
     var showDiagnostics: Boolean
         get() = prefs.getBoolean(KEY_SHOW_DIAGNOSTICS, false)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_DIAGNOSTICS, value).apply()
@@ -260,6 +265,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_DECODE_TO_STEREO = "decode_to_stereo"
         private const val KEY_DECODER_PREFERENCE = "decoder_preference"
         private const val KEY_HDR_TO_SDR = "hdr_to_sdr"
+        private const val KEY_AAC_AC3_MODE = "aac_ac3_mode"
         private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
         private const val KEY_PLAYBACK_CORRECTION = "playback_correction"
         private const val KEY_PLAY_MODE = "play_mode"

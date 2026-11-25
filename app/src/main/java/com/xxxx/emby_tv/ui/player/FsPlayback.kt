@@ -5,8 +5,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Surface
+import android.os.Build
 import com.debugly.fsplayer.audio.FsPassthroughLog
 import com.debugly.fsplayer.player.FSPlayer
+import com.xxxx.emby_tv.data.remote.ClientLogText
 import com.debugly.fsplayer.player.FSSubtitlePreference
 import com.debugly.fsplayer.player.IMediaPlayer
 import com.debugly.fsplayer.player.misc.FSTrackInfo
@@ -23,12 +25,22 @@ import java.util.concurrent.RejectedExecutionException
  * audio is bitstream passthrough unless speed is not 1.0 or the endpoint rejects
  * the encoded AudioTrack.
  */
+private data class AudioReleaseWait(val idle: Boolean, val waitedMs: Long)
+
 class FsPlayback(private val appContext: Context) {
     interface Listener {
         fun onPlayingChanged(playing: Boolean) {}
         fun onPlaybackStateChanged(state: Int) {}
         fun onError(message: String) {}
         fun onVideoDecoder(name: String) {}
+        fun onVideoGeometry(
+            width: Int,
+            height: Int,
+            sarNum: Int,
+            sarDen: Int,
+            rotation: Int,
+            scaleMode: Int,
+        ) {}
     }
 
     companion object {
@@ -38,11 +50,19 @@ class FsPlayback(private val appContext: Context) {
         const val STATE_ENDED = 4
         private const val TAG = "FsPlayback"
         private const val ENGINE_THREAD = "verge-fs-cmd"
-        const val RELEASE_TIMEOUT_MS = 1_800L
+        /**
+         * How long the engine thread waits for the previous audio device to
+         * finish closing before it refuses the next open. The main thread
+         * never waits. 1.8s was short enough that a slow release showed
+         * "previous audio still closing" and skipped the next title.
+         */
+        const val BACKGROUND_RELEASE_WAIT_MS = 12_000L
         const val STALL_REOPEN_LIMIT = 1
 
         /** The main thread must never wait on `ffp_wait_stop_l`. */
         fun joinsNativeRelease(onMainThread: Boolean): Boolean = !onMainThread
+
+        const val AUDIO_RELEASE = "audio-release"
     }
 
     private val listeners = CopyOnWriteArrayList<Listener>()
@@ -67,7 +87,18 @@ class FsPlayback(private val appContext: Context) {
     var headers: Map<String, String> = emptyMap()
         private set
     var passthroughEnabled: Boolean = true
+    /** Saved 音频直通 switch: true is 自动. Not cleared by a temporary speed reopen. */
+    var passthroughRequested: Boolean = true
+    /** Compatible decode. The next open asks native for 2-channel PCM. */
+    var downmixStereo: Boolean = false
     var mapHdrToSdr: Boolean = false
+    /** Vendor GLES path only. HDR on that path, or one video-decode retry. */
+    var preferSoftwareVideo: Boolean = false
+        private set
+    /** GLES devices send HDR MediaCodec to the window surface instead of the SDR OES texture. */
+    var hdrWindowOutput: Boolean = false
+    /** Decode multichannel AAC and re-encode AC-3. Never set for AC-3 or E-AC-3 sources. */
+    var aacAc3: Boolean = false
     var jocHint: Boolean = false
         private set
     var playWhenReady: Boolean = true
@@ -145,13 +176,45 @@ class FsPlayback(private val appContext: Context) {
         speed: Float = playbackSpeed,
     ) {
         if (released) return
+        onEngine {
+            val wait = awaitPreviousAudio()
+            if (!wait.idle) {
+                noteEngine("audio release still busy after ${wait.waitedMs}ms; refusing overlapping open")
+                dispatchError("${AUDIO_RELEASE}: previous output still closing waitedMs=${wait.waitedMs}")
+                return@onEngine
+            }
+            openOnEngine(url, headers, startMs, passthrough, joc, speed)
+        }
+    }
+
+    private fun openOnEngine(
+        url: String,
+        headers: Map<String, String>,
+        startMs: Long,
+        passthrough: Boolean,
+        joc: Boolean,
+        speed: Float,
+    ) {
+        if (released) return
         this.url = url
         this.headers = headers
         this.startMs = startMs
         this.playbackSpeed = speed
-        this.jocHint = joc
-        this.passthroughEnabled = passthrough && speed == 1f
-        onEngine { swapEngine() }
+        this.jocHint = joc && !downmixStereo
+        this.passthroughEnabled = passthrough && speed == 1f && !downmixStereo
+        noteEngine(
+            "playback-open softwareVideo=$preferSoftwareVideo passthrough=${this.passthroughEnabled} " +
+                deviceSnapshot()
+        )
+        swapEngine()
+    }
+
+    /**
+     * HDR on the Dune GLES output, or the one video-decode retry.
+     * Does not change passthrough.
+     */
+    fun useSoftwareVideo(enabled: Boolean) {
+        preferSoftwareVideo = enabled
     }
 
     /** Reopen the current item after playback stops advancing. */
@@ -167,7 +230,13 @@ class FsPlayback(private val appContext: Context) {
         val currentUrl = url
         if (crossesOne && currentUrl != null) {
             Log.i(TAG, "speed ${previous} -> $speed reopens audio (passthrough only at 1.0)")
-            open(currentUrl, headers, currentPosition, passthrough = speed == 1f, joc = jocHint)
+            open(
+                currentUrl,
+                headers,
+                currentPosition,
+                passthrough = passthroughRequested && !downmixStereo,
+                joc = jocHint && !downmixStereo,
+            )
             return
         }
         onEngine {
@@ -181,7 +250,7 @@ class FsPlayback(private val appContext: Context) {
 
     fun forcePcm(resumeMs: Long) {
         val currentUrl = url ?: return
-        passthroughEnabled = false
+        passthroughRequested = false
         FsPassthroughLog.note("audio format switch to pcm reason=player-reopen")
         open(currentUrl, headers, resumeMs, passthrough = false, joc = false)
     }
@@ -319,11 +388,21 @@ class FsPlayback(private val appContext: Context) {
 
     fun subtitleTextAt(positionMs: Long): String? = SubtitleCues.textAt(subtitleCues, positionMs)
 
+    fun subtitleCueStartAt(positionMs: Long): Long? = SubtitleCues.cueStartAt(subtitleCues, positionMs)
+
     fun passthroughEncoding(): Int {
         return try {
             engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_AUDIO_PASSTHROUGH_ENCODING, 0L)?.toInt() ?: 0
         } catch (_: Exception) {
             0
+        }
+    }
+
+    fun clientAc3(): Boolean {
+        return try {
+            (engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_AUDIO_CLIENT_AC3, 0L) ?: 0L) == 3L
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -370,13 +449,23 @@ class FsPlayback(private val appContext: Context) {
         if (released) return
         val previous = engine
         engine = null
-        detachNative(previous)
+        val releasedAudio = detachNative(previous)
+        if (!releasedAudio.idle) {
+            dispatchError("${AUDIO_RELEASE}: previous output still closing waitedMs=${releasedAudio.waitedMs}")
+            return
+        }
         if (released) return
         val next = try {
             FSPlayer()
         } catch (error: UnsatisfiedLinkError) {
             Log.e(TAG, "libfsplayer.so failed to load", error)
-            dispatchError(error.message ?: "libfsplayer.so")
+            noteEngine("fatal engine-create stage=native-setup UnsatisfiedLinkError: ${error.stackTraceToString()}")
+            dispatchError("${PlaybackErrorPolicy.ENGINE_CREATE}: ${error.message ?: "libfsplayer.so"}")
+            return
+        } catch (error: Error) {
+            Log.e(TAG, "engine create failed", error)
+            noteEngine("fatal engine-create stage=native-setup ${error.javaClass.name}: ${error.stackTraceToString()}")
+            dispatchError("${PlaybackErrorPolicy.ENGINE_CREATE}: ${error.message ?: error.javaClass.simpleName}")
             return
         }
         if (released) {
@@ -402,12 +491,15 @@ class FsPlayback(private val appContext: Context) {
 
     /**
      * Native release joins demux and refresh threads. That join never runs
-     * on the main looper. Other callers wait at most [RELEASE_TIMEOUT_MS]
-     * and then leave the instance alone.
+     * on the main looper. The engine thread waits until the device is idle,
+     * and only gives up after [BACKGROUND_RELEASE_WAIT_MS]. The next engine
+     * is not created while this one is still closing, so two encoded tracks
+     * cannot be open together. Surface clear stays before [FSPlayer.release].
      */
-    private fun detachNative(player: FSPlayer?) {
-        if (player == null) return
-        val worker = Thread({
+    private fun detachNative(player: FSPlayer?): AudioReleaseWait {
+        if (player == null) return AudioReleaseWait(idle = true, waitedMs = 0L)
+        noteEngine("audio release begin")
+        AudioDeviceGate.begin {
             try {
                 player.setSurface(null)
             } catch (error: Exception) {
@@ -418,15 +510,25 @@ class FsPlayback(private val appContext: Context) {
             } catch (error: Exception) {
                 Log.w(TAG, "release failed", error)
             }
-        }, "verge-fs-release")
-        worker.isDaemon = true
-        worker.start()
-        val onMain = Looper.myLooper() == Looper.getMainLooper()
-        if (!joinsNativeRelease(onMain)) return
-        worker.join(RELEASE_TIMEOUT_MS)
-        if (worker.isAlive) {
-            Log.w(TAG, "native release still running after ${RELEASE_TIMEOUT_MS}ms")
+            noteEngine("audio release worker done")
         }
+        val onMain = Looper.myLooper() == Looper.getMainLooper()
+        if (!joinsNativeRelease(onMain))
+            return AudioReleaseWait(idle = false, waitedMs = 0L)
+        val wait = awaitPreviousAudio()
+        if (!wait.idle)
+            noteEngine("audio release still busy after ${wait.waitedMs}ms")
+        else
+            noteEngine("audio release done after ${wait.waitedMs}ms")
+        return wait
+    }
+
+    /** Blocks the caller. [open] only calls this from the engine thread. */
+    private fun awaitPreviousAudio(): AudioReleaseWait {
+        val started = System.nanoTime()
+        val idle = AudioDeviceGate.awaitIdle(BACKGROUND_RELEASE_WAIT_MS)
+        val waitedMs = ((System.nanoTime() - started) / 1_000_000L).coerceAtLeast(0L)
+        return AudioReleaseWait(idle, waitedMs)
     }
 
     private fun onEngine(block: () -> Unit) {
@@ -457,10 +559,29 @@ class FsPlayback(private val appContext: Context) {
     }
 
     private fun configure(player: FSPlayer) {
-        val pass = if (passthroughEnabled) 1L else 0L
+        val pass = if (passthroughEnabled && !downmixStereo) 1L else 0L
         // Shader fallback only. Hardware HDR-to-SDR stays on MediaCodec and
         // the configure hook sends color-transfer-request.
-        val videoHardware = if (mapHdrToSdr) 0L else 1L
+        val videoHardware = if (mapHdrToSdr || preferSoftwareVideo) 0L else 1L
+        noteEngine(
+            "video-decoder mediacodec=$videoHardware hdrShader=$mapHdrToSdr software=$preferSoftwareVideo " +
+                "hdrWindow=$hdrWindowOutput aacAc3=$aacAc3"
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "hdr-window-output",
+            if (hdrWindowOutput) 1L else 0L,
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "aac-ac3",
+            if (aacAc3 && !downmixStereo) 1L else 0L,
+        )
+        player.setOption(
+            FSPlayer.OPT_CATEGORY_PLAYER,
+            "pcm-downmix-stereo",
+            if (downmixStereo) 1L else 0L,
+        )
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", videoHardware)
         player.setOption(FSPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", videoHardware)
@@ -493,6 +614,18 @@ class FsPlayback(private val appContext: Context) {
     }
 
     private fun wire(player: FSPlayer) {
+        player.setOnVideoSizeChangedListener { _, width, height, sarNum, sarDen ->
+            dispatch {
+                it.onVideoGeometry(
+                    width,
+                    height,
+                    sarNum,
+                    sarDen,
+                    player.zRotateDegrees.toInt(),
+                    player.scalingMode,
+                )
+            }
+        }
         player.setOnPreparedListener {
             onEngine {
                 if (released || engine !== player) return@onEngine
@@ -528,7 +661,12 @@ class FsPlayback(private val appContext: Context) {
                 Log.e(TAG, "FSPlayer error what=$what extra=$extra")
                 dispatchPlaying(false)
                 setState(STATE_IDLE)
-                dispatchError("FSPlayer $what/$extra")
+                val message = when (extra) {
+                    11011 -> "video-decode: mediacodec-hdr"
+                    11012 -> "audio-passthrough: iec-unavailable"
+                    else -> "FSPlayer $what/$extra"
+                }
+                dispatchError(message)
             }
             true
         }
@@ -708,6 +846,17 @@ class FsPlayback(private val appContext: Context) {
 
     private fun dispatchVideoDecoder(name: String) {
         dispatch { it.onVideoDecoder(name) }
+    }
+
+    private fun deviceSnapshot(): String {
+        val abis = Build.SUPPORTED_ABIS.joinToString(",")
+        return "manufacturer=${Build.MANUFACTURER} model=${Build.MODEL} abi=$abis " +
+            "hardware=${Build.HARDWARE} board=${Build.BOARD} sdk=${Build.VERSION.SDK_INT} " +
+            "release=${Build.VERSION.RELEASE} glesRoute=${VendorVideoRoute.current()}"
+    }
+
+    private fun noteEngine(line: String) {
+        FsPassthroughLog.note(ClientLogText.redact(line))
     }
 
     private fun dispatch(block: (Listener) -> Unit) {

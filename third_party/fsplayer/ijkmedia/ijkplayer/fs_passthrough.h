@@ -140,10 +140,13 @@ int fs_eac3_extradata_has_dependent(const uint8_t *data, int size);
  */
 /*
  * Encodings to try. E-AC-3 / Atmos opens as ENCODING_IEC61937, then the
- * 4× PCM carrier. [joc] does not change that: JOC rides inside the burst.
- * AC-3 stays ENCODING_AC3. Returns how many were written.
+ * 4× PCM carrier when allow_pcm_carrier is set. The verified Realtek
+ * profile passes 0 so a failed IEC open cannot write bursts into PCM.
+ * [joc] does not change the order. AC-3 stays ENCODING_AC3.
+ * Returns how many were written.
  */
-int fs_passthrough_open_order(int encoding, int joc, int *out, int cap);
+int fs_passthrough_open_order(int encoding, int joc, int allow_pcm_carrier,
+                              int *out, int cap);
 
 FsPassthroughDecision fs_passthrough_decide(
     int enabled,

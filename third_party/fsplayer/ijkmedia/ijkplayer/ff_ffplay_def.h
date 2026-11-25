@@ -313,9 +313,11 @@ typedef struct VideoState {
     int last_paused;
     int queue_attachments_req;
     int seek_req;
+    int seek_id;
     int seek_flags;
     int64_t seek_pos;
     int64_t seek_rel;
+    SDL_mutex *seek_mutex;
     
     AVFormatContext *ic;
     int realtime;
@@ -603,6 +605,24 @@ typedef struct FFPlayer {
     int audio_passthrough;
     /* App hint: selected Emby stream is Atmos / JOC even if FFmpeg profile is unknown. */
     int audio_passthrough_joc;
+    /* GLES only. 1 = HDR MediaCodec renders to the window, not the SDR OES texture. */
+    int hdr_window_output;
+    /* 0 auto, 1 on, 2 off. Decided in the app; native only sees 0 or 1. */
+    int aac_ac3;
+    /* Compatible decode: open 2-channel PCM and do not start a compressed track. */
+    int pcm_downmix_stereo;
+    int aac_ac3_on;
+    int aac_ac3_failed;
+    int aac_ac3_reset_req;
+    int aac_ac3_serial;
+    void *aac_ac3_state;
+    void *aac_clock;
+    int aac_hw_buffer;
+    int aac_clock_serial;
+    double aac_packet_pts;
+    int64_t aac_disp_log_us;
+    int audio_open_codec_id;
+    int video_hw_refused;
     /* Committed for the current audio stream. encoding is AudioFormat.ENCODING_*. */
     int audio_passthrough_on;
     int audio_passthrough_encoding;
@@ -619,6 +639,10 @@ typedef struct FFPlayer {
     int64_t diag_last_snapshot_us;
     int64_t iec_clock_write_us;
     int iec_clock_set;
+    void *iec_ts_clock;
+    int iec_ts_serial;
+    int64_t iec_ts_log_us;
+    int iec_passthrough_refused;
     int diag_shown;
     int64_t diag_shown_pts_ms;
     int diag_byte_cap_n;
@@ -811,6 +835,10 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->diag_last_snapshot_us          = 0;
     ffp->iec_clock_write_us             = 0;
     ffp->iec_clock_set                  = 0;
+    ffp->iec_ts_clock                   = NULL;
+    ffp->iec_ts_serial                  = -1;
+    ffp->iec_ts_log_us                  = 0;
+    ffp->iec_passthrough_refused        = 0;
     ffp->diag_shown                     = 0;
     ffp->diag_shown_pts_ms              = 0;
     ffp->diag_byte_cap_n                = 0;

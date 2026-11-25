@@ -33,6 +33,8 @@
 #include "ijkplayer/ff_ffplay_def.h"
 #include "vulkan/fs_vulkan_renderer.h"
 #include "vulkan/ijksdl_gpu_vulkan.h"
+#include "gles3/fs_gles_renderer.h"
+#include "android_audiotrack.h"
 
 #if IS_TILEGRID_HEIC_ENABLED
 #include "ijkplayer/ff_heic_tile.h"
@@ -40,6 +42,7 @@
 
 struct SDL_Vout_Opaque {
     FSVulkanRenderer *renderer;
+    FSGLESRenderer *gles;         /* Dune / RTD1619. Vulkan is not created. */
     SDL_GPU *gpu;                 /* 字幕用的纹理/FBO 层（跑在同一个 Vulkan device 上）*/
     ANativeWindow *native_window;
 
@@ -71,12 +74,18 @@ static void vout_free_l(SDL_Vout *vout)
          * GPU（字幕纹理层）的壳归 ffplayer 所有（ffp_destroy 里 SDL_GPUFreeP），
          * 但它的 Vulkan 资源必须赶在 renderer/device 之前释放。
          */
-        if (opaque->gpu) {
-            SDL_VulkanGPU_DetachDevice(opaque->gpu);
-        }
-        if (opaque->renderer) {
-            fs_vulkan_renderer_destroy(opaque->renderer);
-            opaque->renderer = NULL;
+        if (opaque->gles) {
+            fs_gles_renderer_detach_gpu(opaque->gles);
+            fs_gles_renderer_destroy(opaque->gles);
+            opaque->gles = NULL;
+        } else {
+            if (opaque->gpu) {
+                SDL_VulkanGPU_DetachDevice(opaque->gpu);
+            }
+            if (opaque->renderer) {
+                fs_vulkan_renderer_destroy(opaque->renderer);
+                opaque->renderer = NULL;
+            }
         }
         if (opaque->native_window) {
             ANativeWindow_release(opaque->native_window);
@@ -255,8 +264,8 @@ done:
 static int vout_display_overlay_l(SDL_Vout *vout, const Frame *frame, SDL_TextureOverlay *sub_overlay)
 {
     SDL_Vout_Opaque *opaque = vout->opaque;
-    if (!opaque || !opaque->renderer) {
-        ALOGE("vout_display_overlay_l: no vulkan renderer\n");
+    if (!opaque || (!opaque->renderer && !opaque->gles)) {
+        ALOGE("vout_display_overlay_l: no video renderer\n");
         return -1;
     }
 
@@ -265,7 +274,10 @@ static int vout_display_overlay_l(SDL_Vout *vout, const Frame *frame, SDL_Textur
      * 或 FBO，这里只是把纹理交给渲染器，由渲染器在视频之上做预乘 alpha 混合。
      * 引用由调用方（字幕层）持有，vout 不接管。
      */
-    fs_vulkan_renderer_set_sub_overlay(opaque->renderer, sub_overlay);
+    if (opaque->gles)
+        fs_gles_renderer_set_sub_overlay(opaque->gles, sub_overlay);
+    else
+        fs_vulkan_renderer_set_sub_overlay(opaque->renderer, sub_overlay);
 
     AVFrame *av_frame = (frame && frame->frame) ? frame->frame : NULL;
     int disp_w = 0, disp_h = 0;
@@ -294,7 +306,10 @@ static int vout_display_overlay_l(SDL_Vout *vout, const Frame *frame, SDL_Textur
     if (!av_frame) {
         /* 没有视频帧（如只放音频）：只刷一帧字幕，不报错 */
         ALOGV("vout_display_overlay_l: subtitle only\n");
-        fs_vulkan_renderer_display_sub_overlay(opaque->renderer);
+        if (opaque->gles)
+            fs_gles_renderer_display_sub_overlay(opaque->gles);
+        else
+            fs_vulkan_renderer_display_sub_overlay(opaque->renderer);
         return 0;
     }
 
@@ -304,6 +319,9 @@ static int vout_display_overlay_l(SDL_Vout *vout, const Frame *frame, SDL_Textur
     int sar_num = frame->sar.num;
     int sar_den = frame->sar.den;
 
+    if (opaque->gles)
+        return fs_gles_renderer_display(opaque->gles, av_frame,
+                                        disp_w, disp_h, rotate, sar_num, sar_den);
     return fs_vulkan_renderer_display(opaque->renderer, av_frame,
                                       disp_w, disp_h, rotate, sar_num, sar_den);
 }
@@ -350,6 +368,32 @@ SDL_Vout *SDL_VoutAndroid_CreateForVulkan(void)
     return vout;
 }
 
+SDL_Vout *SDL_VoutAndroid_CreateForOpenGLES3(void)
+{
+    SDL_Vout *vout = SDL_Vout_CreateInternal(sizeof(SDL_Vout_Opaque));
+    if (!vout)
+        return NULL;
+
+    SDL_Vout_Opaque *opaque = vout->opaque;
+    opaque->gles = fs_gles_renderer_create();
+    if (!opaque->gles) {
+        ALOGE("SDL_VoutAndroid_CreateForOpenGLES3: create renderer failed\n");
+        fs_passthrough_log_line("video-output backend=gles3 result=create-failed vulkan=skipped");
+        SDL_Vout_FreeInternal(vout);
+        return NULL;
+    }
+    opaque->gpu = fs_gles_renderer_get_gpu(opaque->gles);
+    if (!opaque->gpu)
+        ALOGW("SDL_VoutAndroid_CreateForOpenGLES3: subtitle gpu unavailable\n");
+
+    vout->create_overlay = vout_create_overlay;
+    vout->free_l = vout_free_l;
+    vout->display_overlay = vout_display_overlay;
+    ALOGI("SDL_VoutAndroid_CreateForOpenGLES3: OpenGL ES 3 video output\n");
+    fs_passthrough_log_line("video-output backend=gles3 result=created vulkan=skipped");
+    return vout;
+}
+
 void SDL_VoutAndroid_SetAndroidSurface(JNIEnv *env, SDL_Vout *vout, jobject android_surface)
 {
     if (!vout || !vout->opaque)
@@ -367,7 +411,10 @@ void SDL_VoutAndroid_SetAndroidSurface(JNIEnv *env, SDL_Vout *vout, jobject andr
         opaque->native_window = ANativeWindow_fromSurface(env, android_surface);
     }
 
-    fs_vulkan_renderer_set_surface(opaque->renderer, opaque->native_window);
+    if (opaque->gles)
+        fs_gles_renderer_set_surface(opaque->gles, opaque->native_window);
+    else if (opaque->renderer)
+        fs_vulkan_renderer_set_surface(opaque->renderer, opaque->native_window);
 
     SDL_UnlockMutex(vout->mutex);
 }
@@ -377,23 +424,29 @@ int SDL_VoutAndroid_IsMediaCodecSupported(SDL_Vout *vout)
     if (!vout || !vout->opaque)
         return 0;
 
+    if (vout->opaque->gles)
+        return fs_gles_renderer_is_mediacodec_supported(vout->opaque->gles);
     return fs_vulkan_renderer_is_mediacodec_supported(vout->opaque->renderer);
 }
 
 void SDL_VoutAndroid_SetScalingMode(SDL_Vout *vout, int mode)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_scaling_mode(vout->opaque->renderer, mode);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_scaling_mode(vout->opaque->gles, mode);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_scaling_mode(vout->opaque->renderer, mode);
 }
 
 void SDL_VoutAndroid_SetRotateDegrees(SDL_Vout *vout, float x, float y, float z)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_rotate_degrees(vout->opaque->renderer, x, y, z);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_rotate_degrees(vout->opaque->gles, x, y, z);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_rotate_degrees(vout->opaque->renderer, x, y, z);
 }
 
 /*
@@ -402,66 +455,92 @@ void SDL_VoutAndroid_SetRotateDegrees(SDL_Vout *vout, float x, float y, float z)
  */
 void SDL_VoutAndroid_SetBackgroundImage(SDL_Vout *vout, const void *pixels, int width, int height)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_background_image(vout->opaque->renderer, pixels, width, height);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_background_image(vout->opaque->gles, pixels, width, height);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_background_image(vout->opaque->renderer, pixels, width, height);
 }
 
 void SDL_VoutAndroid_SetBackgroundBlur(SDL_Vout *vout, int iterations, float sigma)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_background_blur(vout->opaque->renderer, iterations, sigma);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_background_blur(vout->opaque->gles, iterations, sigma);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_background_blur(vout->opaque->renderer, iterations, sigma);
 }
 
 void SDL_VoutAndroid_SetColorAdjust(SDL_Vout *vout, float brightness, float saturation, float contrast)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_color_adjust(vout->opaque->renderer, brightness, saturation, contrast);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_color_adjust(vout->opaque->gles, brightness, saturation, contrast);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_color_adjust(vout->opaque->renderer, brightness, saturation, contrast);
 }
 
 void SDL_VoutAndroid_SetBackgroundColor(SDL_Vout *vout, int red, int green, int blue)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
-
-    fs_vulkan_renderer_set_background_color(vout->opaque->renderer, red, green, blue);
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_background_color(vout->opaque->gles, red, green, blue);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_background_color(vout->opaque->renderer, red, green, blue);
 }
 
 void SDL_VoutAndroid_SetAllowHDRDirectDisplay(SDL_Vout *vout, int allow)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return;
+    if (vout->opaque->gles)
+        fs_gles_renderer_set_allow_hdr_display(vout->opaque->gles, allow);
+    else if (vout->opaque->renderer)
+        fs_vulkan_renderer_set_allow_hdr_display(vout->opaque->renderer, allow);
+}
 
-    fs_vulkan_renderer_set_allow_hdr_display(vout->opaque->renderer, allow);
+void SDL_VoutAndroid_SetHdrWindowOutput(SDL_Vout *vout, int enable)
+{
+    if (!vout || !vout->opaque || !vout->opaque->gles)
+        return;
+    fs_gles_renderer_set_hdr_window_output(vout->opaque->gles, enable);
 }
 
 int SDL_VoutAndroid_IsDirectDisplayHDRSupported(SDL_Vout *vout)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return 0;
-
+    if (vout->opaque->gles)
+        return fs_gles_renderer_is_hdr_display_active(vout->opaque->gles);
+    if (!vout->opaque->renderer)
+        return 0;
     return fs_vulkan_renderer_is_hdr_display_active(vout->opaque->renderer);
 }
 
 int SDL_VoutAndroid_IsHDRContent(SDL_Vout *vout)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return 0;
-
+    if (vout->opaque->gles)
+        return fs_gles_renderer_is_hdr_content(vout->opaque->gles);
+    if (!vout->opaque->renderer)
+        return 0;
     return fs_vulkan_renderer_is_hdr_content(vout->opaque->renderer);
 }
 
 int SDL_VoutAndroid_TakeSnapshot(SDL_Vout *vout, int type,
                                  int *out_w, int *out_h, void **out_pixels)
 {
-    if (!vout || !vout->opaque || !vout->opaque->renderer)
+    if (!vout || !vout->opaque)
         return -1;
-
+    if (vout->opaque->gles)
+        return fs_gles_renderer_take_snapshot(vout->opaque->gles, type, out_w, out_h, out_pixels);
+    if (!vout->opaque->renderer)
+        return -1;
     return fs_vulkan_renderer_take_snapshot(vout->opaque->renderer, type,
                                             out_w, out_h, out_pixels);
 }
@@ -471,6 +550,8 @@ jobject SDL_VoutAndroid_GetMediaCodecSurface(JNIEnv *env, SDL_Vout *vout)
     if (!vout || !vout->opaque)
         return NULL;
 
+    if (vout->opaque->gles)
+        return fs_gles_renderer_get_mediacodec_surface(env, vout->opaque->gles);
     return fs_vulkan_renderer_get_mediacodec_surface(env, vout->opaque->renderer);
 }
 

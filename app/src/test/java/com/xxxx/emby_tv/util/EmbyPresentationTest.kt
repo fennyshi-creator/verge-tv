@@ -243,6 +243,13 @@ class EmbyPresentationTest {
     fun playAndQualityEdgeCases() {
         val fresh = BaseItemDto(name = "新片", type = "Movie", runTimeTicks = 3_600_000_000_000L, userData = UserDataDto())
         assertEquals("播放", EmbyPresentation.playActionLabel(fresh))
+        assertFalse(EmbyPresentation.detailShowsStartOver(fresh))
+        val midway = fresh.copy(userData = UserDataDto(playbackPositionTicks = 30L * 60L * 10_000_000L))
+        assertTrue(EmbyPresentation.detailShowsStartOver(midway))
+        assertEquals(30L * 60L * 10_000_000L, EmbyPresentation.playbackStartTicks(midway, fromStart = false))
+        assertEquals(0L, EmbyPresentation.playbackStartTicks(midway, fromStart = true))
+        val finished = fresh.copy(userData = UserDataDto(playbackPositionTicks = fresh.runTimeTicks ?: 0L))
+        assertFalse(EmbyPresentation.detailShowsStartOver(finished))
         val unlabeled = BaseItemDto(
             name = "塔尔萨之王",
             type = "Episode",

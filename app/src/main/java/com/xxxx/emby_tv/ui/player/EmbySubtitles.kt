@@ -78,6 +78,10 @@ object SubtitleCues {
         return cues.lastOrNull { positionMs in it.startMs until it.endMs }?.text
     }
 
+    fun cueStartAt(cues: List<SubtitleCue>, positionMs: Long): Long? {
+        return cues.lastOrNull { positionMs in it.startMs until it.endMs }?.startMs
+    }
+
     private fun parseTimestamp(raw: String): Long? {
         val token = raw.trim().substringBefore(' ')
         val match = Regex("""(\d+):(\d+):(\d+)[,.](\d+)""").find(token) ?: return null
