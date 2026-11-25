@@ -74,6 +74,10 @@ typedef struct SDL_Aout_Opaque {
     volatile float speed;
     volatile bool speed_changed;
     int encoded;
+    /* 1 only while a PCM AudioTrack.write is inside the HAL. Close calls
+     * stop() in that window so the write can return. Encoded writes do not
+     * set this, and must not receive that extra stop. */
+    volatile int pcm_blocking_write;
     int encoded_stop;
     int callback_noted;
     int empty_logs;
@@ -174,18 +178,20 @@ static void aout_shutdown_track(JNIEnv *env, SDL_Aout *aout)
 /* After a PCM write has returned: pause, flush, then play. Never flush a
  * playing PCM track, and never start this once close has asked the thread
  * to leave. Encoded tracks do not use this. */
-static void aout_pcm_pause_flush_play(JNIEnv *env, SDL_Aout *aout)
+static int aout_pcm_pause_flush_play(JNIEnv *env, SDL_Aout *aout)
 {
     SDL_Aout_Opaque *opaque = aout->opaque;
     SDL_Android_AudioTrack *atrack = opaque->atrack;
     if (!atrack || opaque->abort_request)
-        return;
+        return 0;
     SDL_Android_AudioTrack_pause(env, atrack);
     if (opaque->abort_request)
-        return;
+        return 0;
     SDL_Android_AudioTrack_flush(env, atrack);
-    if (!opaque->abort_request && !opaque->pause_on)
-        SDL_Android_AudioTrack_play(env, atrack);
+    if (opaque->abort_request || opaque->pause_on)
+        return 0;
+    SDL_Android_AudioTrack_play(env, atrack);
+    return opaque->pause_on ? 0 : 1;
 }
 
 static int aout_write_encoded(JNIEnv *env, SDL_Aout *aout, const uint8_t *payload, int size)
@@ -262,12 +268,14 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 SDL_Android_AudioTrack_log(env, "audio play resume returned");
             }
         }
-        if (opaque->need_flush) {
-            opaque->need_flush = 0;
-            if (opaque->encoded)
+        if (opaque->need_flush && !opaque->abort_request) {
+            if (opaque->encoded) {
+                opaque->need_flush = 0;
                 SDL_Android_AudioTrack_flush(env, atrack);
-            else
+            } else if (!opaque->pause_on) {
+                opaque->need_flush = 0;
                 aout_pcm_pause_flush_play(env, aout);
+            }
         }
         if (opaque->need_set_volume) {
             opaque->need_set_volume = 0;
@@ -296,13 +304,20 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             SDL_Delay(10);
             continue;
         }
+        /* A paused PCM track must not be filled. The next loop applies
+         * pause, and any pending flush, then play. */
+        if (!opaque->encoded && (opaque->abort_request || opaque->pause_on)) {
+            SDL_Delay(10);
+            continue;
+        }
         audio_cblk(userdata, buffer, request);
+        int pcm_playing = 1;
         if (opaque->need_flush) {
             opaque->need_flush = 0;
             if (opaque->encoded)
                 SDL_Android_AudioTrack_flush(env, atrack);
             else
-                aout_pcm_pause_flush_play(env, aout);
+                pcm_playing = aout_pcm_pause_flush_play(env, aout);
         }
 
         if (opaque->need_flush) {
@@ -310,7 +325,9 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             if (opaque->encoded)
                 SDL_Android_AudioTrack_flush(env, atrack);
             else
-                aout_pcm_pause_flush_play(env, aout);
+                pcm_playing = aout_pcm_pause_flush_play(env, aout);
+        } else if (!opaque->encoded && !pcm_playing) {
+            /* Flush left the PCM track paused. Wait for resume before writing. */
         } else if (opaque->encoded) {
             int payload = 0;
             int iec = opaque->spec.format == AUDIO_IEC61937 || opaque->spec.format == AUDIO_IEC61937_PCM;
@@ -448,13 +465,23 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 }
                 SDL_Delay(5);
             }
+        } else if (opaque->abort_request || opaque->pause_on || opaque->need_flush) {
+            /* Flush or pause arrived while the callback ran. Do not write. */
         } else {
-            /* Blocking PCM write. Seek flush is applied on the next loop,
-             * after this call returns. Non-blocking PCM writes stayed silent
-             * on TV speakers. */
-            int written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);
-            if (written != copy_size) {
-                ALOGW("AudioTrack: not all data copied %d/%d", (int)written, (int)copy_size);
+            int written;
+            /* Publish the flag before the write so close can stop() this
+             * call if it blocks. Re-check pause and abort after the flag is
+             * visible, and do not write into a paused track. */
+            opaque->pcm_blocking_write = 1;
+            __sync_synchronize();
+            if (opaque->abort_request || opaque->pause_on || opaque->need_flush) {
+                opaque->pcm_blocking_write = 0;
+            } else {
+                written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);
+                opaque->pcm_blocking_write = 0;
+                if (written != copy_size) {
+                    ALOGW("AudioTrack: not all data copied %d/%d", (int)written, (int)copy_size);
+                }
             }
         }
 
@@ -520,6 +547,7 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
 
     opaque->pause_on = 1;
     opaque->abort_request = 0;
+    opaque->pcm_blocking_write = 0;
     opaque->generation = ++g_audio_generation;
     opaque->release_phase = 0;
     opaque->write_offset = 0;
@@ -602,11 +630,11 @@ static void aout_close_audio(SDL_Aout *aout)
     SDL_CondSignal(opaque->wakeup_cond);
     SDL_UnlockMutex(opaque->wakeup_mutex);
 
-    /* A blocking PCM write does not see abort until it returns. stop() from
-     * this thread unblocks that write. Encoded writes already poll abort, so
-     * they must not get this extra stop. The audio thread still runs
-     * pause, flush, stop, release after it leaves the loop. */
-    if (pcm && track) {
+    /* Unblock a PCM write that is inside the HAL. Do not stop() while the
+     * audio thread is in pause, flush, or release, and never for an encoded
+     * track. The audio thread still runs pause, flush, stop, release. */
+    __sync_synchronize();
+    if (pcm && track && opaque->pcm_blocking_write) {
         JNIEnv *env = NULL;
         if (JNI_OK == SDL_JNI_SetupThreadEnv(&env) && env)
             SDL_Android_AudioTrack_stop(env, track);
