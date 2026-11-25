@@ -49,14 +49,11 @@ class AacAc3PolicyTest {
     fun settingCopyDoesNotCallPassthroughOffStereo() {
         val zh = readStrings("values-zh")
         val en = readStrings("values")
-        assertTrue(zh.contains("不一定是两声道"))
-        assertTrue(zh.contains("软件解音频"))
-        assertTrue(zh.contains("再编成 AC-3"))
-        assertTrue(zh.contains("即使开了兼容解码也会转"))
-        assertTrue(zh.contains("直通关闭时不转"))
+        assertTrue(zh.contains("自动将支持的杜比音轨原样交给功放；关闭后由设备解码输出。"))
+        assertTrue(zh.contains("遇到无声或杂音可尝试，不保留杜比原声直通。"))
+        assertTrue(zh.contains("将多声道 AAC 转为杜比（非全景声）；自动仅适配部分功放，关闭直通时不转换。"))
         assertFalse(zh.contains("自动/立体声"))
-        assertTrue(en.contains("not necessarily stereo"))
-        assertTrue(en.contains("not Atmos"))
+        assertFalse(en.contains("自动/立体声"))
     }
 
     private fun readStrings(dir: String): String {

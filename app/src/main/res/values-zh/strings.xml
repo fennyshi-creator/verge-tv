@@ -26,9 +26,9 @@
     <string name="settings">设置</string>
     <string name="continue_watching">继续观看</string>
     <string name="exit_app">我要退出</string>
-    <string name="audio_passthrough_hint">自动：杜比尽量原样送给功放。关闭：本机解成 PCM 再送出，不一定是两声道。</string>
-    <string name="audio_compat_hint">兼容解码用软件解音频，因此不能把杜比原样送出。</string>
-    <string name="aac_ac3_hint">多声道 AAC 先解码，再编成 AC-3 送出。不是原来的码流，也不是全景声。自动只在核对过的功放上。选开时，即使开了兼容解码也会转。直通关闭时不转。</string>
+    <string name="audio_passthrough_hint">自动将支持的杜比音轨原样交给功放；关闭后由设备解码输出。</string>
+    <string name="audio_compat_hint">遇到无声或杂音可尝试，不保留杜比原声直通。</string>
+    <string name="aac_ac3_hint">将多声道 AAC 转为杜比（非全景声）；自动仅适配部分功放，关闭直通时不转换。</string>
     <string name="exit_app_title">要退出吗？</string>
     <string name="detail_start_over">从头看</string>
     <string name="continue_playing">继续播放</string>

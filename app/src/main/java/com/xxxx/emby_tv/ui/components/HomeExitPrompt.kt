@@ -64,7 +64,7 @@ fun HomeExitPrompt(onContinue: () -> Unit) {
     ) {
         Column(
             modifier = Modifier
-                .background(Color(0xFF1C1C1C).copy(alpha = 0.55f), RoundedCornerShape(24.dp))
+                .background(Color(0xFF1C1C1C).copy(alpha = 0.88f), RoundedCornerShape(24.dp))
                 .padding(horizontal = 28.dp, vertical = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(22.dp),
