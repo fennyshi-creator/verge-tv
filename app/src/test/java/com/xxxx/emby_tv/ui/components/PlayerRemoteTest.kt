@@ -240,4 +240,23 @@ class PlayerRemoteTest {
         assertNull(resumeChoice(PlayerKey.Right, KeyPhase.Repeat))
         assertNull(resumeChoice(PlayerKey.Ok, KeyPhase.Down))
     }
+
+    @Test
+    fun seekHoldSilencesAPlayingTrackAndReleaseRestoresIt() {
+        assertEquals(0f, seekAudible(holding = true, wasPaused = false, forcedSilent = false))
+        assertEquals(1f, seekAudible(holding = false, wasPaused = false, forcedSilent = false))
+    }
+
+    @Test
+    fun seekWhilePausedDoesNotChangeVolumeOrResume() {
+        assertNull(seekAudible(holding = true, wasPaused = true, forcedSilent = false))
+        assertNull(seekAudible(holding = false, wasPaused = true, forcedSilent = false))
+    }
+
+    @Test
+    fun finishedPlaybackLeavesExceptSingleLoop() {
+        assertTrue(leavesPlayerWhenFinished(0))
+        assertFalse(leavesPlayerWhenFinished(1))
+        assertTrue(leavesPlayerWhenFinished(2))
+    }
 }

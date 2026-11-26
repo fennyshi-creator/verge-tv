@@ -1358,6 +1358,11 @@ static void stream_close(FFPlayer *ffp)
     is->abort_request = 1;
     packet_queue_abort(&is->videoq);
     packet_queue_abort(&is->audioq);
+    /* The audio thread can be blocked in frame_queue_peek_readable. Aborting
+     * the packet queue does not signal that wait. Wake it before closing the
+     * track, or SDL_AoutCloseAudio waits until the 12s gate gives up. */
+    frame_queue_signal(&is->sampq);
+    frame_queue_signal(&is->pictq);
     /* Drop the AudioTrack before waiting on demux, so the next title cannot
      * open a second encoded track while this write is still in the driver. */
     fs_passthrough_log_line("audio device release begin");
