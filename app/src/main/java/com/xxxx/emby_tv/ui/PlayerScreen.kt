@@ -315,6 +315,7 @@ fun PlayerScreen(
     var seekDir by remember { mutableIntStateOf(0) }
     var seekPulse by remember { mutableLongStateOf(0L) }
     var seekFeedback by remember { mutableStateOf(false) }
+    var seekMuted by remember { mutableStateOf(false) }
     var positionLatch by remember { mutableStateOf<PositionLatch?>(null) }
     var overlayEpoch by remember { mutableIntStateOf(0) }
     var userPaused by remember { mutableStateOf(false) }
@@ -1339,36 +1340,6 @@ fun PlayerScreen(
     }
 
 
-    // Handle Ended Logic for List Loop
-    LaunchedEffect(endedHandled) {
-        if (endedHandled && playMode == 0) {
-            val seriesId = mediaInfo.seriesId
-            if (seriesId != null) {
-                try {
-                    val list = repository.getSeriesList(seriesId)
-
-                    @Suppress("UNCHECKED_CAST")
-                    val episodes = list
-
-                    val currentId = mediaId
-                    val currentIndex = episodes.indexOfFirst { it.id == currentId }
-
-                    if (currentIndex >= 0 && currentIndex < episodes.size - 1) {
-                        val nextEpisode = episodes[currentIndex + 1]
-                        onNavigateToPlayer(nextEpisode)
-                    } else {
-
-                    }
-                } catch (e: Exception) {
-                    ErrorHandler.logError("PlayerScreen", "操作失败", e)
-
-                }
-            } else {
-
-            }
-        }
-    }
-
     // Session Reporting & Updates - 使用 playerViewModel 定期报告进度
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
@@ -1651,12 +1622,11 @@ fun PlayerScreen(
                     FsPlayback.STATE_ENDED -> {
                         isBuffering = false
                         onPlaybackStateChanged(false)
-                        if (playMode == 1) {
+                        if (!com.xxxx.emby_tv.ui.components.leavesPlayerWhenFinished(playMode)) {
                             player.seekTo(0)
                             player.play()
-                        } else if (playMode == 0 && mediaInfo.seriesId != null) {
-                            if (!endedHandled) endedHandled = true
-                        } else {
+                        } else if (!endedHandled) {
+                            endedHandled = true
                             val finished = duration > 0L && position >= duration - 5_000L
                             playerViewModel.reportStopped(
                                 mediaId = mediaId,
@@ -1666,6 +1636,7 @@ fun PlayerScreen(
                                 selectedAudioIndex = selectedAudioIndex,
                                 playbackRate = playbackSpeed
                             )
+                            onExit()
                         }
                     }
                 }
@@ -1876,7 +1847,18 @@ fun PlayerScreen(
         showChrome(resumed = true)
     }
 
+    fun applySeekAudible(holding: Boolean) {
+        val level = com.xxxx.emby_tv.ui.components.seekAudible(
+            holding = holding,
+            wasPaused = userPaused,
+            forcedSilent = audioRecoveryStage >= 2,
+        ) ?: return
+        player.setVolume(level, level)
+        seekMuted = holding
+    }
+
     fun nudgeSeek(dir: Int) {
+        if (!seekMuted) applySeekAudible(holding = true)
         val now = System.currentTimeMillis()
         val gesture = nextSeek(
             pendingTargetMs = seekTarget,
@@ -2041,6 +2023,13 @@ fun PlayerScreen(
                     }
                     RemoteCommand.Ignore -> {
                         if (remoteKey(event) == PlayerKey.Ok) okLatch.consume(remotePhase(event))
+                        val key = remoteKey(event)
+                        if (remotePhase(event) == KeyPhase.Up &&
+                            (key == PlayerKey.Left || key == PlayerKey.Right) &&
+                            seekMuted
+                        ) {
+                            applySeekAudible(holding = false)
+                        }
                     }
                     RemoteCommand.HideOverlay -> hideOverlay()
                 }

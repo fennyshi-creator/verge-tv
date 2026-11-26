@@ -98,6 +98,18 @@ enum class RemoteCommand {
     HideOverlay,
 }
 
+/** Single-episode loop restarts. Every other finish leaves the player. */
+fun leavesPlayerWhenFinished(playMode: Int): Boolean = playMode != 1
+
+/**
+ * Hold on the seek keys silences output without touching the track.
+ * Releasing the key restores the previous level. A paused playback stays paused.
+ */
+fun seekAudible(holding: Boolean, wasPaused: Boolean, forcedSilent: Boolean): Float? {
+    if (forcedSilent || wasPaused) return null
+    return if (holding) 0f else 1f
+}
+
 enum class CenterGlyph { None, Pause }
 
 data class RemoteContext(
