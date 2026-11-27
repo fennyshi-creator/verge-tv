@@ -288,6 +288,7 @@ fun OfficialHome(
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    HeroSideShade(Modifier.fillMaxSize())
                     HeroBottomScrim(pinnedBackdrop, Modifier.fillMaxSize())
                 }
             }
@@ -614,7 +615,7 @@ private fun HomeHero(
                 .align(Alignment.CenterStart)
                 .offset(y = HomeMask.shiftDp("hero-title").dp)
                 .padding(start = HomeStyle.gutter, end = 280.dp, bottom = 24.dp)
-                .fillMaxWidth(0.46f)
+                .fillMaxWidth(HomeHeroCopy.COLUMN_FRACTION)
                 .focusRequester(heroFocus)
                 .focusProperties {
                     this.up = menuFocus
@@ -650,12 +651,12 @@ private fun HomeHero(
                     contentDescription = item.name,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.CenterStart,
-                    modifier = Modifier.height(68.dp).fillMaxWidth(),
+                    modifier = Modifier.height(HomeHeroCopy.LOGO_DP.dp).fillMaxWidth(),
                 )
             } else {
                 HomeText(
                     text = item.name.orEmpty(),
-                    fontSize = 28.sp,
+                    fontSize = HomeHeroCopy.TITLE_SP.sp,
                     color = HomeStyle.title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -668,17 +669,17 @@ private fun HomeHero(
                     fontSize = 14.sp,
                     color = HomeStyle.meta,
                     maxLines = 1,
-                    modifier = Modifier.padding(top = 10.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             val overview = item.overview?.trim().orEmpty()
             if (overview.isNotBlank()) {
                 HomeText(
                     text = overview,
-                    fontSize = 15.sp,
+                    fontSize = HomeHeroCopy.OVERVIEW_SP.sp,
                     color = Color(0xFFE4E4E4),
-                    maxLines = 3,
-                    modifier = Modifier.padding(top = 8.dp),
+                    maxLines = HomeHeroCopy.OVERVIEW_LINES,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }

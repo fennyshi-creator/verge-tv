@@ -193,6 +193,43 @@ object HomeMask {
 
     fun horizontalHeroCutoff(): Boolean = false
 
+    /**
+     * Left-edge black on the home hero. Movie and series detail use about
+     * 0.72. This stays lighter, and it is gone before the right side so the
+     * still stays at full brightness there. It is not a hard cutoff.
+     */
+    const val HERO_SHADE_LEFT = 0.38f
+
+    val heroSideStops: List<Pair<Float, Float>> = listOf(
+        0f to HERO_SHADE_LEFT,
+        0.26f to 0.18f,
+        0.46f to 0.04f,
+        0.60f to 0f,
+        1f to 0f,
+    )
+
+    fun heroSideAlpha(fraction: Float): Float {
+        val t = fraction.coerceIn(0f, 1f)
+        val stops = heroSideStops
+        if (t <= stops.first().first) return stops.first().second
+        for (i in 1 until stops.size) {
+            val (start, startAlpha) = stops[i - 1]
+            val (end, endAlpha) = stops[i]
+            if (t <= end) {
+                val span = end - start
+                if (span <= 0f) return endAlpha
+                val u = (t - start) / span
+                return startAlpha + (endAlpha - startAlpha) * u
+            }
+        }
+        return stops.last().second
+    }
+
+    fun heroSideBrush(): Brush =
+        Brush.horizontalGradient(
+            *heroSideStops.map { (at, alpha) -> at to Color.Black.copy(alpha = alpha) }.toTypedArray(),
+        )
+
     fun firstScreenStops(tint: Color): List<Pair<Float, Color>> {
         val page = HomeStyle.background
         return listOf(
@@ -212,6 +249,15 @@ object HomeMask {
     /** Scroll of one viewport carries the still fully off the second screen. */
     fun stillCleared(scrollPx: Int, viewportPx: Int): Boolean =
         viewportPx > 0 && scrollPx >= viewportPx
+}
+
+/** First-screen title block. Smaller than the previous 28/15/3-line hero. */
+object HomeHeroCopy {
+    const val TITLE_SP = 24
+    const val OVERVIEW_SP = 13
+    const val OVERVIEW_LINES = 2
+    const val COLUMN_FRACTION = 0.42f
+    const val LOGO_DP = 56
 }
 
 object ArtworkWash {
@@ -383,6 +429,12 @@ fun AmbientWash(
             ),
         )
     }
+}
+
+/** Slight left shade over the hero still. The right side stays clear. */
+@Composable
+fun HeroSideShade(modifier: Modifier = Modifier) {
+    Box(modifier.background(HomeMask.heroSideBrush()))
 }
 
 /**
