@@ -12,21 +12,40 @@ object AudioDeviceGate {
     private val lock = ReentrantLock()
     private val idle = lock.newCondition()
     private var busy = 0
+    private var epoch = 0
 
     fun begin(work: () -> Unit) {
-        lock.withLock { busy += 1 }
+        val ticket = lock.withLock {
+            busy += 1
+            epoch
+        }
         val worker = Thread({
             try {
                 work()
             } finally {
                 lock.withLock {
-                    busy -= 1
-                    idle.signalAll()
+                    if (ticket == epoch) {
+                        busy = (busy - 1).coerceAtLeast(0)
+                        idle.signalAll()
+                    }
                 }
             }
         }, "verge-audio-release")
         worker.isDaemon = true
         worker.start()
+    }
+
+    /**
+     * The native close did not return before the Java wait. Drop the busy
+     * count so the next title can open. A worker that finishes later must
+     * not decrement this new generation.
+     */
+    fun forceIdle() {
+        lock.withLock {
+            epoch += 1
+            busy = 0
+            idle.signalAll()
+        }
     }
 
     fun awaitIdle(timeoutMs: Long): Boolean {

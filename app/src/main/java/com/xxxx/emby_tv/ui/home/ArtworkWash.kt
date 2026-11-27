@@ -194,17 +194,16 @@ object HomeMask {
     fun horizontalHeroCutoff(): Boolean = false
 
     /**
-     * Left-edge black on the home hero. Movie and series detail use about
-     * 0.72. This stays lighter, and it is gone before the right side so the
-     * still stays at full brightness there. It is not a hard cutoff.
+     * Left-edge black on the home hero. Strong enough to read a bright still,
+     * then gone by about 70% of the width so the right side stays full brightness.
+     * It is not a hard cutoff, and it does not replace the bottom scrim.
      */
-    const val HERO_SHADE_LEFT = 0.38f
+    const val HERO_SHADE_LEFT = 0.68f
 
     val heroSideStops: List<Pair<Float, Float>> = listOf(
         0f to HERO_SHADE_LEFT,
-        0.26f to 0.18f,
-        0.46f to 0.04f,
-        0.60f to 0f,
+        0.42f to 0.22f,
+        0.70f to 0f,
         1f to 0f,
     )
 

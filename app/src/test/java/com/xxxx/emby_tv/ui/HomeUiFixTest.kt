@@ -41,15 +41,13 @@ class HomeUiFixTest {
     }
 
     @Test
-    fun heroSideShadeIsSlightAndLeavesTheRightSideBright() {
+    fun heroSideShadeIsVisibleOnABrightStillAndClearsOnTheRight() {
         assertFalse(HomeMask.horizontalHeroCutoff())
-        assertTrue(HomeMask.HERO_SHADE_LEFT < 0.72f)
-        assertTrue(HomeMask.heroSideAlpha(0f) > 0.28f)
-        assertTrue(HomeMask.heroSideAlpha(0f) < 0.72f)
-        assertEquals(HomeMask.HERO_SHADE_LEFT, HomeMask.heroSideAlpha(0f))
-        assertTrue(HomeMask.heroSideAlpha(0.32f) > 0.08f)
-        assertTrue(HomeMask.heroSideAlpha(0.32f) < HomeMask.heroSideAlpha(0f))
-        assertEquals(0f, HomeMask.heroSideAlpha(0.60f))
+        assertEquals(0.68f, HomeMask.HERO_SHADE_LEFT)
+        assertEquals(0.68f, HomeMask.heroSideAlpha(0f))
+        assertEquals(0.22f, HomeMask.heroSideAlpha(0.42f))
+        assertTrue(HomeMask.heroSideAlpha(0.42f) < HomeMask.heroSideAlpha(0f))
+        assertEquals(0f, HomeMask.heroSideAlpha(0.70f))
         assertEquals(0f, HomeMask.heroSideAlpha(1f))
         var previous = 1f
         for (step in 0..20) {
@@ -87,5 +85,10 @@ class HomeUiFixTest {
         assertTrue(home.contains("HomeHeroCopy.LOGO_DP"))
         assertFalse(home.contains("fontSize = 28.sp"))
         assertFalse(home.contains("maxLines = 3"))
+        assertTrue(home.contains("fun HeroDetailButton"))
+        assertTrue(home.contains("R.string.home_open_detail"))
+        assertTrue(home.contains("this.down = downRow"))
+        val hero = home.substringAfter("private fun HomeHero(").substringBefore("private fun HomeTopBar")
+        assertFalse(hero.contains(".focusable()"))
     }
 }
