@@ -1,5 +1,6 @@
 package com.xxxx.emby_tv.ui.player
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,5 +26,20 @@ class AudioDeviceGateTest {
         assertTrue(AudioDeviceGate.awaitIdle(1_000))
         AudioDeviceGate.begin { }
         assertTrue(AudioDeviceGate.awaitIdle(1_000))
+    }
+
+    @Test
+    fun aTimedOutCloseLeavesTheGateIdleForTheNextTitle() {
+        val release = java.util.concurrent.CountDownLatch(1)
+        AudioDeviceGate.begin { release.await() }
+        assertFalse(AudioDeviceGate.awaitIdle(40))
+        AudioDeviceGate.forceIdle()
+        assertTrue(AudioDeviceGate.awaitIdle(200))
+        assertEquals(0, AudioDeviceGate.busyCount())
+        AudioDeviceGate.begin { }
+        assertTrue(AudioDeviceGate.awaitIdle(1_000))
+        release.countDown()
+        Thread.sleep(150)
+        assertEquals(0, AudioDeviceGate.busyCount())
     }
 }

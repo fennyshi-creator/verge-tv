@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +29,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +42,17 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.xxxx.emby_tv.R
+
+/**
+ * One center press on the focused exit choice runs it. Key-up and repeats do not.
+ * Stacking focusable() under clickable() ate that first press on some boxes.
+ */
+object ExitKey {
+    fun activates(type: KeyEventType, key: Key, repeat: Boolean = false): Boolean {
+        if (repeat || type != KeyEventType.KeyDown) return false
+        return key == Key.DirectionCenter || key == Key.Enter || key == Key.NumPadEnter
+    }
+}
 
 /**
  * Home-only confirmation before leaving the app. Continue watching dismisses
@@ -134,7 +149,16 @@ private fun ExitChoice(
                 if (otherIsRight) right = other else left = other
             }
             .onFocusChanged { if (it.isFocused) onFocus() }
-            .focusable()
+            .onPreviewKeyEvent { event ->
+                val confirm = event.key == Key.DirectionCenter ||
+                    event.key == Key.Enter ||
+                    event.key == Key.NumPadEnter
+                if (!confirm) return@onPreviewKeyEvent false
+                if (ExitKey.activates(event.type, event.key, event.nativeKeyEvent.repeatCount > 0)) {
+                    onClick()
+                }
+                true
+            }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

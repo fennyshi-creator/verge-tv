@@ -64,6 +64,9 @@ int SDL_AoutOpenAudio(SDL_Aout *aout, const SDL_AudioSpec *desired, SDL_AudioSpe
 void SDL_AoutPauseAudio(SDL_Aout *aout, int pause_on);
 void SDL_AoutSetDevicePause(SDL_Aout *aout, int pause_on);
 void SDL_AoutFlushAudio(SDL_Aout *aout);
+/* Drop the callback buffer already filled for this seek. Does not flush
+ * a passthrough AudioTrack. */
+void SDL_AoutDropPending(SDL_Aout *aout);
 void SDL_AoutSetStereoVolume(SDL_Aout *aout, float left_volume, float right_volume);
 void SDL_AoutCloseAudio(SDL_Aout *aout);
 void SDL_AoutFree(SDL_Aout *aout);

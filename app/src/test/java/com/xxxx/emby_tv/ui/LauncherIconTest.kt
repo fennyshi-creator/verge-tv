@@ -17,33 +17,23 @@ class LauncherIconTest {
     }
 
     @Test
-    fun launcherUsesWhiteAdaptiveIconAndLegacyPngs() {
-        val adaptive = projectFile("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml").readText()
-        assertTrue(adaptive.contains("<adaptive-icon"))
-        assertTrue(adaptive.contains("@color/ic_launcher_background"))
-        assertTrue(adaptive.contains("@drawable/ic_launcher_foreground"))
-        assertFalse(adaptive.contains(".png"))
-        assertFalse(adaptive.contains("<bitmap"))
-
-        val foregroundFile = projectFile("app/src/main/res/drawable-anydpi-v26/ic_launcher_foreground.xml")
-        val foreground = foregroundFile.readText()
-        assertTrue(foreground.contains("<vector"))
-        assertTrue(foreground.contains("<gradient"))
-        assertTrue(foreground.contains("android:pathData="))
-        assertTrue(foreground.contains("A8.60,8.60"))
-        assertFalse(foreground.contains("<bitmap"))
-        assertFalse(foreground.contains(".png"))
-        assertFalse(foreground.contains("#FF060817"))
-        assertFalse(foreground.contains("#060817"))
+    fun launcherUsesSharpPrecompositedRaster() {
+        assertFalse(
+            "TV drawers composite mipmap-anydpi-v26 adaptive icons into a blur",
+            projectFile("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml").exists(),
+        )
         assertFalse(projectFile("app/src/main/res/drawable/ic_launcher_foreground.xml").exists())
 
-        val background = projectFile("app/src/main/res/values/ic_launcher_colors.xml").readText()
-        assertTrue(background.contains("ic_launcher_background\">#FFFFFF"))
-
         val manifest = projectFile("app/src/main/AndroidManifest.xml").readText()
-        assertTrue(manifest.contains("android:icon=\"@mipmap/ic_launcher\""))
-        assertTrue(manifest.contains("android:roundIcon=\"@mipmap/ic_launcher\""))
+        assertTrue(manifest.contains("android:icon=\"@mipmap/ic_launcher_tile\""))
+        assertTrue(manifest.contains("android:roundIcon=\"@mipmap/ic_launcher_tile\""))
+        assertFalse(manifest.contains("android:icon=\"@mipmap/ic_launcher\""))
         assertTrue(manifest.contains("android:banner=\"@drawable/banner\""))
+
+        val tile = ImageIO.read(projectFile("app/src/main/res/mipmap-nodpi/ic_launcher_tile.png"))
+        assertTrue("nodpi tile ${tile.width}", tile.width >= 512 && tile.width > 192)
+        assertEquals(tile.width, tile.height)
+        assertSharpWhiteMark(tile, "nodpi")
 
         val expected = mapOf(
             "mipmap-mdpi" to 48,
@@ -79,9 +69,56 @@ class LauncherIconTest {
                 }
             }
             val span = maxX - minX + 1
-            assertTrue("glyph not inset in $dir: $span / $size", span > size * 0.40 && span < size * 0.58)
+            assertTrue("glyph not the draft A mark in $dir: $span / $size", span > size * 0.64 && span < size * 0.78)
             assertTrue("glyph flush in $dir: left $minX", minX > size * 0.15)
+            assertTrue("glyph clipped in $dir: right ${size - 1 - maxX}", size - 1 - maxX > size * 0.07)
         }
+    }
+
+    private fun assertSharpWhiteMark(image: java.awt.image.BufferedImage, label: String) {
+        val size = image.width
+        for (point in listOf(0 to 0, size - 1 to 0, 0 to size - 1, size - 1 to size - 1)) {
+            val pixel = image.getRGB(point.first, point.second)
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            assertTrue("white frame at $label $point ($r,$g,$b)", r > 245 && g > 245 && b > 245)
+        }
+        var minX = size
+        var maxX = 0
+        var edgeY = size / 2
+        for (y in 0 until size) {
+            for (x in 0 until size) {
+                val pixel = image.getRGB(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                if (maxOf(r, g, b) - minOf(r, g, b) > 24) {
+                    if (x < minX) {
+                        minX = x
+                        edgeY = y
+                    }
+                    if (x > maxX) maxX = x
+                }
+            }
+        }
+        val span = maxX - minX + 1
+        assertTrue("glyph span $label $span / $size", span > size * 0.64 && span < size * 0.78)
+        var ramp = 0
+        var seen = false
+        for (x in 0 until size) {
+            val pixel = image.getRGB(x, edgeY)
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            val chroma = maxOf(r, g, b) - minOf(r, g, b)
+            if (!seen && chroma > 12) seen = true
+            if (seen) {
+                ramp++
+                if (chroma > 100) break
+            }
+        }
+        assertTrue("soft edge at $label: $ramp px", ramp in 1..8)
     }
 
     @Test

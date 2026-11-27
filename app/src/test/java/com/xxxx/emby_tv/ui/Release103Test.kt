@@ -24,10 +24,8 @@ class Release103Test {
 
     @Test
     fun launcherTipStaysAmberInsteadOfWhite() {
-        val vector = projectFile("app/src/main/res/drawable-anydpi-v26/ic_launcher_foreground.xml").readText()
-        assertTrue(vector.contains("#FFF08E25"))
-        assertFalse(vector.contains("#FFFFF43C"))
-        assertFalse(vector.contains("#FFF9E568"))
+        assertFalse(projectFile("app/src/main/res/drawable-anydpi-v26/ic_launcher_foreground.xml").exists())
+        assertFalse(projectFile("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml").exists())
         val image = ImageIO.read(projectFile("app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"))
         var minX = image.width
         var maxX = 0

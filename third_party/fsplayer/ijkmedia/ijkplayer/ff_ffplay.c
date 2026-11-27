@@ -1289,6 +1289,17 @@ static void video_image_display2(FFPlayer *ffp)
     }
 }
 
+/* Encoded output drops the pending burst. It does not flush AudioTrack. */
+static void fs_aout_on_seek(FFPlayer *ffp)
+{
+    if (!ffp || !ffp->aout)
+        return;
+    if (ffp->audio_passthrough_on || ffp->aac_ac3_on)
+        SDL_AoutDropPending(ffp->aout);
+    else
+        SDL_AoutFlushAudio(ffp->aout);
+}
+
 static void stream_component_close(FFPlayer *ffp, int stream_index)
 {
     VideoState *is = ffp->is;
@@ -1993,7 +2004,7 @@ retry:
                             break;
                         }
                     }
-                    SDL_AoutFlushAudio(ffp->aout);
+                    fs_aout_on_seek(ffp);
                     update_sample_display(ffp, NULL, -1);
                 }
                 
@@ -4026,7 +4037,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
             memset(stream, 0, len);
             // stream += len;
             // len = 0;
-            SDL_AoutFlushAudio(ffp->aout);
+            fs_aout_on_seek(ffp);
             update_sample_display(ffp, NULL, -1);
             gotFrame = 0;
             break;
@@ -4099,7 +4110,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
                             break;
                         }
                     }
-                    SDL_AoutFlushAudio(ffp->aout);
+                    fs_aout_on_seek(ffp);
                     update_sample_display(ffp, NULL, -1);
                     return;
                 }
@@ -5650,8 +5661,8 @@ static int read_thread(void *arg)
 //      of the seek_pos/seek_rel variables
 
             ffp_toggle_buffering(ffp, 1);
-            //fix after seek audio queue not flush cause wrong sound.
-            SDL_AoutFlushAudio(ffp->aout);
+            /* Drop audio from before the seek. Encoded tracks are not flushed. */
+            fs_aout_on_seek(ffp);
             ffp_notify_msg3(ffp, FFP_MSG_BUFFERING_UPDATE, 0, 0);
             ret = avformat_seek_file(is->ic, -1, seek_min, seek_target, seek_max, seek_flags_copy);
             if (ret < 0) {

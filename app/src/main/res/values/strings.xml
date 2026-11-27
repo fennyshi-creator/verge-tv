@@ -43,6 +43,7 @@
     <string name="resume">Resume</string>
     <string name="play">Play</string>
     <string name="details">Details</string>
+    <string name="home_open_detail">Open details</string>
     <string name="genres">Genres</string>
     <string name="studios">Studios</string>
     <string name="premiere">Premiere</string>

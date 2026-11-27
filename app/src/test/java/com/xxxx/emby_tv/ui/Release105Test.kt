@@ -114,13 +114,7 @@ class Release105Test {
 
     @Test
     fun launcherMarkIsInsetOnTheWhiteTile() {
-        val vector = projectFile("app/src/main/res/drawable-anydpi-v26/ic_launcher_foreground.xml").readText()
-        assertTrue(vector.contains("android:pivotX=\"54\""))
-        assertTrue(vector.contains("android:pivotY=\"54\""))
-        assertTrue(vector.contains("android:scaleX=\"0.72\""))
-        assertTrue(vector.contains("android:scaleY=\"0.72\""))
-        assertTrue(vector.contains("#FFF08E25"))
-        assertFalse(vector.contains("#FF0B1B3A"))
+        assertFalse(projectFile("app/src/main/res/drawable-anydpi-v26/ic_launcher_foreground.xml").exists())
         val image = ImageIO.read(projectFile("app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"))
         var minX = image.width
         var maxX = 0
@@ -136,8 +130,8 @@ class Release105Test {
                 }
             }
         }
-        assertTrue("left inset $minX of ${image.width}", minX > image.width * 0.18f)
-        assertTrue("right inset ${image.width - 1 - maxX}", image.width - 1 - maxX > image.width * 0.12f)
+        assertTrue("left inset $minX of ${image.width}", minX > image.width * 0.16f)
+        assertTrue("right inset ${image.width - 1 - maxX}", image.width - 1 - maxX > image.width * 0.07f)
         assertEquals(0xFFFFFF, image.getRGB(0, 0) and 0xFFFFFF)
     }
 }

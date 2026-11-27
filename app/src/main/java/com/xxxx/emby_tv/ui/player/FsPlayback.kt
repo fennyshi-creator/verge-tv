@@ -528,6 +528,8 @@ class FsPlayback(private val appContext: Context) {
         val started = System.nanoTime()
         val idle = AudioDeviceGate.awaitIdle(BACKGROUND_RELEASE_WAIT_MS)
         val waitedMs = ((System.nanoTime() - started) / 1_000_000L).coerceAtLeast(0L)
+        if (!idle)
+            AudioDeviceGate.forceIdle()
         return AudioReleaseWait(idle, waitedMs)
     }
 

@@ -84,6 +84,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -288,6 +289,7 @@ fun OfficialHome(
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    HeroSideShade(Modifier.fillMaxSize())
                     HeroBottomScrim(pinnedBackdrop, Modifier.fillMaxSize())
                 }
             }
@@ -614,32 +616,7 @@ private fun HomeHero(
                 .align(Alignment.CenterStart)
                 .offset(y = HomeMask.shiftDp("hero-title").dp)
                 .padding(start = HomeStyle.gutter, end = 280.dp, bottom = 24.dp)
-                .fillMaxWidth(0.46f)
-                .focusRequester(heroFocus)
-                .focusProperties {
-                    this.up = menuFocus
-                    this.down = downRow
-                }
-                .onKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            onDown()
-                            true
-                        }
-                        Key.DirectionUp -> {
-                            onUp()
-                            true
-                        }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            onOpen()
-                            true
-                        }
-                        else -> false
-                    }
-                }
-                .focusable()
-                .clickable(onClick = onOpen),
+                .fillMaxWidth(HomeHeroCopy.COLUMN_FRACTION),
         ) {
             if (logo.isNotBlank()) {
                 AsyncImage(
@@ -650,12 +627,12 @@ private fun HomeHero(
                     contentDescription = item.name,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.CenterStart,
-                    modifier = Modifier.height(68.dp).fillMaxWidth(),
+                    modifier = Modifier.height(HomeHeroCopy.LOGO_DP.dp).fillMaxWidth(),
                 )
             } else {
                 HomeText(
                     text = item.name.orEmpty(),
-                    fontSize = 28.sp,
+                    fontSize = HomeHeroCopy.TITLE_SP.sp,
                     color = HomeStyle.title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -668,20 +645,87 @@ private fun HomeHero(
                     fontSize = 14.sp,
                     color = HomeStyle.meta,
                     maxLines = 1,
-                    modifier = Modifier.padding(top = 10.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             val overview = item.overview?.trim().orEmpty()
             if (overview.isNotBlank()) {
                 HomeText(
                     text = overview,
-                    fontSize = 15.sp,
+                    fontSize = HomeHeroCopy.OVERVIEW_SP.sp,
                     color = Color(0xFFE4E4E4),
-                    maxLines = 3,
-                    modifier = Modifier.padding(top = 8.dp),
+                    maxLines = HomeHeroCopy.OVERVIEW_LINES,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
+            HeroDetailButton(
+                heroFocus = heroFocus,
+                menuFocus = menuFocus,
+                downRow = downRow,
+                onOpen = onOpen,
+                onDown = onDown,
+                onUp = onUp,
+                modifier = Modifier.padding(top = 14.dp),
+            )
         }
+    }
+}
+
+@Composable
+private fun HeroDetailButton(
+    heroFocus: FocusRequester,
+    menuFocus: FocusRequester,
+    downRow: FocusRequester,
+    onOpen: () -> Unit,
+    onDown: () -> Unit,
+    onUp: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier
+            .focusRequester(heroFocus)
+            .focusProperties {
+                this.up = menuFocus
+                this.down = downRow
+            }
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || event.nativeKeyEvent.repeatCount > 0) {
+                    val confirm = event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.NumPadEnter
+                    return@onPreviewKeyEvent confirm
+                }
+                when (event.key) {
+                    Key.DirectionDown -> {
+                        onDown()
+                        true
+                    }
+                    Key.DirectionUp -> {
+                        onUp()
+                        true
+                    }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                        onOpen()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .clip(shape)
+            .background(if (focused) Color.White else Color.White.copy(alpha = 0.16f))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        HomeText(
+            text = stringResource(R.string.home_open_detail),
+            fontSize = 15.sp,
+            color = if (focused) Color(0xFF161616) else Color.White,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
