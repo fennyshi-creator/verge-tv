@@ -1292,7 +1292,8 @@ static void video_image_display2(FFPlayer *ffp)
     }
 }
 
-/* Encoded output drops the pending burst. It does not flush AudioTrack. */
+/* Encoded output drops the pending burst and asks the audio thread to
+ * pause, flush, and play after the current write returns. PCM is unchanged. */
 static void fs_aout_on_seek(FFPlayer *ffp)
 {
     if (!ffp || !ffp->aout)
@@ -5756,6 +5757,15 @@ static int read_thread(void *arg)
                    set_clock(&is->extclk, NAN, 0);
                 } else {
                    set_clock(&is->extclk, seek_target_origin / (double)AV_TIME_BASE, 0);
+                }
+                /* Passthrough only. extra_delay (the lip-sync hold) stays on
+                 * the clocks. PCM seek does not snap here. */
+                if (ffp->audio_passthrough_on || ffp->aac_ac3_on) {
+                    double snapped = seek_target_origin / (double) AV_TIME_BASE;
+                    if (is->audio_stream >= 0)
+                        set_clock(&is->audclk, snapped, is->audioq.serial);
+                    if (is->video_stream >= 0)
+                        set_clock(&is->vidclk, snapped, is->videoq.serial);
                 }
 
                 is->latest_video_seek_load_serial = is->videoq.serial;

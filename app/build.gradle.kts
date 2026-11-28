@@ -25,8 +25,8 @@ android {
         applicationId = "com.verge.tv"
         minSdk = 23
         targetSdk = 36
-        versionName = "1.0.24"
-        versionCode = 25
+        versionName = "1.0.25"
+        versionCode = 26
 //        versionCode = 92
 
     }

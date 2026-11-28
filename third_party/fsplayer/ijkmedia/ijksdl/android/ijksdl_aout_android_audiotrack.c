@@ -191,13 +191,43 @@ static void aout_shutdown_track(JNIEnv *env, SDL_Aout *aout)
     }
 }
 
-/* Seeks keep the track. Old PCM and encoded bursts are dropped by serial.
- * AudioTrack.flush stays off this path. */
+/* Encoded seek only. The caller is the audio thread, and the in-flight
+ * write has already returned. Pause first: flushing a playing track wedges
+ * HDMI. Then flush, then play unless the user is paused. Does not stop or
+ * release. Close unstick is not this path. */
+static void aout_encoded_pause_flush_play(JNIEnv *env, SDL_Aout *aout)
+{
+    SDL_Aout_Opaque *opaque = aout->opaque;
+    int resume;
+    if (!opaque->atrack || !fs_seek_encoded_pause_flush_play(opaque->encoded, opaque->encoded_write_in_progress))
+        return;
+    if (opaque->abort_request)
+        return;
+    resume = fs_seek_resumes_after_flush(opaque->pause_on || opaque->device_pause);
+    SDL_Android_AudioTrack_pause(env, opaque->atrack);
+    /* Close may have started. Leave stop/release to the closer. */
+    if (opaque->abort_request)
+        return;
+    SDL_Android_AudioTrack_flush(env, opaque->atrack);
+    if (resume && !opaque->abort_request) {
+        SDL_Android_AudioTrack_play(env, opaque->atrack);
+        opaque->played = 1;
+        opaque->device_held = 0;
+    }
+    SDL_Android_AudioTrack_log(env, resume
+        ? "audio seek-apply action=encoded-pause-flush-play"
+        : "audio seek-apply action=encoded-pause-flush-held");
+}
+
+/* Seeks keep the track. PCM never flushes. Encoded pause-flushes-plays
+ * only after the write has returned. Both drop the pending burst by serial. */
 static void aout_consume_flush(JNIEnv *env, SDL_Aout *aout)
 {
     SDL_Aout_Opaque *opaque = aout->opaque;
     char line[180];
     if (!opaque->need_flush || !opaque->atrack)
+        return;
+    if (opaque->encoded_write_in_progress)
         return;
     opaque->need_flush = 0;
     if (fs_seek_flushes_track(opaque->encoded)) {
@@ -205,6 +235,8 @@ static void aout_consume_flush(JNIEnv *env, SDL_Aout *aout)
         SDL_Android_AudioTrack_log(env, "audio seek-apply action=encoded-flush");
         return;
     }
+    if (opaque->encoded)
+        aout_encoded_pause_flush_play(env, aout);
     opaque->pcm_seek_epoch++;
     opaque->pcm_seek_pending = 1;
     opaque->pcm_seek_pause_logged = 0;
