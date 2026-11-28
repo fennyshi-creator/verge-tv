@@ -82,6 +82,11 @@ fun PlaybackSettingsScreen(
     var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
     var aacAc3Mode by remember { mutableIntStateOf(prefs.aacAc3Mode) }
     var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
+    var passthroughSyncMs by remember {
+        mutableIntStateOf(
+            com.xxxx.emby_tv.ui.player.PassthroughSync.normalize(prefs.passthroughSyncCompensationMs),
+        )
+    }
 
     // 跳过片头
     var autoSkipIntro by remember { mutableStateOf(prefs.autoSkipIntro) }
@@ -306,6 +311,18 @@ fun PlaybackSettingsScreen(
                         }
                     }
                     item { SettingHint(stringResource(R.string.aac_ac3_hint)) }
+
+                    item { SectionTitle(stringResource(R.string.passthrough_sync_compensation)) }
+                    item {
+                        SettingOptionRow(
+                            title = stringResource(R.string.passthrough_sync_value, passthroughSyncMs),
+                            isSelected = passthroughSyncMs > 0,
+                        ) {
+                            passthroughSyncMs = com.xxxx.emby_tv.ui.player.PassthroughSync.stepUp(passthroughSyncMs)
+                            prefs.passthroughSyncCompensationMs = passthroughSyncMs
+                        }
+                    }
+                    item { SettingHint(stringResource(R.string.passthrough_sync_hint)) }
 
                     item { SectionTitle(stringResource(R.string.hdr_sdr)) }
                     item {

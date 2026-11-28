@@ -193,6 +193,7 @@ public final class FSPlayer extends AbstractMediaPlayer {
     public static final int FFP_PROP_INT64_LATEST_SEEK_LOAD_DURATION        = 20300;
     public static final int FFP_PROP_INT64_IMMEDIATE_RECONNECT              = 20211;
     public static final int FFP_PROP_INT64_VIDEO_SCALING_MODE               = 20023;
+    public static final int FFP_PROP_INT64_VIDEO_DISPLAYED_FRAMES           = 20024;
     public static final int FFP_PROP_FLOAT_AVDELAY                          = 10004;
     public static final int FFP_PROP_FLOAT_VMDIFF                           = 10005;
     public static final int FFP_PROP_FLOAT_DROP_FRAME_COUNT                 = 10008;
@@ -985,6 +986,11 @@ public final class FSPlayer extends AbstractMediaPlayer {
 
     public float getVideoOutputFramesPerSecond() {
         return _getPropertyFloat(PROP_FLOAT_VIDEO_OUTPUT_FRAMES_PER_SECOND, 0.0f);
+    }
+
+    /** Frames handed to the display. Stays at 0 on a build that predates the counter. */
+    public long getVideoDisplayedFrameCount() {
+        return _getPropertyLong(FFP_PROP_INT64_VIDEO_DISPLAYED_FRAMES, 0);
     }
 
     public float getVideoDecodeFramesPerSecond() {

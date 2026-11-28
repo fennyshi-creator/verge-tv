@@ -29,5 +29,9 @@
 
 SDL_Aout *SDL_AoutAndroid_CreateForAudioTrack();
 bool      SDL_AoutAndroid_IsObjectOfAudioTrack(SDL_Aout *aout);
+/* 1 once the audio thread has left its loop. A null device counts as done. */
+int       SDL_AoutAndroid_ThreadDone(SDL_Aout *aout);
+/* 1 when close gave up and the thread has not exited yet. */
+int       SDL_AoutAndroid_IsAbandoned(SDL_Aout *aout);
 
 #endif

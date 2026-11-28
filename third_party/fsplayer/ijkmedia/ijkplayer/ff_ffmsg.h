@@ -96,6 +96,9 @@
 #define FFP_PROP_INT64_VIDEO_SAR_DEN                    20022
 /* 画面缩放模式：0 等比完整显示(默认) 1 等比铺满 2 非等比拉伸 */
 #define FFP_PROP_INT64_VIDEO_SCALING_MODE               20023
+/* Frames actually handed to the display. A stuck audio clock must not
+ * reopen playback while this is still advancing. */
+#define FFP_PROP_INT64_VIDEO_DISPLAYED_FRAMES           20024
 
 #define FFP_PROP_INT64_BIT_RATE                         20100
 

@@ -289,8 +289,8 @@ fun OfficialHome(
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    HeroSideShade(Modifier.fillMaxSize())
                     HeroBottomScrim(pinnedBackdrop, Modifier.fillMaxSize())
+                    HeroSideShade(Modifier.fillMaxSize())
                 }
             }
             AmbientWash(

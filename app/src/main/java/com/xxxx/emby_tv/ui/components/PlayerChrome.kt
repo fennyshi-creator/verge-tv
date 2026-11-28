@@ -627,6 +627,8 @@ fun SettingsSheetBody(
     onHdrToSdr: (Boolean) -> Unit = {},
     aacAc3Mode: Int = 0,
     onAacAc3Mode: (Int) -> Unit = {},
+    passthroughSyncMs: Int = 0,
+    onPassthroughSync: () -> Unit = {},
     diagnostics: Boolean,
     onDiagnostics: (Boolean) -> Unit,
     audioStatusLine: String,
@@ -736,6 +738,18 @@ fun SettingsSheetBody(
             }
             Text(
                 stringResource(R.string.aac_ac3_hint),
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            SheetRow(
+                stringResource(R.string.passthrough_sync_compensation),
+                stringResource(R.string.passthrough_sync_value, passthroughSyncMs),
+            ) { onPassthroughSync() }
+            Text(
+                stringResource(R.string.passthrough_sync_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

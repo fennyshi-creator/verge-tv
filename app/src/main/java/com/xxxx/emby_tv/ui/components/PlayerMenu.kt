@@ -456,11 +456,21 @@ fun EpisodesTab(
     var episodes by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(seriesId) {
+    LaunchedEffect(seriesId, mediaInfo.seasonId, mediaInfo.parentIndexNumber) {
+        val seasonId = mediaInfo.seasonId
+        val parentIndex = mediaInfo.parentIndexNumber
         scope.launch(Dispatchers.IO) {
             try {
-                val list = repository.getSeriesList(seriesId)
-                episodes = list
+                val fetched = if (!seasonId.isNullOrBlank()) {
+                    repository.getSeasonEpisodes(seriesId, seasonId)
+                } else {
+                    repository.getSeriesList(seriesId)
+                }
+                episodes = com.xxxx.emby_tv.util.SeasonEpisodeList.forPlayback(
+                    seasonId,
+                    parentIndex,
+                    fetched,
+                )
             } catch (e: Exception) {
                 ErrorHandler.logError("PlayerMenu", "操作失败", e)
             } finally {

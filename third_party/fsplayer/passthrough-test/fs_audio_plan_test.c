@@ -27,6 +27,9 @@ int main(void)
     expect_int("stuck write unsticks on close", fs_close_unstick(1, 1), 1);
     expect_int("idle close does not unstick", fs_close_unstick(1, 0), 0);
     expect_int("seek does not unstick", fs_close_unstick(0, 1), 0);
+    expect_int("abandoned thread keeps the player", fs_destroy_waits_for_audio(1, 0), 1);
+    expect_int("finished thread can be freed", fs_destroy_waits_for_audio(1, 1), 0);
+    expect_int("joined close frees immediately", fs_destroy_waits_for_audio(0, 1), 0);
     expect_int("paused seek stays paused", fs_seek_keeps_user_pause(1), 1);
     expect_int("playing seek may resume", fs_seek_keeps_user_pause(0), 0);
 

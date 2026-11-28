@@ -82,6 +82,63 @@ class AudioOutputPlanTest {
     }
 
     @Test
+    fun trueHdOnTvSpeakersUsesTheStereoDownmix() {
+        val plan = AudioOutputPlan.choose(
+            compatDecode = false,
+            passthroughAuto = true,
+            speedIsOne = true,
+            recoveryStage = 0,
+            routeAllowsBitstream = false,
+            aacMode = AacAc3Policy.OFF,
+            aacProfile = false,
+            codec = "truehd",
+            channels = 8,
+            routeAllowsAc3 = false,
+            builtInSpeakers = true,
+        )
+        assertFalse(plan.passthrough)
+        assertFalse(plan.aacAc3)
+        assertTrue(plan.downmixStereo)
+    }
+
+    @Test
+    fun trueHdOnHdmiKeepsMultichannelPcm() {
+        val plan = AudioOutputPlan.choose(
+            compatDecode = false,
+            passthroughAuto = true,
+            speedIsOne = true,
+            recoveryStage = 0,
+            routeAllowsBitstream = true,
+            aacMode = AacAc3Policy.OFF,
+            aacProfile = false,
+            codec = "truehd",
+            channels = 8,
+            routeAllowsAc3 = true,
+            builtInSpeakers = false,
+        )
+        assertFalse(plan.downmixStereo)
+    }
+
+    @Test
+    fun eac3OnTvSpeakersIsNotForcedToStereo() {
+        val plan = AudioOutputPlan.choose(
+            compatDecode = false,
+            passthroughAuto = true,
+            speedIsOne = true,
+            recoveryStage = 0,
+            routeAllowsBitstream = true,
+            aacMode = AacAc3Policy.OFF,
+            aacProfile = false,
+            codec = "eac3",
+            channels = 6,
+            routeAllowsAc3 = true,
+            builtInSpeakers = true,
+        )
+        assertTrue(plan.passthrough)
+        assertFalse(plan.downmixStereo)
+    }
+
+    @Test
     fun statusNamesTheDownmixSeparatelyFromTheSource() {
         assertEquals(
             "「AAC 2.0 · 兼容解码」",

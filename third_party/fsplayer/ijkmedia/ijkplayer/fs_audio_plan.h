@@ -41,6 +41,13 @@ static inline int fs_close_unstick(int closing, int write_in_progress)
     return closing && write_in_progress;
 }
 
+/* The audio thread was left inside a write. Keep the player object until
+ * that thread has returned, so its callback is not use-after-free. */
+static inline int fs_destroy_waits_for_audio(int abandoned, int thread_done)
+{
+    return abandoned && !thread_done;
+}
+
 /* A user pause already in effect survives a seek. */
 static inline int fs_seek_keeps_user_pause(int pause_req)
 {

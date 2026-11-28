@@ -342,6 +342,9 @@
     <string name="decoder_preference">音频兼容模式</string>
     <string name="decoder_auto">自动</string>
     <string name="decoder_ffmpeg">兼容解码</string>
+    <string name="passthrough_sync_compensation">透传音画同步补偿</string>
+    <string name="passthrough_sync_value">%1$d 毫秒</string>
+    <string name="passthrough_sync_hint">让画面等一等功放正在解码的声音。只在透传真正打开时生效，PCM 解码不受影响。默认 0，点按增加 10 毫秒，到 120 回到 0。</string>
     <string name="hdr_sdr">HDR转SDR</string>
     <string name="hdr_sdr_off">关</string>
     <string name="hdr_sdr_on">开</string>

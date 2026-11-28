@@ -431,7 +431,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     }
                     t0 = aout_mono_ms();
                     written = aout_write_encoded(env, aout, buffer + 4, payload);
-                    if (written == payload && opaque->spec.format == AUDIO_AC3) {
+                    if (written == payload && !opaque->abort_request && opaque->spec.format == AUDIO_AC3) {
                         int head_valid = 0;
                         int ts_valid = 0;
                         int cap_valid = 0;
@@ -448,7 +448,9 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                     opaque->gap_begin_us = begin_us;
                     opaque->gap_end_us = fs_diag_mono_us();
                     opaque->have_gap = 1;
-                    if (written > 0) {
+                    /* Abort is set before a stuck write is released. Do not
+                     * call back into the player after that write returns. */
+                    if (written > 0 && !opaque->abort_request) {
                         opaque->cum_bytes += written;
                         fs_diag_mark_write(begin_us, opaque->gap_end_us, written);
                         if (written == payload &&
@@ -464,7 +466,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                         }
                     }
                 }
-                if (sample || written < 0 || written != payload) {
+                if (!opaque->abort_request && (sample || written < 0 || written != payload)) {
                     char hex[48];
                     hex[0] = 0;
                     if (opaque->write_n == 1 && payload >= 16) {
@@ -784,11 +786,12 @@ static void aout_close_audio(SDL_Aout *aout)
     SDL_UnlockMutex(opaque->wakeup_mutex);
     if (join) {
         SDL_WaitThread(opaque->audio_tid, NULL);
+        opaque->audio_tid = NULL;
     } else {
-        fs_passthrough_log_line("audio close detach stuck thread");
-        SDL_DetachThread(opaque->audio_tid);
+        /* Leave the thread joinable. The player object stays alive until
+         * it returns, then the reaper joins and finishes the free. */
+        fs_passthrough_log_line("audio close left stuck thread; player retained");
     }
-    opaque->audio_tid = NULL;
 }
 
 static int aout_get_audio_session_id(SDL_Aout *aout)
@@ -806,8 +809,9 @@ static void aout_free_l(SDL_Aout *aout)
     aout_close_audio(aout);
 
     SDL_Aout_Opaque *opaque = aout->opaque;
-    /* The audio thread is still inside a write. It owns this object. */
-    if (opaque && opaque->abandoned)
+    /* The audio thread is still inside a write. It owns this object.
+     * Once it has exited, a later free must reclaim it. */
+    if (opaque && opaque->abandoned && !opaque->thread_done)
         return;
     if (opaque) {
         free(opaque->buffer);
@@ -866,6 +870,24 @@ bool SDL_AoutAndroid_IsObjectOfAudioTrack(SDL_Aout *aout)
         return false;
 
     return aout->opaque_class == &g_audiotrack_class;
+}
+
+int SDL_AoutAndroid_ThreadDone(SDL_Aout *aout)
+{
+    SDL_Aout_Opaque *opaque;
+    if (!aout || !aout->opaque)
+        return 1;
+    opaque = aout->opaque;
+    return opaque->thread_done ? 1 : 0;
+}
+
+int SDL_AoutAndroid_IsAbandoned(SDL_Aout *aout)
+{
+    SDL_Aout_Opaque *opaque;
+    if (!aout || !aout->opaque)
+        return 0;
+    opaque = aout->opaque;
+    return opaque->abandoned ? 1 : 0;
 }
 
 void SDL_Init_AoutAndroid(JNIEnv *env)
