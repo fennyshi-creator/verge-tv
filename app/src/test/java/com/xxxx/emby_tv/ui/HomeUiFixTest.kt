@@ -43,11 +43,13 @@ class HomeUiFixTest {
     @Test
     fun heroSideShadeIsVisibleOnABrightStillAndClearsOnTheRight() {
         assertFalse(HomeMask.horizontalHeroCutoff())
-        assertEquals(0.68f, HomeMask.HERO_SHADE_LEFT)
-        assertEquals(0.68f, HomeMask.heroSideAlpha(0f))
-        assertEquals(0.22f, HomeMask.heroSideAlpha(0.42f))
-        assertTrue(HomeMask.heroSideAlpha(0.42f) < HomeMask.heroSideAlpha(0f))
-        assertEquals(0f, HomeMask.heroSideAlpha(0.70f))
+        assertEquals(0.80f, HomeMask.HERO_SHADE_LEFT)
+        assertEquals(0.45f, HomeMask.HERO_SHADE_TITLE_EDGE)
+        assertEquals(0.82f, HomeMask.HERO_SHADE_CLEAR_AT)
+        assertEquals(0.80f, HomeMask.heroSideAlpha(0f))
+        assertEquals(0.45f, HomeMask.heroSideAlpha(HomeHeroCopy.COLUMN_FRACTION))
+        assertTrue(HomeMask.heroSideAlpha(HomeHeroCopy.COLUMN_FRACTION) < HomeMask.heroSideAlpha(0f))
+        assertEquals(0f, HomeMask.heroSideAlpha(HomeMask.HERO_SHADE_CLEAR_AT))
         assertEquals(0f, HomeMask.heroSideAlpha(1f))
         var previous = 1f
         for (step in 0..20) {
@@ -62,7 +64,7 @@ class HomeUiFixTest {
         val pinned = home.substringAfter("pinnedBackdrop.isNotBlank()").substringBefore("AmbientWash")
         assertTrue(pinned.contains("HeroSideShade"))
         assertTrue(pinned.contains("HeroBottomScrim"))
-        assertTrue(pinned.indexOf("HeroSideShade") < pinned.indexOf("HeroBottomScrim"))
+        assertTrue(pinned.indexOf("HeroBottomScrim") < pinned.indexOf("HeroSideShade"))
     }
 
     @Test

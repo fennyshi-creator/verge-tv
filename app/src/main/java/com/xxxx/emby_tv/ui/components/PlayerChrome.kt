@@ -189,25 +189,29 @@ fun PlayerTransportBar(
                 .padding(start = 36.dp, end = 28.dp, top = 28.dp, bottom = if (isEpisode) 0.dp else 18.dp),
         ) {
             Column(Modifier.fillMaxWidth()) {
-                LogoOrTitle(serverUrl, mediaInfo)
-                if (isEpisode) {
-                    val line = episodeBarLabel(
-                        mediaInfo.parentIndexNumber,
-                        mediaInfo.indexNumber,
-                        mediaInfo.name,
-                    )
-                    if (!line.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
                 val slots = TransportSlots.order(showVersionButton)
                 fun neighbor(index: Int, delta: Int): FocusRequester? {
                     val next = TransportSlots.neighbor(showVersionButton, index, delta) ?: return null
                     return buttonFocus.getOrNull(next)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                        LogoOrTitle(serverUrl, mediaInfo)
+                        if (isEpisode) {
+                            val line = episodeBarLabel(
+                                mediaInfo.parentIndexNumber,
+                                mediaInfo.indexNumber,
+                                mediaInfo.name,
+                            )
+                            if (!line.isNullOrBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(line, color = Color.White.copy(0.92f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         slots.forEach { index ->
                             val icon = when (index) {
@@ -627,6 +631,8 @@ fun SettingsSheetBody(
     onHdrToSdr: (Boolean) -> Unit = {},
     aacAc3Mode: Int = 0,
     onAacAc3Mode: (Int) -> Unit = {},
+    passthroughSyncMs: Int = 0,
+    onPassthroughSync: () -> Unit = {},
     diagnostics: Boolean,
     onDiagnostics: (Boolean) -> Unit,
     audioStatusLine: String,
@@ -736,6 +742,18 @@ fun SettingsSheetBody(
             }
             Text(
                 stringResource(R.string.aac_ac3_hint),
+                color = Color.White.copy(0.72f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+            )
+        }
+        item {
+            SheetRow(
+                stringResource(R.string.passthrough_sync_compensation),
+                stringResource(R.string.passthrough_sync_value, passthroughSyncMs),
+            ) { onPassthroughSync() }
+            Text(
+                stringResource(R.string.passthrough_sync_hint),
                 color = Color.White.copy(0.72f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),

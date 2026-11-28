@@ -18,13 +18,26 @@ static inline int fs_downmix_open_channels(int source_channels, int downmix_ster
     return source_channels;
 }
 
-/* Seeks never flush AudioTrack. PCM and encoded bursts are dropped by
- * serial. AudioTrack.flush on an E-AC3/Atmos passthrough track wedges
- * the HDMI HAL, including after the user has switched back to PCM. */
+/* Neither path flushes while the track is still playing. A playing
+ * AudioTrack.flush wedges the HDMI HAL. PCM never flushes at all. */
 static inline int fs_seek_flushes_track(int encoded)
 {
     (void) encoded;
     return 0;
+}
+
+/* Encoded / passthrough seek, after the in-flight write has returned:
+ * pause, then flush, then play. Not while a write is in progress, and
+ * never for PCM. Close unstick is a different path. */
+static inline int fs_seek_encoded_pause_flush_play(int encoded, int write_in_progress)
+{
+    return encoded && !write_in_progress;
+}
+
+/* After that flush, play again only when the user was not paused. */
+static inline int fs_seek_resumes_after_flush(int pause_req)
+{
+    return pause_req ? 0 : 1;
 }
 
 /* How long close waits for the audio thread after abort, before a
@@ -39,6 +52,13 @@ static inline int fs_close_wait_ms(void)
 static inline int fs_close_unstick(int closing, int write_in_progress)
 {
     return closing && write_in_progress;
+}
+
+/* The audio thread was left inside a write. Keep the player object until
+ * that thread has returned, so its callback is not use-after-free. */
+static inline int fs_destroy_waits_for_audio(int abandoned, int thread_done)
+{
+    return abandoned && !thread_done;
 }
 
 /* A user pause already in effect survives a seek. */

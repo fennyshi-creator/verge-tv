@@ -473,6 +473,7 @@ typedef struct FFStatistic
     int drop_frame_count;
     int decode_frame_count;
     float drop_frame_rate;
+    int64_t displayed_frame_count;
 } FFStatistic;
 
 #define FFP_TCP_READ_SAMPLE_RANGE 2000

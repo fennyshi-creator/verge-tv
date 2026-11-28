@@ -327,6 +327,14 @@ fun PlayerScreen(
     val transportButtons = remember { List(com.xxxx.emby_tv.ui.components.TransportSlots.count(showVersion = true)) { FocusRequester() } }
     var showDiagnostics by remember { mutableStateOf(preferencesManager.showDiagnostics) }
     var decodeAudio by remember { mutableStateOf(preferencesManager.decodeToStereo) }
+    var passthroughSyncMs by remember {
+        mutableIntStateOf(
+            com.xxxx.emby_tv.ui.player.PassthroughSync.normalize(
+                preferencesManager.passthroughSyncCompensationMs,
+            ),
+        )
+    }
+    var appliedSyncSeconds by remember { mutableStateOf(Float.NaN) }
     var decoderPreference by remember { mutableIntStateOf(preferencesManager.decoderPreference) }
     var hdrToSdr by remember { mutableStateOf(preferencesManager.hdrToSdr) }
     var directHdrWindow by remember { mutableStateOf(false) }
@@ -847,10 +855,25 @@ fun PlayerScreen(
                 routeAllowsBitstream,
                 hdmi,
             ),
+            builtInSpeakers = com.xxxx.emby_tv.ui.player.PassthroughRoute.isLocalSink(routeSnapshot.type),
         )
     }
 
     fun bitstreamAllowed(): Boolean = currentOutputPlan().passthrough
+
+    fun applyPassthroughSync() {
+        val open = com.xxxx.emby_tv.ui.player.PassthroughSync.isOpen(
+            player.passthroughEncoding(),
+            player.passthroughFallback(),
+        )
+        val seconds = com.xxxx.emby_tv.ui.player.PassthroughSync.extraDelaySeconds(
+            passthroughSyncMs,
+            open,
+        )
+        if (seconds == appliedSyncSeconds) return
+        appliedSyncSeconds = seconds
+        player.setAudioExtraDelaySeconds(seconds)
+    }
 
     fun armHdr() {
         val video = media.mediaSources?.firstOrNull { it.id == currentMediaSourceId }
@@ -1470,8 +1493,8 @@ fun PlayerScreen(
                     player.clientAc3(),
                     downmixStereo = player.downmixStereo,
                 )
-
             }
+            applyPassthroughSync()
 
             // 每 800 毫秒更新一次进度
             delay(800)
@@ -1527,6 +1550,7 @@ fun PlayerScreen(
     // stall waits until the position actually advances before trying again.
     LaunchedEffect(player) {
         var lastPos = player.currentPosition
+        var lastFrames = player.displayedFrameCount()
         var stillSince = 0L
         var retries = 0
         while (isActive) {
@@ -1534,15 +1558,20 @@ fun PlayerScreen(
             if (player.isReleased) break
             if (!player.playWhenReady || userPaused || seekFeedback) {
                 lastPos = player.currentPosition
+                lastFrames = player.displayedFrameCount()
                 stillSince = 0L
                 continue
             }
             val pos = player.currentPosition
+            val frames = player.displayedFrameCount()
             val now = System.currentTimeMillis()
-            if (pos != lastPos) {
-                lastPos = pos
+            val clockAdvanced = pos != lastPos
+            val framesAdvanced = frames != lastFrames
+            lastPos = pos
+            lastFrames = frames
+            if (clockAdvanced || framesAdvanced) {
                 stillSince = 0L
-                retries = 0
+                if (clockAdvanced) retries = 0
                 continue
             }
             val state = player.playbackState
@@ -1551,7 +1580,13 @@ fun PlayerScreen(
                 continue
             }
             if (stillSince == 0L) stillSince = now
-            if (now - stillSince >= 2_500L && retries < FsPlayback.STALL_REOPEN_LIMIT) {
+            if (com.xxxx.emby_tv.ui.player.StallReopen.shouldReopen(
+                    clockAdvanced = false,
+                    framesAdvanced = false,
+                    stalledLongEnough = now - stillSince >= 2_500L,
+                    retriesRemaining = retries < FsPlayback.STALL_REOPEN_LIMIT,
+                )
+            ) {
                 retries++
                 Log.w("PlayerScreen", "playback stalled at $pos, reopening once")
                 player.reopen(pos)
@@ -1759,10 +1794,23 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(mediaInfo.seriesId) {
-        val seriesId = mediaInfo.seriesId ?: return@LaunchedEffect
+    LaunchedEffect(mediaInfo.seriesId, mediaInfo.seasonId, mediaInfo.parentIndexNumber) {
+        val seriesId = mediaInfo.seriesId
+        if (seriesId.isNullOrBlank()) {
+            seriesEpisodes = emptyList()
+            return@LaunchedEffect
+        }
+        val seasonId = mediaInfo.seasonId
+        val parentIndex = mediaInfo.parentIndexNumber
         seriesEpisodes = withContext(Dispatchers.IO) {
-            runCatching { repository.getSeriesList(seriesId) }.getOrDefault(emptyList())
+            runCatching {
+                val fetched = if (!seasonId.isNullOrBlank()) {
+                    repository.getSeasonEpisodes(seriesId, seasonId)
+                } else {
+                    repository.getSeriesList(seriesId)
+                }
+                com.xxxx.emby_tv.util.SeasonEpisodeList.forPlayback(seasonId, parentIndex, fetched)
+            }.getOrDefault(emptyList())
         }
     }
 
@@ -2482,6 +2530,13 @@ fun PlayerScreen(
                                 ),
                                 speed = playbackSpeed,
                             )
+                        },
+                        passthroughSyncMs = passthroughSyncMs,
+                        onPassthroughSync = {
+                            val next = com.xxxx.emby_tv.ui.player.PassthroughSync.stepUp(passthroughSyncMs)
+                            passthroughSyncMs = next
+                            preferencesManager.passthroughSyncCompensationMs = next
+                            applyPassthroughSync()
                         },
                         diagnostics = showDiagnostics,
                         onDiagnostics = {

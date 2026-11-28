@@ -342,6 +342,9 @@
     <string name="decoder_preference">Audio decoder</string>
     <string name="decoder_auto">Auto</string>
     <string name="decoder_ffmpeg">Prefer FFmpeg</string>
+    <string name="passthrough_sync_compensation">Passthrough lip-sync</string>
+    <string name="passthrough_sync_value">%1$d ms</string>
+    <string name="passthrough_sync_hint">Holds the picture so it can wait for a receiver that is still decoding the bitstream. Used only while passthrough is open. PCM is unchanged. 0 is off. Each press adds 10 ms, and 120 returns to 0.</string>
     <string name="hdr_sdr">HDR-SDR</string>
     <string name="hdr_sdr_off">Off</string>
     <string name="hdr_sdr_on">On</string>

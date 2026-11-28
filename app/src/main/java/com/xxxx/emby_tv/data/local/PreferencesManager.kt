@@ -150,6 +150,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getInt(KEY_PLAY_MODE, 0)
         set(value) = prefs.edit().putInt(KEY_PLAY_MODE, value).apply()
 
+    /**
+     * Picture hold, in milliseconds, used only while passthrough is open.
+     * 0 is off. Callers store 10 ms steps from 0 through 120.
+     */
+    var passthroughSyncCompensationMs: Int
+        get() = prefs.getInt(KEY_PASSTHROUGH_SYNC_MS, 0)
+        set(value) = prefs.edit().putInt(KEY_PASSTHROUGH_SYNC_MS, value).apply()
+
     // === 缓冲设置 ===
 
     var minBufferMs: Int
@@ -269,6 +277,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
         private const val KEY_PLAYBACK_CORRECTION = "playback_correction"
         private const val KEY_PLAY_MODE = "play_mode"
+        private const val KEY_PASSTHROUGH_SYNC_MS = "passthrough_sync_compensation_ms"
 
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_TYPE = "proxy_type"

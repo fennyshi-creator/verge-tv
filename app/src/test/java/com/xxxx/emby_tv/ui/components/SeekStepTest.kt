@@ -1,7 +1,9 @@
 package com.xxxx.emby_tv.ui.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class SeekStepTest {
     private val feature = 100 * 60 * 1000L
@@ -35,5 +37,25 @@ class SeekStepTest {
     fun episodeLabelAndCreditsPrompt() {
         assertEquals("S2:E7 · 生存支援", episodeBarLabel(2, 7, "生存支援"))
         assertEquals(90_000L, nextEpisodePromptMs(120_000L, null))
+    }
+
+    @Test
+    fun transportTitleBottomsAlignWithTheIcons() {
+        val source = projectFile("app/src/main/java/com/xxxx/emby_tv/ui/components/PlayerChrome.kt").readText()
+        val bar = source.substringAfter("fun PlayerTransportBar(").substringBefore("private fun LogoOrTitle")
+        val row = bar.substringAfter("verticalAlignment = Alignment.Bottom")
+        assertTrue(bar.contains("verticalAlignment = Alignment.Bottom"))
+        assertTrue(row.contains("LogoOrTitle"))
+        assertTrue(row.contains("RoundAction"))
+        assertTrue(row.indexOf("LogoOrTitle") < row.indexOf("RoundAction"))
+        assertTrue(row.indexOf("Alignment.Bottom") < 0 || row.indexOf("LogoOrTitle") < row.indexOf("ProgressScrubber"))
+    }
+
+    private fun projectFile(relative: String): File {
+        val direct = File(relative)
+        if (direct.isFile) return direct
+        val fromModule = File("../$relative")
+        if (fromModule.isFile) return fromModule
+        return direct
     }
 }

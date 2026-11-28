@@ -69,6 +69,8 @@
 #include "fs_aac_ac3_clock.h"
 #include "fs_iec_clock.h"
 #include "ijksdl/android/verge_vendor.h"
+#include "ijksdl/android/ijksdl_aout_android_audiotrack.h"
+#include <pthread.h>
 #include <libavcodec/avcodec.h>
 #include <libavcodec/defs.h>
 
@@ -1268,7 +1270,8 @@ static void video_image_display2(FFPlayer *ffp)
         }
         SDL_VoutDisplayYUVOverlay(ffp->vout, vp, sub_overlay);
         SDL_TextureOverlay_Release(&sub_overlay);
-        
+        __atomic_add_fetch(&ffp->stat.displayed_frame_count, 1, __ATOMIC_RELAXED);
+
         ffp->stat.vfps = SDL_SpeedSamplerAdd(&ffp->vfps_sampler, FFP_SHOW_VFPS_FFPLAY, "vfps[ffplay]");
         if (!ffp->first_video_frame_rendered) {
             ffp->first_video_frame_rendered = 1;
@@ -1289,7 +1292,8 @@ static void video_image_display2(FFPlayer *ffp)
     }
 }
 
-/* Encoded output drops the pending burst. It does not flush AudioTrack. */
+/* Encoded output drops the pending burst and asks the audio thread to
+ * pause, flush, and play after the current write returns. PCM is unchanged. */
 static void fs_aout_on_seek(FFPlayer *ffp)
 {
     if (!ffp || !ffp->aout)
@@ -1361,10 +1365,39 @@ static void stream_component_close(FFPlayer *ffp, int stream_index)
     }
 }
 
-static void stream_close(FFPlayer *ffp)
+static FFPlayer *g_audio_retained = NULL;
+static int g_audio_handed_off = 0;
+static int stream_close_rest(FFPlayer *ffp);
+static void ffp_destroy_tail(FFPlayer *ffp);
+
+static void *ffp_audio_reaper(void *arg)
 {
+    FFPlayer *ffp = arg;
+    while (ffp->aout && !SDL_AoutAndroid_ThreadDone(ffp->aout))
+        SDL_Delay(20);
+    /* Join the audio thread before waiting on demux, matching a normal close. */
+    SDL_AoutCloseAudio(ffp->aout);
+    if (ffp->is)
+        stream_close_rest(ffp);
+    while (!__atomic_load_n(&g_audio_handed_off, __ATOMIC_ACQUIRE))
+        SDL_Delay(20);
+    if (g_audio_retained == ffp)
+        g_audio_retained = NULL;
+    ffp_destroy_tail(ffp);
+    return NULL;
+}
+
+/* 1 when the audio thread still owns the player and a reaper will free it. */
+static int stream_close(FFPlayer *ffp)
+{
+    VideoState *is;
+    int retain;
+    if (!ffp || !ffp->is)
+        return 0;
+    if (g_audio_retained == ffp)
+        return 1;
     av_log(NULL, AV_LOG_INFO, "stream_close will close\n");
-    VideoState *is = ffp->is;
+    is = ffp->is;
     /* XXX: use a special url_shutdown call to abort parse cleanly */
     is->abort_request = 1;
     packet_queue_abort(&is->videoq);
@@ -1379,6 +1412,32 @@ static void stream_close(FFPlayer *ffp)
     fs_passthrough_log_line("audio device release begin");
     SDL_AoutCloseAudio(ffp->aout);
     fs_passthrough_log_line("audio device release done");
+    retain = fs_destroy_waits_for_audio(
+        SDL_AoutAndroid_IsAbandoned(ffp->aout),
+        SDL_AoutAndroid_ThreadDone(ffp->aout));
+    if (retain) {
+        pthread_t reaper;
+        g_audio_retained = ffp;
+        __atomic_store_n(&g_audio_handed_off, 0, __ATOMIC_RELEASE);
+        fs_passthrough_log_line("audio close abandoned; player kept until the thread exits");
+        if (pthread_create(&reaper, NULL, ffp_audio_reaper, ffp) == 0) {
+            pthread_detach(reaper);
+            return 1;
+        }
+        /* Could not arm the reaper. Leave the player retained rather than
+         * free it under the stuck callback. */
+        fs_passthrough_log_line("audio reaper failed; player leaked instead of freed");
+        return 1;
+    }
+    stream_close_rest(ffp);
+    return 0;
+}
+
+static int stream_close_rest(FFPlayer *ffp)
+{
+    VideoState *is = ffp->is;
+    if (!is)
+        return 0;
     ff_sub_abort(is->ffSub);
     SDL_WaitThread(is->read_tid, NULL);
     /* close each stream */
@@ -1419,6 +1478,7 @@ static void stream_close(FFPlayer *ffp)
     av_free(is);
     ffp->is = NULL;
     av_log(NULL, AV_LOG_INFO, "stream_close did close\n");
+    return 0;
 }
 
 /* display the current picture, if any */
@@ -5698,6 +5758,15 @@ static int read_thread(void *arg)
                 } else {
                    set_clock(&is->extclk, seek_target_origin / (double)AV_TIME_BASE, 0);
                 }
+                /* Passthrough only. extra_delay (the lip-sync hold) stays on
+                 * the clocks. PCM seek does not snap here. */
+                if (ffp->audio_passthrough_on || ffp->aac_ac3_on) {
+                    double snapped = seek_target_origin / (double) AV_TIME_BASE;
+                    if (is->audio_stream >= 0)
+                        set_clock(&is->audclk, snapped, is->audioq.serial);
+                    if (is->video_stream >= 0)
+                        set_clock(&is->vidclk, snapped, is->videoq.serial);
+                }
 
                 is->latest_video_seek_load_serial = is->videoq.serial;
                 is->latest_audio_seek_load_serial = is->audioq.serial;
@@ -6549,26 +6618,11 @@ FFPlayer *ffp_create(void)
 static pthread_mutex_t g_ffp_destroy_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void *g_ffp_destroying = NULL;
 
-void ffp_destroy(FFPlayer *ffp)
+static void ffp_destroy_tail(FFPlayer *ffp)
 {
+    void *dying;
     if (!ffp)
         return;
-
-    pthread_mutex_lock(&g_ffp_destroy_mutex);
-    if (g_ffp_destroying == ffp) {
-        /* 已有另一个线程在销毁同一个 ffp，直接返回，不要碰任何字段 */
-        pthread_mutex_unlock(&g_ffp_destroy_mutex);
-        return;
-    }
-    g_ffp_destroying = ffp;
-    pthread_mutex_unlock(&g_ffp_destroy_mutex);
-
-    if (ffp->is) {
-        av_log(NULL, AV_LOG_WARNING, "ffp_destroy_ffplayer: force stream_close()");
-        stream_close(ffp);
-        ffp->is = NULL;
-    }
-
     SDL_VoutFreeP(&ffp->vout);
     SDL_AoutFreeP(&ffp->aout);
     SDL_GPUFreeP(&ffp->gpu);
@@ -6580,6 +6634,7 @@ void ffp_destroy(FFPlayer *ffp)
 
     msg_queue_destroy(&ffp->msg_queue);
 
+    dying = ffp;
     av_free(ffp);
 
     /*
@@ -6587,8 +6642,46 @@ void ffp_destroy(FFPlayer *ffp)
      * 才没去读已释放的 ffp。若在 free 前清，另一个线程会误以为没人销毁而继续跑。
      */
     pthread_mutex_lock(&g_ffp_destroy_mutex);
-    g_ffp_destroying = NULL;
+    if (g_ffp_destroying == dying)
+        g_ffp_destroying = NULL;
     pthread_mutex_unlock(&g_ffp_destroy_mutex);
+}
+
+static void ffp_hand_off_retained(void)
+{
+    __atomic_store_n(&g_audio_handed_off, 1, __ATOMIC_RELEASE);
+}
+
+void ffp_destroy(FFPlayer *ffp)
+{
+    if (!ffp)
+        return;
+
+    pthread_mutex_lock(&g_ffp_destroy_mutex);
+    if (g_ffp_destroying == ffp) {
+        /* 已有另一个线程在销毁同一个 ffp，直接返回，不要碰任何字段 */
+        pthread_mutex_unlock(&g_ffp_destroy_mutex);
+        return;
+    }
+    if (g_audio_retained == ffp) {
+        g_ffp_destroying = ffp;
+        pthread_mutex_unlock(&g_ffp_destroy_mutex);
+        ffp_hand_off_retained();
+        return;
+    }
+    g_ffp_destroying = ffp;
+    pthread_mutex_unlock(&g_ffp_destroy_mutex);
+
+    if (ffp->is) {
+        av_log(NULL, AV_LOG_WARNING, "ffp_destroy_ffplayer: force stream_close()");
+        if (stream_close(ffp)) {
+            ffp_hand_off_retained();
+            return;
+        }
+        ffp->is = NULL;
+    }
+
+    ffp_destroy_tail(ffp);
 }
 
 void ffp_destroy_p(FFPlayer **pffp)
@@ -6856,8 +6949,8 @@ int ffp_wait_stop_l(FFPlayer *ffp)
 
     if (ffp->is) {
         ffp_stop_l(ffp);
-        stream_close(ffp);
-        ffp->is = NULL;
+        if (!stream_close(ffp))
+            ffp->is = NULL;
     }
     return 0;
 }
@@ -7490,6 +7583,10 @@ int64_t ffp_get_property_int64(FFPlayer *ffp, int id, int64_t default_value)
             if (!ffp)
                 return default_value;
             return ffp->video_scaling_mode;
+        case FFP_PROP_INT64_VIDEO_DISPLAYED_FRAMES:
+            if (!ffp)
+                return default_value;
+            return __atomic_load_n(&ffp->stat.displayed_frame_count, __ATOMIC_RELAXED);
 
         case FFP_PROP_INT64_VIDEO_CACHED_DURATION:
             if (!ffp)

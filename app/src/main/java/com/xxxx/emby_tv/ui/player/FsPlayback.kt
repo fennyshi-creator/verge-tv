@@ -414,6 +414,29 @@ class FsPlayback(private val appContext: Context) {
         }
     }
 
+    /** 0 until a build exposes the counter. A moving count means video is still on screen. */
+    fun displayedFrameCount(): Long {
+        return try {
+            engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_VIDEO_DISPLAYED_FRAMES, 0L) ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /**
+     * Negative holds the picture back. Callers pass 0 on the PCM path.
+     * Does not change how the bitstream is opened or packed.
+     */
+    fun setAudioExtraDelaySeconds(seconds: Float) {
+        onEngine {
+            try {
+                engine?.setAudioExtraDelay(seconds)
+            } catch (error: Exception) {
+                Log.w(TAG, "audio extra delay failed", error)
+            }
+        }
+    }
+
     fun tcpSpeed(): Long {
         return try {
             engine?.getPropertyLong(FSPlayer.FFP_PROP_INT64_TCP_SPEED, 0L) ?: 0L

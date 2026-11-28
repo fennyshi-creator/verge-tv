@@ -21,12 +21,20 @@ int main(void)
     expect_int("pcm keeps 2", fs_downmix_open_channels(2, 0), 2);
 
     expect_int("pcm seek does not flush", fs_seek_flushes_track(0), 0);
-    expect_int("encoded seek does not flush", fs_seek_flushes_track(1), 0);
+    expect_int("encoded seek does not flush while playing", fs_seek_flushes_track(1), 0);
+    expect_int("encoded seek pause-flush-play after write", fs_seek_encoded_pause_flush_play(1, 0), 1);
+    expect_int("encoded seek waits out the write", fs_seek_encoded_pause_flush_play(1, 1), 0);
+    expect_int("pcm seek does not pause-flush-play", fs_seek_encoded_pause_flush_play(0, 0), 0);
+    expect_int("playing seek may resume", fs_seek_resumes_after_flush(0), 1);
+    expect_int("paused seek stays paused", fs_seek_resumes_after_flush(1), 0);
     expect_int("close wait is at least a second", fs_close_wait_ms() >= 1000, 1);
     expect_int("close wait stays under two seconds", fs_close_wait_ms() <= 2000, 1);
     expect_int("stuck write unsticks on close", fs_close_unstick(1, 1), 1);
     expect_int("idle close does not unstick", fs_close_unstick(1, 0), 0);
     expect_int("seek does not unstick", fs_close_unstick(0, 1), 0);
+    expect_int("abandoned thread keeps the player", fs_destroy_waits_for_audio(1, 0), 1);
+    expect_int("finished thread can be freed", fs_destroy_waits_for_audio(1, 1), 0);
+    expect_int("joined close frees immediately", fs_destroy_waits_for_audio(0, 1), 0);
     expect_int("paused seek stays paused", fs_seek_keeps_user_pause(1), 1);
     expect_int("playing seek may resume", fs_seek_keeps_user_pause(0), 0);
 

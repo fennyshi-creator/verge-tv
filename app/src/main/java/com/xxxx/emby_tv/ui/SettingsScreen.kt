@@ -58,6 +58,11 @@ fun SettingsScreen(
     var decoderPreference by remember { mutableIntStateOf(prefs.decoderPreference) }
     var hdrToSdr by remember { mutableStateOf(prefs.hdrToSdr) }
     var decodeToStereo by remember { mutableStateOf(prefs.decodeToStereo) }
+    var passthroughSyncMs by remember {
+        mutableIntStateOf(
+            com.xxxx.emby_tv.ui.player.PassthroughSync.normalize(prefs.passthroughSyncCompensationMs),
+        )
+    }
     var aacAc3Mode by remember { mutableIntStateOf(prefs.aacAc3Mode) }
     var subtitlePad by remember { mutableStateOf(prefs.subtitleBottomPadding) }
     var proxyOn by remember { mutableStateOf(prefs.proxyEnabled) }
@@ -133,6 +138,14 @@ fun SettingsScreen(
                         prefs.aacAc3Mode = aacAc3Mode
                     }
                     SettingHint(stringResource(R.string.aac_ac3_hint))
+                    SettingLine(
+                        stringResource(R.string.passthrough_sync_compensation),
+                        stringResource(R.string.passthrough_sync_value, passthroughSyncMs),
+                    ) {
+                        passthroughSyncMs = com.xxxx.emby_tv.ui.player.PassthroughSync.stepUp(passthroughSyncMs)
+                        prefs.passthroughSyncCompensationMs = passthroughSyncMs
+                    }
+                    SettingHint(stringResource(R.string.passthrough_sync_hint))
                 }
                 "字幕" -> SettingLine("字幕底部边距", subtitlePad.toInt().toString()) {
                     subtitlePad = if (subtitlePad >= 80f) 16f else subtitlePad + 8f

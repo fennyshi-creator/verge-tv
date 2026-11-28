@@ -9,7 +9,9 @@ package com.xxxx.emby_tv.ui.player
  * Compatible off and passthrough automatic: supported compressed tracks
  * go to the receiver. AAC-to-Dolby follows its own switch. A route that
  * cannot carry the bitstream decodes instead, and that PCM is not forced
- * to stereo.
+ * to stereo. TrueHD, DTS and other non-AC-3 codecs on the TV's own
+ * speakers are the exception: they use the stereo downmix. HDMI keeps
+ * their channel count.
  *
  * Compatible off and passthrough off: the box decodes PCM and may keep
  * the source channel count. AAC-to-Dolby does not run.
@@ -32,8 +34,12 @@ object AudioOutputPlan {
         codec: String?,
         channels: Int,
         routeAllowsAc3: Boolean,
+        builtInSpeakers: Boolean = false,
     ): Result {
         if (compatDecode) {
+            return Result(passthrough = false, aacAc3 = false, downmixStereo = true)
+        }
+        if (forceStereoOnSpeakers(codec, builtInSpeakers)) {
             return Result(passthrough = false, aacAc3 = false, downmixStereo = true)
         }
         val passthrough = AudioPolicy.usePassthrough(
@@ -54,5 +60,18 @@ object AudioOutputPlan {
             preferFfmpeg = false,
         )
         return Result(passthrough = passthrough, aacAc3 = aacAc3, downmixStereo = false)
+    }
+
+    /**
+     * TrueHD, DTS and anything else that is not AC-3 / E-AC-3. On the TV's own
+     * speakers this opens the existing stereo PCM downmix. HDMI to an AVR
+     * keeps the source channel count. A successful E-AC-3 passthrough is not
+     * this case.
+     */
+    fun forceStereoOnSpeakers(codec: String?, builtInSpeakers: Boolean): Boolean {
+        if (!builtInSpeakers) return false
+        val name = codec?.trim()?.lowercase().orEmpty()
+        if (name.isEmpty()) return false
+        return name != "ac3" && name != "ac-3" && name != "eac3" && name != "e-ac3" && name != "eac-3"
     }
 }
